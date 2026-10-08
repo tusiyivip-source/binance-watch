@@ -1,0 +1,16 @@
+{
+  "name": "binance-macd-watch",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "币安多级别 MACD 反弹盯盘 — 涨幅榜前200标的 × 5 对相邻级别（10分↔15分 … 2时↔3时），MACD 死叉 + 站上 MA7/EMA7 自动报警，含纯前端在线版",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "verify": "node tools/verify.mjs",
+    "backtest": "node tools/backtest.mjs"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

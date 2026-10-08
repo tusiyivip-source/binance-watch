@@ -1,0 +1,36 @@
+# 运行时数据（信号绩效库、推送配置）—— 不进版本库
+data/
+*.log
+
+# 回测/扫描的中间产物（体积大、可重跑）
+backtest-result.json
+sweep-result.json
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Node（本项目零依赖，正常情况下不存在）
+node_modules/
+npm-debug.log*
+pnpm-lock.yaml
+package-lock.json
+
+# չʾҳ����Ԥ����ͼ
+docs-preview.png
+docs-hero.png
+
+docs/img/pages-live.png
+
+docs/img/web-mode.png
+
+# 校验脚本产生的截图（体积大，不入库）
+docs/img/alerts-dual.png
+docs/img/alerts-chart.png
+
+# K线磁盘缓存（体积大，重启时自动重建）
+data/klines-cache.json
+data/klines-cache.json.tmp
