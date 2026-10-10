@@ -216,7 +216,7 @@ export const MARKET_PROFILES = {
     // 合约硬上限 2400/分钟，且**按 IP 计**。
     // 本实例与 K:\币\binance-monitor（8848）同时跑，共享同一个 IP 出口，
     // 所以这里把额度压到 700+150=850，两边合计 1300+850=2150 < 2400，不会互相撞限流。
-    weightPerMinute: 700,
+    weightPerMinute: 420,        // ⚠ 和 8848(1100) 共用同一个出口 IP：420+1100=1520，实测 1900+ 会开始 418
     wsKlineStreams: false,       // 实测：kline WS 被拦截，改用 bookTicker
     bookTickerStream: '!bookTicker',
     universeFilter: s => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT' && s.status === 'TRADING',
@@ -261,7 +261,7 @@ export const APP = {
    *   两者合计 2150 < 2400，共用同一个 IP 出口也不会越过官方上限。
    *   代价：全量播种慢一些（缓存已随目录一起复制，重启基本不用重播）。
    */
-  weightBurst: 150,
+  weightBurst: 80,             // 突发也压低，避免瞬时把共享额度打穿
   concurrency: 8,            // REST 并发（配合上面的预算，降低瞬时压力）
   maxCandlesKept: 320,       // 每个级别序列保留的K线数（MA99 需 99 根 + 回看 20 根，留足余量）
   minQuoteVolume: 0,         // 0 = 严格按涨幅榜取前200，不做流动性过滤
