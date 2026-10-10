@@ -279,40 +279,42 @@
     </div>
     <div class="groupbox">
       <div class="gtitle">
-        <b>1时/2时 MACD 反弹盯盘</b>
-        <span class="gsub">1时死叉、2时未死叉 → 1时站上均线；2时也死叉 → 改判2时，1时作废</span>
+        <b>MACD 靠零轴 → 次级别确认</b>
+        <span class="gsub">8 个级别里谁最靠零轴（未跌破）就报谁；次级别金叉或突破EMA7 出确认</span>
         <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-watchEnabled"> 启用</label>
       </div>
       <div class="prow">
-        <label style="flex:1 1 100%">监控的级别对（列表内相邻，每对独立跑分支A/B）：
-          <code>10分↔15分</code>、<code>15分↔30分</code>、<code>30分↔1时</code>、<code>1时↔2时</code>、<code>2时↔3时</code>
+        <label style="flex:1 1 100%">扫描级别：<code>10分</code> <code>15分</code> <code>30分</code> <code>1时</code> <code>2时</code> <code>3时</code> <code>4时</code> <code>6时</code>
+          ｜ 次级别：10分→2分、15分→3分、30分→5分、1时→10分、2时→15分、3时→30分、4时→30分、6时→1时
         </label>
-        <label>够笔最少根数 <input id="c-watchMinBars" type="number" min="2" max="30" step="1"></label>
-        <label>最近高点回看根数 <input id="c-watchHighLookback" type="number" min="5" max="200" step="1"></label>
+      </div>
+      <div class="prow">
+        <label>「靠近零轴」阈值 (%) <input id="c-watchNearPct" type="number" min="0.01" max="5" step="0.01"></label>
+        <label>并列容差（倍数） <input id="c-watchTieRatio" type="number" min="1" max="5" step="0.05"></label>
+        <label>次级别金叉回看根数 <input id="c-watchConfirmLookback" type="number" min="1" max="10" step="1"></label>
       </div>
       <div class="prow">
         <label>MACD 快线 <input id="c-macdFast" type="number" min="2" max="60" step="1"></label>
         <label>慢线 <input id="c-macdSlow" type="number" min="3" max="120" step="1"></label>
         <label>信号线 <input id="c-macdSignal" type="number" min="2" max="60" step="1"></label>
-        <label class="toggle"><input type="checkbox" id="c-watchRequireAboveZero"> 触发级别 MACD 不能下穿零轴</label>
-        <label class="toggle"><input type="checkbox" id="c-watchUseLiveCandle"> 快级别未收盘也预警</label>
+        <label class="toggle"><input type="checkbox" id="c-watchUseLiveCandle"> 次级别未收盘也先给确认</label>
       </div>
       <div class="gnote">
-        <b>前提</b>：这个币从 5分 一路跌到 1时（5分~30分 只是描述跌幅，不单独校验）。<br>
-        <b style="color:#f0b90b">监控 5 对级别</b>（列表内相邻，每对<b>独立</b>跑下面同一套逻辑，<b>哪个级别满足就单独报哪一条</b>）：<br>
-        <code>10分↔15分</code>　<code>15分↔30分</code>　<code>30分↔1时</code>　<code>1时↔2时</code>　<code>2时↔3时</code><br>
-        <b style="color:#f0b90b">分支 A（默认）</b>：<b>小级别 MACD 死叉</b>、<b>大级别 MACD 没有死叉</b>（大周期没转弱）
-        → 小级别<b>自最近高点 ≥ 够笔根数</b>（默认 5 根）→ 小级别<b>收盘站上 MA7 与 EMA7</b> → ★ 报<b>小级别</b>。<br>
-        <b style="color:#f0b90b">分支 B</b>：<b>两个级别 MACD 都死叉</b> → <b>小级别那条作废</b>，改判大级别：
-        大级别<b>自最近高点 ≥ 够笔根数</b> → 大级别<b>收盘站上 MA7 与 EMA7</b> → ★ 报<b>大级别</b>。<br>
-        MACD 默认 12/26/9；<b>死叉 = 收盘时 DIF &lt; DEA</b>。<br>
-        <b style="color:#f0b90b">零轴条件</b>：<b>触发级别自己</b>的 MACD 快线 <b>DIF 必须 &gt; 0</b>
-        —— 也就是这一次回调<b>没有下穿零轴</b>（强势回调：只有快线跌破慢线，没跌破 0 轴）；DIF 已跌破 0 轴则这一条不报。「最近高点」= 最近「回看根数」根里的最高价那根，
-        它到现在的K线根数就是「够笔」的根数。<br>
-        「站上均线」是状态条件，但<b>只在首次站上时触发</b>（之后不重复报），价格重新跌破均线后才允许下一次；同一根K线只报一次。<br>
-        <span style="color:#5b6f8c">报警示例：<code>【15分 反弹站上均线】15分↔30分 这一对：15分 MACD 死叉、30分 未死叉（更大级别未转弱）；15分 自最近高点 9 根K线（需 ≥5），收盘 0.6669 站上 MA7 / EMA7 · 分支A · [已确认]</code></span>
+        <b style="color:#f0b90b">① 预警提醒</b>：扫描级别里<b>任意一个</b>满足
+        <b>MACD 靠近零轴且没有跌破零轴</b> → 报警。<br>
+        · 「没跌破零轴」= 收盘时 <b>DIF &gt; 0</b>；「靠近零轴」= <b>|DIF| ÷ 收盘价 ≤ 阈值</b>（默认 0.3%）。<br>
+        · 多个级别同时满足时<b>只报一条</b>：先看谁<b>更接近零轴</b>，接近程度在<b>并列容差</b>倍数以内的候选里
+        再<b>优先小级别</b>（例：10分 0.258% 与 15分 0.220% 同时满足，按容差算并列 → 报 <b>10分</b>）。<br>
+        · 一段一次：该级别离开近零区间或跌破零轴后，这一段结束，才允许下一次预警。<br>
+        <b style="color:#f0b90b">② 确认提醒</b>：预警级别出现后，它的<b>次级别</b>满足<b>任一</b>即可 → 确认警报：<br>
+        · 次级别 <b>MACD 金叉</b>（DIF 上穿 DEA，最近「金叉回看根数」内发生），<b>或</b><br>
+        · 次级别 <b>收盘突破 EMA7</b> 且 <b>DIF &gt; 0</b>（没有跌破零轴）。<br>
+        一个预警段内只出一次确认；MACD 统一 12/26/9、以收盘为准。<br>
+        <span style="color:#5b6f8c">预警文案示例：<code>【预警·MACD 靠零轴】10分 DIF 0.000300 &gt; 0（未跌破零轴）、离零轴 0.258%（阈值 0.3%）；同时候选：15分(0.22%)；差距在并列容差内，按“级别更小”取 10分</code><br>
+        确认文案示例：<code>【确认·30分 靠零轴后 5分 跟进】次级别 MACD 金叉（1 根前）· [已确认]</code></span>
       </div>
-    </div>    <label class="row"><span>多头排列最少级别数</span><input id="c-minBullLevels" type="number" min="2" max="14" step="1"></label>
+    </div>
+    <label class="row"><span>多头排列最少级别数</span><input id="c-minBullLevels" type="number" min="2" max="14" step="1"></label>
 
     <div class="groupbox">
       <div class="gtitle">

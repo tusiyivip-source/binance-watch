@@ -749,23 +749,38 @@ function watchView(v, series, cfg) {
   const i = v.barIdx;
   const m = macdValues(series, i, cfg);
   const macdDead = m ? m.dif < m.dea : null;
-  const bh = (series && i != null && i >= 0) ? barsFromHigh(series, i, cfg.watchHighLookback ?? 20) : null;
+  const gold = macdGoldCrossIn(series, i, cfg);
+  const nearPct = cfg.watchNearPct ?? 0.3;
+  const distPct = (m && v.close > 0) ? Math.abs(m.dif) / v.close * 100 : null;
   return {
     key: v.key,
     minutes: (LEVELS[LEVEL_INDEX[v.key]]?.minutes) ?? null,
     barIdx: i,
-    macdDead,                                    // true = 死叉（DIF<DEA，收盘口径）
-    dif: m?.dif ?? null,                         // MACD 快线：>0 表示还在零轴上方（回调没破零轴）
+    dif: m?.dif ?? null,                         // MACD 快线（>0 = 还在零轴上方）
     dea: m?.dea ?? null,
+    macdDead,                                    // DIF < DEA
+    macdGoldIn: gold,                            // DIF 上穿 DEA 发生在几根前（null = 最近没金叉）
+    distPct,                                     // 「离零轴」相对距离：|DIF| / 收盘价
+    nearZero: m != null && distPct != null && m.dif > 0 && distPct <= nearPct,  // 靠近零轴且未跌破
     aboveZero: m ? m.dif > 0 : null,
-    barsFromHigh: bh?.bars ?? null,              // 自最近高点几根K线（≥5 = 够笔）
-    highT: bh?.highT ?? null,
-    high: bh?.high ?? null,
+    aboveEma7: v.aboveEma7,
     close: v.close, ma7: v.ma7, ma25: v.ma25, ema7: v.ema7,
-    above7: v.above7, aboveEma7: v.aboveEma7, aboveBoth: v.aboveBoth,
-    ma7Up: v.ma7Up, bull: v.bull,
+    above7: v.above7, ma7Up: v.ma7Up, bull: v.bull,
     candleT: v.candleT, live: !!v.live,
   };
+}
+
+/** DIF 上穿 DEA 发生在几根前（最近 lookback 根内才算「刚金叉」） */
+function macdGoldCrossIn(series, i, cfg) {
+  if (!series || i == null || i < 1) return null;
+  const m = series.macd(cfg.macdFast ?? 12, cfg.macdSlow ?? 26, cfg.macdSignal ?? 9);
+  const lim = cfg.watchConfirmLookback ?? 2;
+  for (let k = 0; k <= lim && i - k - 1 >= 0; k++) {
+    const a = i - k - 1, b = i - k;
+    if (!Number.isFinite(m.dif[a]) || !Number.isFinite(m.dea[a])) break;
+    if (m.dif[a] <= m.dea[a] && m.dif[b] > m.dea[b]) return k;
+  }
+  return null;
 }
 
 function macdValues(series, i, cfg) {
@@ -857,17 +872,16 @@ export function evaluateSymbol(symbol, seriesMap, cfg, includeLive = true) {
   const watch = {};
   const watchLive = {};
   if (cfg.watchEnabled) {
-    const pairs = cfg.watchPairs ?? [];
-    const need = new Set();
-    for (const p of pairs) { need.add(p.fast); need.add(p.slow); }
-    for (const k of need) {
+    const mains = cfg.watchLevels ?? [];
+    const subs = Object.values(cfg.watchSubMap ?? {});
+    for (const k of new Set([...mains, ...subs])) {
       const v = closedViews[k];
       if (v) watch[k] = watchView(v, seriesMap[k], cfg);
     }
-    // 每个配对的**快级别**：把「正在形成的那根K线」也带上，未收盘就能先给一条预警
-    for (const p of pairs) {
-      const lv = liveViews[p.fast];
-      if (lv) watchLive[p.fast] = watchView(lv, seriesMap[p.fast], cfg);
+    // 次级别：把「正在形成的那根K线」也带上，未收盘就能先给一条确认预警
+    for (const k of new Set(subs)) {
+      const lv = liveViews[k];
+      if (lv) watchLive[k] = watchView(lv, seriesMap[k], cfg);
     }
   }
 
@@ -971,6 +985,7 @@ export function analyzeLevelAtIndex(series, ind, idx, cfg) {
     stroke,
   };
 }
+
 
 
 

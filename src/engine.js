@@ -26,13 +26,14 @@ export class Engine extends Emitter {
     this.evaluations = 0;
     this.signalCount = 0;
     this.beichiBlocked = 0;        // 累计拦截次数（按每轮评估累加）
-    // 盯盘通道：多对级别（10分↔15分 … 2时↔3时），每对独立跑分支A/B
+    // 盯盘通道 v3：8 个级别 MACD 靠零轴 → 预警；次级别金叉/突破EMA7 → 确认
     this.watcher = new Watcher(log, {
       enabled: this.cfg.watchEnabled,
-      pairs: this.cfg.watchPairs,
-      minBars: this.cfg.watchMinBars,
+      levels: this.cfg.watchLevels,
+      subMap: this.cfg.watchSubMap,
+      nearPct: this.cfg.watchNearPct,
+      tieRatio: this.cfg.watchTieRatio,
       useLiveCandle: this.cfg.watchUseLiveCandle,
-      requireAboveZero: this.cfg.watchRequireAboveZero,
     });
     this.watchDbg = { seen: 0, enabled: 0, hasWatch: 0, called: 0, err: null };
     // 独立形态提醒的去重表：同一 (币种, 级别, K线) 只提醒一次
@@ -69,9 +70,9 @@ export class Engine extends Emitter {
     // 盯盘状态机的参数（结构判定本身在 signals.js 里按 cfg 现算，这里只同步开关与阈值）
     this.watcher.setConfig({
       watchEnabled: this.cfg.watchEnabled,
-      watchPairs: this.cfg.watchPairs,
-      watchMinBars: this.cfg.watchMinBars,
-      watchRequireAboveZero: this.cfg.watchRequireAboveZero,
+      watchLevels: this.cfg.watchLevels,
+      watchNearPct: this.cfg.watchNearPct,
+      watchTieRatio: this.cfg.watchTieRatio,
       watchUseLiveCandle: this.cfg.watchUseLiveCandle,
     });
     if (JSON.stringify(this.cfg) !== before) {
@@ -474,6 +475,7 @@ export class Engine extends Emitter {
     };
   }
 }
+
 
 
 

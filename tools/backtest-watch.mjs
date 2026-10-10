@@ -126,12 +126,11 @@ const cfg = { ...DEFAULT_SIGNAL };
 cfg.watchEnabled = true; cfg.signalEnabled = false; cfg.dualEnabled = false;
 cfg.filterBeichi = false; cfg.requireStrokeChain = false; cfg.useLiveCandle = false;
 
-const PAIRS = cfg.watchPairs ?? [{ fast: '1h', slow: '2h' }];
-const AXIS = arg('axis', '10m');   // 逐根回放所用的级别（最小快级别，覆盖所有配对）
-const LV_KEYS_USED = [...new Set(PAIRS.flatMap(p => [p.fast, p.slow]))];
+const LV_KEYS_USED = [...new Set([...(cfg.watchLevels ?? []), ...Object.values(cfg.watchSubMap ?? {})])];
+const AXIS = arg('axis', '10m');   // 逐根回放所用的级别（最小的扫描级别）
 const watcher = new Watcher(null, {
-  enabled: true, pairs: PAIRS,
-  minBars: cfg.watchMinBars ?? 5, useLiveCandle: false,
+  enabled: true, levels: cfg.watchLevels, subMap: cfg.watchSubMap,
+  nearPct: cfg.watchNearPct, tieRatio: cfg.watchTieRatio, useLiveCandle: false,
 });
 
 const store = USE_STORE && fs.existsSync(STORE) ? JSON.parse(fs.readFileSync(STORE, 'utf8')) : { savedAt: 0, symbols: {} };
@@ -210,7 +209,7 @@ for (const sym of syms) {
     }
 
     for (const a of fired) {
-      const g = { mid: a.level ?? PAIRS[0].fast, base: a.level ?? PAIRS[0].fast };
+      const g = { mid: a.level, base: a.level };
       if (!fwdCache.has(g.mid)) fwdCache.set(g.mid, fwd(g.mid));
       if (!fwdCache.has(g.base)) fwdCache.set(g.base, fwd(g.base));
       const entry = a.price;

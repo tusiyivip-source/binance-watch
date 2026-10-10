@@ -13,7 +13,7 @@ import * as CandleSeriesMod from '../src/series.js';
 import { buildSMA, buildEMA } from '../src/indicators.js';
 import { evaluateSymbol, analyzeLevel, findResonance, triplesFor, strokeChain, checkStrokeChain, findTwoBearHold, findTwoBullHold, dualPattern, pullbackStructure, downRunLen, recentDownRun, strokeContinuation, twoBullReclaim, barsFromHigh, macdDead } from '../src/signals.js';
 import { LEVELS, VISIBLE_LEVELS, DEFAULT_SIGNAL, DEFAULT_GROUPS, LEVEL_INDEX, APP, DEFAULT_WATCH_GROUPS, watchInnerLevels } from '../src/config.js';
-import { Watcher, judge } from '../src/watch.js';
+import { Watcher, pickNear, nearOk, confirmOk } from '../src/watch.js';
 
 // 验证脚本自己控制序列保留上限，避免受实盘 maxCandlesKept 影响导致对比样本数漂移
 APP.maxCandlesKept = 3000;
@@ -993,151 +993,110 @@ section('12. 回踩形态「两根阴K不破均线」（跌无可跌）');
     `pullbackPattern=${DEFAULT_SIGNAL.pullbackPattern} bars=${DEFAULT_SIGNAL.pullbackBars}`);
 }
 
-/* ============ 13. 盯盘通道：1时/2时 MACD 分支 ============ */
-section('13. 盯盘通道（1时死叉+2时未死叉→报1时；2时也死叉→改判2时，1时作废）');
+/* ============ 13. 盯盘通道 v3：MACD 靠零轴 → 次级别确认 ============ */
+section('13. 盯盘通道 v3（8 级别靠零轴预警 + 次级别金叉/突破EMA7 确认）');
 {
   const mkLog = () => ({ info() { }, warn() { }, error() { }, signal() { }, ok() { }, debug() { } });
   const lv = (o = {}) => ({
-    macdDead: o.dead === true,
-    dif: o.dif === undefined ? 0.5 : o.dif, dea: 0.4,   // 零轴条件：默认放在零轴上方
-    barsFromHigh: o.bars === undefined ? 8 : o.bars,
-    above7: o.above !== false, aboveEma7: o.above !== false,
-    close: 100, ma7: 99, ema7: 99.5, candleT: o.t ?? 2000,
-    highT: 1000, high: 110,
+    key: o.key, distPct: o.dist === undefined ? 0.1 : o.dist, dif: o.dif === undefined ? 0.001 : o.dif,
+    dea: o.dea ?? 0.0, nearZero: o.near === undefined ? (o.dist === undefined ? true : o.dist <= 0.3) : o.near,
+    macdGoldIn: o.gold ?? null, aboveEma7: o.aboveEma7 === true,
+    close: 100, ema7: 99, candleT: o.t ?? 2000, live: o.live === true,
   });
-  const levels = (o = {}) => ({
-    '1h': lv({ dead: o.fastDead !== false, bars: o.fastBars, above: o.fastAbove, t: o.t }),
-    '2h': lv({ dead: o.slowDead === true, bars: o.slowBars, above: o.slowAbove, t: o.t }),
-  });
-  const W = (o) => new Watcher(mkLog(), { enabled: true, pairs: [{ fast: '1h', slow: '2h' }], minBars: 5, useLiveCandle: false, ...o });
+  const LV = ['10m', '15m', '30m', '1h', '2h', '3h', '4h', '6h'];
+  const SUB = { '10m': '2m', '15m': '3m', '30m': '5m', '1h': '10m', '2h': '15m', '3h': '30m', '4h': '30m', '6h': '1h' };
+  const W = (o = {}) => new Watcher(mkLog(), { enabled: true, levels: LV, subMap: SUB, nearPct: 0.3, tieRatio: 1.25, useLiveCandle: false, ...o });
+
+  // —— 挑级别：更接近 + 级别更小 ——
+  {
+    const cands = [lv({ key: '10m', dist: 0.258 }), lv({ key: '15m', dist: 0.220 })];
+    const r = pickNear(cands, { tieRatio: 1.25 });
+    ok('★ 10分 0.258% 与 15分 0.220% 并列（1.25 倍容差内）→ 报更小的 10分',
+      r.chosen.key === '10m' && r.best.key === '15m', 'chosen=' + r.chosen.key + ' best=' + r.best.key);
+    const r2 = pickNear([lv({ key: '10m', dist: 0.30 }), lv({ key: '15m', dist: 0.05 })], { tieRatio: 1.25 });
+    ok('★ 差距超出容差（0.30% vs 0.05%）→ 仍报最接近的 15分', r2.chosen.key === '15m', 'chosen=' + r2.chosen.key);
+    ok('★ 只有一个候选时直接选它', pickNear([lv({ key: '2h', dist: 0.2 })], {}).chosen.key === '2h');
+    ok('★ nearOk：只有 nearZero 标记为 true 才算「靠近零轴且未跌破」',
+      nearOk(lv({ near: true })) === true && nearOk(lv({ near: false })) === false);
+  }
+
+  // —— 预警触发与「一段一次」 ——
+  {
+    const w = W();
+    const e1 = w.update('A', { '10m': lv({ key: '10m', dist: 0.2 }) });
+    const e2 = w.update('A', { '10m': lv({ key: '10m', dist: 0.2, t: 3000 }) });
+    ok('★ 靠零轴 → 出预警；同一段内（换K线）不重复',
+      e1.length === 1 && e1[0].stage === 'warning' && e1[0].level === '10m' && e2.length === 0,
+      e1[0] ? e1[0].text : '无');
+    const e3 = w.update('A', { '10m': lv({ key: '10m', dist: 0.2, near: false }) });
+    const e4 = w.update('A', { '10m': lv({ key: '10m', dist: 0.2, t: 5000 }) });
+    ok('★ 离开近零区间后再回来 → 可以再报一次', e3.length === 0 && e4.length === 1, e3.length + '/' + e4.length);
+  }
+  {
+    const w = W();
+    ok('★ 离零轴 0.5% 超过阈值 0.3% → 不报', w.update('A', { '15m': lv({ key: '15m', dist: 0.5 }) }).length === 0);
+    const w2 = W();
+    ok('★ 已跌破零轴（nearZero=false）→ 不报',
+      w2.update('A', { '15m': lv({ key: '15m', dif: -0.01, dist: 0.05, near: false }) }).length === 0);
+  }
+  {
+    const w = W();
+    const e = w.update('A', { '10m': lv({ key: '10m', dist: 0.2 }), '15m': lv({ key: '15m', dist: 0.05 }) });
+    ok('★ 多级别命中：15分更近（0.05%）且在容差外 → 报 15分', e.length === 1 && e[0].level === '15m', e[0] ? e[0].level : '无');
+  }
+
+  // —— 确认：次级别金叉 / 突破 EMA7 ——
+  {
+    const w = W();
+    w.update('A', { '30m': lv({ key: '30m', dist: 0.2 }) });
+    const e = w.update('A', { '30m': lv({ key: '30m', dist: 0.2, t: 3000 }), '5m': lv({ key: '5m', gold: 0 }) });
+    ok('★ 确认：次级别 MACD 金叉 → 出确认警报',
+      e.length === 1 && e[0].stage === 'confirm' && e[0].alarmLevel === '30m' && e[0].level === '5m',
+      e[0] ? e[0].text : '无');
+    const e2 = w.update('A', { '30m': lv({ key: '30m', dist: 0.2, t: 4000 }), '5m': lv({ key: '5m', gold: 0, t: 4000 }) });
+    ok('★ 一个预警段内只出一次确认', e2.length === 0);
+  }
+  {
+    const w = W();
+    w.update('A', { '1h': lv({ key: '1h', dist: 0.2 }) });
+    const e = w.update('A', { '1h': lv({ key: '1h', dist: 0.2, t: 3000 }), '10m': lv({ key: '10m', gold: null, aboveEma7: true, dif: 0.02, near: false, dist: 1 }) });
+    ok('★ 确认：次级别突破 EMA7 且 DIF>0 → 出确认警报',
+      e.length === 1 && e[0].stage === 'confirm' && /突破 EMA7/.test(e[0].text), e[0] ? e[0].text : '无');
+    const w2 = W();
+    w2.update('A', { '1h': lv({ key: '1h', dist: 0.2 }) });
+    const e2 = w2.update('A', { '1h': lv({ key: '1h', dist: 0.2, t: 3000 }), '10m': lv({ key: '10m', gold: null, aboveEma7: true, dif: -0.02, near: false, dist: 1 }) });
+    ok('★ 次级别突破 EMA7 但 DIF<0（跌破零轴）→ 不出确认', e2.length === 0);
+    const c = confirmOk({ macdGoldIn: null, aboveEma7: true, dif: -0.02 });
+    ok('★ confirmOk 两个条件都不满足 → ok=false', c.ok === false);
+  }
+  {
+    const w = W();
+    w.update('A', { '1h': lv({ key: '1h', dist: 0.2 }) });
+    // 次级别 10分 自己也「靠零轴」（dist 0.1%）：确认必须照样发出来，不能被新预警吞掉
+    const e = w.update('A', { '1h': lv({ key: '1h', dist: 0.2, t: 3000 }),
+      '10m': lv({ key: '10m', dist: 0.1, gold: 0 }) });
+    const hasConfirm = e.some(a => a.stage === 'confirm' && a.alarmLevel === '1h');
+    ok('★ 次级别自己也靠零轴时，确认仍然发出（不被新预警吞掉）', hasConfirm,
+      e.map(a => a.stage + ':' + a.level).join(','));
+  }
 
   {
-    const j = judge(levels({ fastDead: true, slowDead: false }), { pair: { fast: '1h', slow: '2h' }, minBars: 5 });
-    ok('★ 分支A：1时死叉 + 2时未死叉 → 判 1时', j.branch === 'A' && j.level === '1h' && j.ok === true,
-      `branch=${j.branch} level=${j.level} ok=${j.ok}`);
-  }
-  {
-    const j = judge(levels({ fastDead: true, slowDead: true }), { pair: { fast: '1h', slow: '2h' }, minBars: 5 });
-    ok('★ 分支B：1时与2时都死叉 → 改判 2时（1时作废）',
-      j.branch === 'B' && j.level === '2h' && j.voidFast === true, `branch=${j.branch} level=${j.level} voidFast=${j.voidFast}`);
-  }
-  {
-    const j = judge(levels({ fastDead: false, slowDead: false }), { pair: { fast: '1h', slow: '2h' }, minBars: 5 });
-    ok('1时没死叉 → 不报', j.ok === false && j.branch === 'A');
-  }
-  {
-    const j = judge(levels({ fastDead: true, slowDead: true, slowBars: 4 }), { pair: { fast: '1h', slow: '2h' }, minBars: 5 });
-    ok('★ 2时够笔不足 5 根 → 分支B也不报', j.ok === false, `2时 barsFromHigh=4`);
-  }
-  {
-    const j = judge(levels({ fastDead: true, slowDead: false, fastBars: 4 }), { pair: { fast: '1h', slow: '2h' }, minBars: 5 });
-    ok('★ 1时自最近高点不足 5 根 → 不报', j.ok === false);
-  }
-  {
-    const j = judge(levels({ fastDead: true, slowDead: false, fastAbove: false }), { pair: { fast: '1h', slow: '2h' }, minBars: 5 });
-    ok('★ 1时没站上两条均线 → 不报', j.ok === false);
-    const j2 = judge(levels({ fastDead: true, slowDead: true, slowAbove: false }), { pair: { fast: '1h', slow: '2h' }, minBars: 5 });
-    ok('★ 2时没站上两条均线 → 不报', j2.ok === false);
-  }
-  {
     const w = W();
-    const e1 = w.update('A', levels({ t: 2000 }));
-    const e2 = w.update('A', levels({ t: 3000 }));   // 新K线，但仍站在均线上方
-    const e3 = w.update('A', levels({ t: 4000 }));
-    ok('★ 首次站上 → 报 1时；之后**换了几根K线但只要还在均线上方就不重复报**',
-      e1.length === 1 && e1[0].level === '1h' && e1[0].branch === 'A' && e2.length === 0 && e3.length === 0,
-      `首报 ${e1.length} / 第2根 ${e2.length} / 第3根 ${e3.length}`);
-  }
-  {
-    const w = W();
-    w.update('A', levels({ t: 2000 }));
-    w.update('A', levels({ t: 3000 }));
-    w.update('A', levels({ t: 4000, fastAbove: false }));  // 跌破均线 → 重置
-    const e = w.update('A', levels({ t: 5000 }));          // 再站上
-    ok('★ 跌破均线后再站上 → 可以再报一次（新的一段）', e.length === 1, `报了 ${e.length} 条`);
-  }
-  {
-    const w = W();
-    w.update('A', levels({ slowDead: true, slowBars: 4 }));
-    const e = w.update('A', levels({ slowDead: true, slowBars: 8 }));
-    ok('★ 分支B：2时够笔够了 + 站上均线 → 报 2时',
-      e.length === 1 && e[0].level === '2h' && e[0].branch === 'B' && /1时作废|均死叉/.test(e[0].text),
-      e[0]?.text);
+    ok('★ 非扫描级别（5分）靠零轴 → 不报', w.update('A', { '5m': lv({ key: '5m', dist: 0.1 }) }).length === 0);
   }
   {
     const w = W();
     w.setConfig({ watchEnabled: false });
-    ok('关闭盯盘开关后完全不工作', w.update('A', levels({})).length === 0);
+    ok('关闭盯盘开关后完全不工作', w.update('A', { '10m': lv({ key: '10m' }) }).length === 0);
   }
-  {
-    // 自最近高点根数：当前这根就是最高 → 1 根
-    const s = { h: [10, 11, 12, 13, 14], t: [0, 1, 2, 3, 4] };
-    ok('★ 「自最近高点根数」：当前是最新高 → 1 根',
-      barsFromHigh(s, 4, 20).bars === 1);
-    const s2 = { h: [10, 11, 12, 13, 12, 11], t: [0, 1, 2, 3, 4, 5] };
-    ok('★ 高点在 2 根前 → 含两端共 3 根', barsFromHigh(s2, 5, 20).bars === 3,
-      `bars=${barsFromHigh(s2, 5, 20).bars}`);
-  }
-  ok('配置默认：5 对相邻级别 / 够笔 5 根 / MACD 12-26-9',
-    JSON.stringify(DEFAULT_SIGNAL.watchPairs) === JSON.stringify([
-      { fast: '10m', slow: '15m' }, { fast: '15m', slow: '30m' }, { fast: '30m', slow: '1h' },
-      { fast: '1h', slow: '2h' }, { fast: '2h', slow: '3h' },
-    ])
-    && DEFAULT_SIGNAL.watchMinBars === 5 && DEFAULT_SIGNAL.macdFast === 12
-    && DEFAULT_SIGNAL.macdSlow === 26 && DEFAULT_SIGNAL.macdSignal === 9,
-    DEFAULT_SIGNAL.watchPairs.map(p => `${p.fast}↔${p.slow}`).join(' '));
-
-  // —— 零轴条件：触发级别 DIF 必须 > 0 ——
-  {
-    const mk = (o) => ({
-      macdDead: o.dead === true, dif: o.dif === undefined ? 0.5 : o.dif, dea: o.dea ?? 0.4,
-      barsFromHigh: o.bars ?? 8, above7: o.above !== false, aboveEma7: o.above !== false,
-      close: 100, ma7: 99, ema7: 99.5, candleT: o.t ?? 2000, highT: 1, high: 110,
-    });
-    const P = [{ fast: '30m', slow: '1h' }];
-    const w = (req) => new Watcher(mkLog(), { enabled: true, pairs: P, minBars: 5, useLiveCandle: false, requireAboveZero: req });
-    const lv = (dif) => ({ '30m': mk({ dead: true, dif }), '1h': mk({ dead: false }) });
-    ok('★ 零轴条件：触发级别 DIF > 0 → 报', w(true).update('A', lv(0.5)).length === 1);
-    ok('★ 零轴条件：触发级别 DIF < 0（已下穿零轴）→ 不报',
-      w(true).update('A', lv(-0.2)).length === 0);
-    ok('★ 关掉零轴条件后，DIF < 0 也照报', w(false).update('A', lv(-0.2)).length === 1);
-    const j = judge(lv(0.5), { pair: { fast: '30m', slow: '1h' }, minBars: 5, requireAboveZero: true });
-    ok('★ judgePair 里带上 zeroOk 标记', j.zeroOk === true && j.ok === true);
-  }
-
-  // —— 多对：一对报小级别、另一对报大级别，互不干扰 ——
-  {
-    const mk = (o) => ({
-      macdDead: o.dead === true, dif: 0.5, dea: 0.4, barsFromHigh: o.bars ?? 8,
-      above7: o.above !== false, aboveEma7: o.above !== false,
-      close: 100, ma7: 99, ema7: 99.5, candleT: o.t ?? 2000, highT: 1, high: 110,
-    });
-    const w = new Watcher(mkLog(), {
-      enabled: true, minBars: 5, useLiveCandle: false,
-      pairs: [{ fast: '30m', slow: '1h' }, { fast: '1h', slow: '2h' }],
-    });
-    const lv2 = {
-      '30m': mk({ dead: true }),            // 30分死叉、1时未死叉 → 分支A 报 30分
-      '1h': mk({ dead: false }),            // 同时 1时 又是另一对的快级别，但它没死叉
-      '2h': mk({ dead: true }),
-    };
-    const e = w.update('X', lv2);
-    ok('★ 多对并存：30分↔1时 的分支A 报 30分；1时 自己没死叉所以 1时↔2时 那一对不报',
-      e.length === 1 && e[0].level === '30m' && e[0].branch === 'A',
-      e.map(x => `${x.level}/${x.branch}`).join(','));
-
-    const w2 = new Watcher(mkLog(), {
-      enabled: true, minBars: 5, useLiveCandle: false,
-      pairs: [{ fast: '30m', slow: '1h' }, { fast: '1h', slow: '2h' }],
-    });
-    // 30分↔1时：两个都死叉 → 分支B 判 1时；而 1时 作为 1时↔2时 的快级别也死叉、2时未死叉 → 分支A 也判 1时
-    // 同一个级别（1时）只应出**一条**
-    const lv3 = { '30m': mk({ dead: true }), '1h': mk({ dead: true }), '2h': mk({ dead: false }) };
-    const e3 = w2.update('X', lv3);
-    ok('★ 同一个级别被两对同时选中时只报一条', e3.length === 1 && e3[0].level === '1h',
-      e3.map(x => `${x.level}/${x.branch}`).join(','));
-  }
+  ok('配置默认：8 个扫描级别 + 用户指定的次级别对应表 + 0.3% 阈值',
+    JSON.stringify(DEFAULT_SIGNAL.watchLevels) === JSON.stringify(['10m', '15m', '30m', '1h', '2h', '3h', '4h', '6h'])
+    && DEFAULT_SIGNAL.watchSubMap['15m'] === '3m' && DEFAULT_SIGNAL.watchSubMap['6h'] === '1h'
+    && DEFAULT_SIGNAL.watchSubMap['4h'] === '30m'
+    && DEFAULT_SIGNAL.watchNearPct === 0.3,
+    JSON.stringify(DEFAULT_SIGNAL.watchSubMap));
 }
+
 /* ============ 14. 独立形态提醒：双阴不破（多） / 双阳不穿（空） ============ */
 section('14. 独立形态提醒：双阴不破均线（多） / 双阳不穿破均线（空）');
 {
