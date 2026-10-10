@@ -122,10 +122,14 @@ export class Watcher {
     }
 
     // —— ① 预警：找出所有「靠近零轴且未跌破零轴」的级别 ——
+    //    ⚠ 时效关键：优先用「正在形成的那根K线」判（K线收完之前就能发），
+    //     否则 4时 级别最多要等 4 小时、1时 最多等 1 小时 —— 这就是「提醒偏滞后」的主因。
     const cands = [];
     for (const k of this.cfg.levels) {
-      const v = levels[k];
-      if (nearOk(v)) cands.push(v);
+      const live = this.cfg.useLiveCandle ? liveLevels?.[k] : null;
+      const vLive = live && live.live ? live : null;
+      const v = (vLive && nearOk(vLive)) ? vLive : levels[k];
+      if (nearOk(v)) cands.push(vLive && nearOk(vLive) ? { ...v, __live: true } : v);
     }
     const pick = pickNear(cands, this.cfg);
     const cur = this.armed.get(symbol) ?? null;
@@ -133,12 +137,17 @@ export class Watcher {
     if (pick) {
       const chosen = pick.chosen;
       const changed = !cur || cur.level !== chosen.key;
-      if (changed) {
-        // 换级别预警时，新的这一段是「未确认」的
+      // 用未收盘那根判出来的，按「本根K线」去重：避免插针反复进出区间刷屏
+      const id = `W|${symbol}|${chosen.key}|${chosen.candleT}`;
+      if (changed && !this.seen.has(id)) {
+        this.seen.set(id, now);
         this.stats.warning++;
+        if (chosen.__live) this.stats.preview++;
         this.stats.byLevel[chosen.key] = (this.stats.byLevel[chosen.key] ?? 0) + 1;
         this.armed.set(symbol, { level: chosen.key, since: now, candleT: chosen.candleT, confirmed: false });
         out.push(this._warnAlert(symbol, chosen, pick, now));
+      } else if (changed) {
+        this.armed.set(symbol, { level: chosen.key, since: now, candleT: chosen.candleT, confirmed: false });
       }
     } else if (cur) {
       this.armed.delete(symbol);          // 没有级别再满足 → 这一段结束
@@ -155,6 +164,7 @@ export class Watcher {
     return {
       kind: 'watch',
       stage: 'warning',
+      mode: v.__live ? 'live' : 'closed',
       confirmed: false,
       id: ++this.seq,
       symbol,
@@ -172,8 +182,9 @@ export class Watcher {
       distPct: v.distPct ?? null,
       nearPct: this.cfg.nearPct,
       text: `【预警·MACD 靠零轴】${label(v.key)} DIF ${Number(v.dif).toFixed(6)} > 0（未跌破零轴）、`
-        + `离零轴 ${v.distPct.toFixed(3)}%（阈值 ${this.cfg.nearPct}%）；收盘 ${v.close}`
-        + candTxt,
+        + `离零轴 ${v.distPct.toFixed(3)}%（阈值 ${this.cfg.nearPct}%）；${v.__live ? '现价' : '收盘'} ${v.close}`
+        + candTxt
+        + (v.__live ? ' · [预警/未收盘]' : ''),
     };
   }
 

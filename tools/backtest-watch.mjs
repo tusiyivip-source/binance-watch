@@ -33,6 +33,7 @@ const arg = (n, d) => { const h = process.argv.find(a => a.startsWith(`--${n}=`)
 const N_SYMBOLS = Number(arg('symbols', 120));
 const USE_CACHE = arg('cache', '0') !== '0';
 const DAYS = Number(arg('days', 15));   // 回放窗口（天）
+const LIVE = arg('live', '0') !== '0';  // 是否模拟「用未收盘那根实时判」
 const MIN_BARS = Number(arg('minbars', 45));
 const HORIZONS = String(arg('horizons', '3,4,5')).split(',').map(Number).filter(n => n > 0);
 const WARM = Number(arg('warm', 60));
@@ -188,10 +189,10 @@ for (const sym of syms) {
       series[lv.key] = c;
     }
     let res;
-    try { res = evaluateSymbol(sym, series, cfg, false); } catch { continue; }
+    try { res = evaluateSymbol(sym, series, cfg, LIVE); } catch { continue; }
     if (!res.watch) continue;
 
-    const fired = watcher.update(sym, res.watch, ts, null);
+    const fired = watcher.update(sym, res.watch, ts, LIVE ? res.watchLive : null);
     // （调试行已移除）
 
     // —— 基线：每个时间点都记一份（同一批标的、同一时间窗）——
@@ -217,7 +218,7 @@ for (const sym of syms) {
       const rec = {
         symbol: sym, group: `分支${a.branch ?? '?'}`, level: a.level ?? g.mid, branch: a.branch,
         mid: g.mid, base: g.base, ts, entry, confirm: a.confirmed,
-        barsFromHigh: a.barsFromHigh ?? null,
+        stage: a.stage, saveMs: (a.candleT != null && a.level) ? ((a.candleT + (LEVELS.find(l => l.key === a.level)?.minutes ?? 0) * 60000) - ts) : 0,
       };
       const fireLevel = a.level ?? g.base;   // 本次突破的级别（多个级别会各自报警）
       for (const [tag, key] of [['mid', g.mid], ['base', fireLevel]]) {
@@ -271,6 +272,10 @@ const show = (title, a) => {
 };
 
 console.log('watcher 统计:', JSON.stringify(watcher.stats));
+{ const sv = samples.map(s => s.saveMs).filter(x => Number.isFinite(x) && x > 0).sort((a,b)=>a-b);
+  if (sv.length) { const q = p => sv[Math.min(sv.length-1, Math.floor(sv.length*p))];
+    console.log(`\n提前量（相对该级别K线收盘）：中位 ${(q(0.5)/60000).toFixed(1)} 分钟，p90 ${(q(0.9)/60000).toFixed(1)} 分钟，最大 ${(sv[sv.length-1]/60000).toFixed(1)} 分钟（${sv.length} 条比收盘更早）`);
+  } else console.log('\n没有一条比K线收盘更早（说明未启用实时判）'); }
 console.log(`\n拉取成功 ${done} 个标的（失败 ${failed}），共 ${samples.length} 条报警样本，基线样本 ${baseline.length} 条\n`);
 // 把抓到的历史存盘：下次加 --store=1（默认）就是秒级重跑，不再重复消耗权重
 if (USE_STORE && !USE_CACHE) {
@@ -282,6 +287,10 @@ for (const tag of ['mid', 'base']) {
   const label = '按报警级别K线（1时或2时）';
   console.log(`\n【${label}】`);
   for (const k of HORIZONS) show(`+${k} 根`, agg(samples.map(s => s[tag]?.[k])));
+  for (const st of ['warning', 'confirm']) {
+    const arr = samples.filter(s => s.stage === st);
+    if (arr.length) { const a5 = agg(arr.map(s => s[tag]?.[5])); console.log(`    · ${st === 'warning' ? '预警' : '确认'} n=${arr.length}` + (a5 ? `  +5根 均值 ${a5.avg}% 胜率 ${a5.win}%` : '')); }
+  }
   show('区间最大不利 MAE', agg(samples.map(s => s[tag]?.mae)));
 }
 console.log('\n【基线：同批标的、同一时间窗，随便进的同口径收益】');

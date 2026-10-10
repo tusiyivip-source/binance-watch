@@ -878,8 +878,10 @@ export function evaluateSymbol(symbol, seriesMap, cfg, includeLive = true) {
       const v = closedViews[k];
       if (v) watch[k] = watchView(v, seriesMap[k], cfg);
     }
-    // 次级别：把「正在形成的那根K线」也带上，未收盘就能先给一条确认预警
-    for (const k of new Set(subs)) {
+    // 扫描级别 + 次级别：把「正在形成的那根K线」也带上
+    //   · 扫描级别 → 预警可以在K线收完之前就发（否则 4时 级别最多要等 4 小时）
+    //   · 次级别   → 确认可以提前到金叉/突破发生的那一刻
+    for (const k of new Set([...mains, ...subs])) {
       const lv = liveViews[k];
       if (lv) watchLive[k] = watchView(lv, seriesMap[k], cfg);
     }
