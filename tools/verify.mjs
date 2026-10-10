@@ -13,7 +13,7 @@ import * as CandleSeriesMod from '../src/series.js';
 import { buildSMA, buildEMA } from '../src/indicators.js';
 import { evaluateSymbol, analyzeLevel, findResonance, triplesFor, strokeChain, checkStrokeChain, findTwoBearHold, findTwoBullHold, dualPattern, pullbackStructure, downRunLen, recentDownRun, strokeContinuation, twoBullReclaim, barsFromHigh, macdDead } from '../src/signals.js';
 import { LEVELS, VISIBLE_LEVELS, DEFAULT_SIGNAL, DEFAULT_GROUPS, LEVEL_INDEX, APP, DEFAULT_WATCH_GROUPS, watchInnerLevels } from '../src/config.js';
-import { Watcher, pickNear, nearOk, confirmOk } from '../src/watch.js';
+import { Watcher, pickNear, nearOk } from '../src/watch.js';
 
 // 验证脚本自己控制序列保留上限，避免受实盘 maxCandlesKept 影响导致对比样本数漂移
 APP.maxCandlesKept = 3000;
@@ -993,147 +993,94 @@ section('12. 回踩形态「两根阴K不破均线」（跌无可跌）');
     `pullbackPattern=${DEFAULT_SIGNAL.pullbackPattern} bars=${DEFAULT_SIGNAL.pullbackBars}`);
 }
 
-/* ============ 13. 盯盘通道 v3：MACD 靠零轴 → 次级别确认 ============ */
-section('13. 盯盘通道 v3（8 级别靠零轴预警 + 次级别金叉/突破EMA7 确认）');
+/* ============ 13. 盯盘通道 v4：回调中 MACD 均线靠零轴（4 级别、无次级别） ============ */
+section('13. 盯盘通道 v4（10分/15分/30分/1时：回调中 MACD 均线(DEA) 贴近零轴且未跌破）');
 {
   const mkLog = () => ({ info() { }, warn() { }, error() { }, signal() { }, ok() { }, debug() { } });
   const lv = (o = {}) => ({
-    key: o.key, distPct: o.dist === undefined ? 0.1 : o.dist,
-    dif: o.dif === undefined ? 0.001 : o.dif,
-    dea: o.dea === undefined ? (o.dif === undefined ? 0.001 : o.dif) : o.dea,   // 零轴判定看 DEA
+    key: o.key,
+    distPct: o.dist === undefined ? 0.1 : o.dist,
+    dif: o.dif === undefined ? 0.0005 : o.dif,
+    dea: o.dea === undefined ? 0.0002 : o.dea,
+    deaFalling: o.falling === undefined ? true : o.falling,
     nearZero: o.near === undefined ? (o.dist === undefined ? true : o.dist <= 0.3) : o.near,
-    macdGoldIn: o.gold ?? null, aboveEma7: o.aboveEma7 === true,
     close: 100, ema7: 99, candleT: o.t ?? 2000, live: o.live === true,
   });
-  const LV = ['10m', '15m', '30m', '1h', '2h', '3h', '4h', '6h'];
-  const SUB = { '10m': '2m', '15m': '3m', '30m': '5m', '1h': '10m', '2h': '15m', '3h': '30m', '4h': '30m', '6h': '1h' };
-  const W = (o = {}) => new Watcher(mkLog(), { enabled: true, levels: LV, subMap: SUB, nearPct: 0.3, tieRatio: 1.25, useLiveCandle: false, ...o });
+  const LV = ['10m', '15m', '30m', '1h'];
+  const W = (o = {}) => new Watcher(mkLog(), { enabled: true, levels: LV, nearPct: 0.3, tieRatio: 1.25, needFalling: true, useLiveCandle: false, ...o });
 
-  // —— 挑级别：更接近 + 级别更小 ——
+  // —— 三条判据 ——
   {
-    const cands = [lv({ key: '10m', dist: 0.258 }), lv({ key: '15m', dist: 0.220 })];
-    const r = pickNear(cands, { tieRatio: 1.25 });
-    ok('★ 10分 0.258% 与 15分 0.220% 并列（1.25 倍容差内）→ 报更小的 10分',
-      r.chosen.key === '10m' && r.best.key === '15m', 'chosen=' + r.chosen.key + ' best=' + r.best.key);
-    const r2 = pickNear([lv({ key: '10m', dist: 0.30 }), lv({ key: '15m', dist: 0.05 })], { tieRatio: 1.25 });
-    ok('★ 差距超出容差（0.30% vs 0.05%）→ 仍报最接近的 15分', r2.chosen.key === '15m', 'chosen=' + r2.chosen.key);
-    ok('★ 只有一个候选时直接选它', pickNear([lv({ key: '2h', dist: 0.2 })], {}).chosen.key === '2h');
-    ok('★ nearOk：只有 nearZero 标记为 true 才算「靠近零轴且未跌破」',
-      nearOk(lv({ near: true })) === true && nearOk(lv({ near: false })) === false);
+    ok('★ 回调中(DEA 回落) + 贴近零轴 + 未跌破 → 报',
+      nearOk(lv({ dist: 0.2, falling: true, near: true }), true) === true);
+    ok('★ 上涨途中贴近零轴（DEA 在上升）→ **不报**',
+      nearOk(lv({ dist: 0.1, falling: false, near: true }), true) === false);
+    ok('★ 关掉「只看回调」开关后，上升途中也报',
+      nearOk(lv({ dist: 0.1, falling: false, near: true }), false) === true);
+    ok('★ DEA 已跌破零轴（nearZero=false）→ 不报', nearOk(lv({ near: false }), true) === false);
   }
 
-  // —— 预警触发与「一段一次」 ——
+  // —— 挑级别：更贴近 + 级别更小 ——
+  {
+    const r = pickNear([lv({ key: '10m', dist: 0.258 }), lv({ key: '15m', dist: 0.220 })], { tieRatio: 1.25 });
+    ok('★ 10分 0.258% 与 15分 0.220% 并列（容差内）→ 报更小的 10分',
+      r.chosen.key === '10m' && r.best.key === '15m', 'chosen=' + r.chosen.key + ' best=' + r.best.key);
+    const r2 = pickNear([lv({ key: '10m', dist: 0.30 }), lv({ key: '15m', dist: 0.05 })], { tieRatio: 1.25 });
+    ok('★ 差距超出容差（0.30% vs 0.05%）→ 报最贴近的 15分', r2.chosen.key === '15m');
+  }
+
+  // —— 触发与「一段一次」 ——
   {
     const w = W();
     const e1 = w.update('A', { '10m': lv({ key: '10m', dist: 0.2 }) });
     const e2 = w.update('A', { '10m': lv({ key: '10m', dist: 0.2, t: 3000 }) });
-    ok('★ 靠零轴 → 出预警；同一段内（换K线）不重复',
+    ok('★ 命中 → 出预警；同一段内（换K线）不重复',
       e1.length === 1 && e1[0].stage === 'warning' && e1[0].level === '10m' && e2.length === 0,
       e1[0] ? e1[0].text : '无');
-    const e3 = w.update('A', { '10m': lv({ key: '10m', dist: 0.2, near: false }) });
+    ok('★ 报警文案写明「回调中 / MACD均线(DEA) / 未跌破零轴」',
+      /回调中/.test(e1[0].text) && /MACD均线\(DEA\)/.test(e1[0].text) && /未跌破零轴/.test(e1[0].text));
+    ok('★ 文案里不再出现次级别/确认字样',
+      !/次级别|确认/.test(e1[0].text), e1[0].text);
+    const e3 = w.update('A', { '10m': lv({ key: '10m', dist: 0.2, near: false }) });   // 离开近零区间
     const e4 = w.update('A', { '10m': lv({ key: '10m', dist: 0.2, t: 5000 }) });
-    ok('★ 离开近零区间后再回来 → 可以再报一次', e3.length === 0 && e4.length === 1, e3.length + '/' + e4.length);
+    ok('★ 离开近零区间后再回来 → 可以再报一次', e3.length === 0 && e4.length === 1);
   }
   {
     const w = W();
-    ok('★ 离零轴 0.5% 超过阈值 0.3% → 不报', w.update('A', { '15m': lv({ key: '15m', dist: 0.5 }) }).length === 0);
+    ok('★ 上涨途中贴近零轴 → 整轮不报',
+      w.update('A', { '10m': lv({ key: '10m', dist: 0.05, falling: false }) }).length === 0);
     const w2 = W();
-    ok('★ 已跌破零轴（nearZero=false）→ 不报',
-      w2.update('A', { '15m': lv({ key: '15m', dif: -0.01, dist: 0.05, near: false }) }).length === 0);
+    ok('★ 离零轴 0.5% 超过阈值 0.3% → 不报',
+      w2.update('A', { '15m': lv({ key: '15m', dist: 0.5 }) }).length === 0);
   }
   {
     const w = W();
     const e = w.update('A', { '10m': lv({ key: '10m', dist: 0.2 }), '15m': lv({ key: '15m', dist: 0.05 }) });
-    ok('★ 多级别命中：15分更近（0.05%）且在容差外 → 报 15分', e.length === 1 && e[0].level === '15m', e[0] ? e[0].level : '无');
-  }
-
-  // —— 确认：次级别金叉 / 突破 EMA7 ——
-  {
-    const w = W();
-    w.update('A', { '30m': lv({ key: '30m', dist: 0.2 }) });
-    const e = w.update('A', { '30m': lv({ key: '30m', dist: 0.2, t: 3000 }), '5m': lv({ key: '5m', gold: 0 }) });
-    ok('★ 确认：次级别 MACD 金叉 → 出确认警报',
-      e.length === 1 && e[0].stage === 'confirm' && e[0].alarmLevel === '30m' && e[0].level === '5m',
-      e[0] ? e[0].text : '无');
-    const e2 = w.update('A', { '30m': lv({ key: '30m', dist: 0.2, t: 4000 }), '5m': lv({ key: '5m', gold: 0, t: 4000 }) });
-    ok('★ 一个预警段内只出一次确认', e2.length === 0);
+    ok('★ 多级别命中：15分更贴近（0.05%）且在容差外 → 报 15分', e.length === 1 && e[0].level === '15m');
   }
   {
     const w = W();
-    w.update('A', { '1h': lv({ key: '1h', dist: 0.2 }) });
-    const e = w.update('A', { '1h': lv({ key: '1h', dist: 0.2, t: 3000 }), '10m': lv({ key: '10m', gold: null, aboveEma7: true, dif: 0.02, near: false, dist: 1 }) });
-    ok('★ 确认：次级别突破 EMA7 且 MACD均线(DEA)>0 → 出确认警报',
-      e.length === 1 && e[0].stage === 'confirm' && /突破 EMA7/.test(e[0].text), e[0] ? e[0].text : '无');
-    const w2 = W();
-    w2.update('A', { '1h': lv({ key: '1h', dist: 0.2 }) });
-    const e2 = w2.update('A', { '1h': lv({ key: '1h', dist: 0.2, t: 3000 }), '10m': lv({ key: '10m', gold: null, aboveEma7: true, dif: -0.02, near: false, dist: 1 }) });
-    ok('★ 次级别突破 EMA7 但 MACD均线(DEA)<0（跌破零轴）→ 不出确认', e2.length === 0);
-    const c = confirmOk({ macdGoldIn: null, aboveEma7: true, dif: -0.02, dea: -0.01 });
-    ok('★ confirmOk 两个条件都不满足 → ok=false', c.ok === false);
-  }
-  {
-    const w = W();
-    w.update('A', { '1h': lv({ key: '1h', dist: 0.2 }) });
-    // 次级别 10分 自己也「靠零轴」（dist 0.1%）：确认必须照样发出来，不能被新预警吞掉
-    const e = w.update('A', { '1h': lv({ key: '1h', dist: 0.2, t: 3000 }),
-      '10m': lv({ key: '10m', dist: 0.1, gold: 0 }) });
-    const hasConfirm = e.some(a => a.stage === 'confirm' && a.alarmLevel === '1h');
-    ok('★ 次级别自己也靠零轴时，确认仍然发出（不被新预警吞掉）', hasConfirm,
-      e.map(a => a.stage + ':' + a.level).join(','));
-  }
-
-  // —— 水下拦截：预警级别掉到零轴下方后，次级别再上穿也不算确认 ——
-  {
-    const w = W();
-    w.update('A', { '10m': lv({ key: '10m', dist: 0.2 }) });                     // 先预警 10分
-    // 10分 DIF 变成负数（水下），同时 2分 金叉 → 不得出确认
-    const e = w.update('A', {
-      '10m': lv({ key: '10m', dist: 0.2, dif: -0.001, dea: -0.0005, near: false, t: 3000 }),
-      '2m': lv({ key: '2m', gold: 0, near: false, dist: 1 }),
-    });
-    ok('★ 10分 MACD 均线已在水下、2分上穿 → 不算确认',
-      e.filter(a => a.stage === 'confirm').length === 0, e.map(a => a.stage + ':' + a.level).join(',') || '无');
-    ok('★ 被水下拦截的预警段被作废（不会等会儿又拿来确认）', w.stats.voided >= 1, 'voided=' + w.stats.voided);
-    // 该段作废后，即便 10分 回到零轴上方，也必须**重新预警**才可能确认
-    const e2 = w.update('A', {
-      '10m': lv({ key: '10m', dist: 0.2, dif: 0.001, dea: 0.0008, t: 4000 }),
-      '2m': lv({ key: '2m', gold: 0, near: false, dist: 1, t: 4000 }),
-    });
-    ok('★ 作废后重新靠零轴 → 先出新的预警（而不是直接确认）',
-      e2.some(a => a.stage === 'warning') && e2.filter(a => a.stage === 'confirm').length === 0,
-      e2.map(a => a.stage).join(','));
-  }
-  // —— 正常情形：预警级别仍在零轴上方 → 确认照发 ——
-  {
-    const w = W();
-    w.update('A', { '10m': lv({ key: '10m', dist: 0.2, dif: 0.0005, dea: 0.0004 }) });
-    const e = w.update('A', {
-      '10m': lv({ key: '10m', dist: 0.2, dif: 0.0006, dea: 0.0005, t: 3000 }),
-      '2m': lv({ key: '2m', gold: 1, near: false, dist: 1, t: 3000 }),
-    });
-    ok('★ 10分 DIF 仍在零轴上方 → 2分金叉照常确认',
-      e.filter(a => a.stage === 'confirm').length === 1,
-      e.map(a => a.stage + ':' + a.level).join(',') || '无');
-    ok('★ 确认文案注明「预警级别 MACD 均线仍在零轴上方」',
-      /仍在零轴上方/.test(e.find(a => a.stage === 'confirm')?.text ?? ''), e.find(a => a.stage === 'confirm')?.text);
-  }
-
-  {
-    const w = W();
-    ok('★ 非扫描级别（5分）靠零轴 → 不报', w.update('A', { '5m': lv({ key: '5m', dist: 0.1 }) }).length === 0);
+    ok('★ 非扫描级别（5分）贴近零轴 → 不报',
+      w.update('A', { '5m': lv({ key: '5m', dist: 0.1 }) }).length === 0);
   }
   {
     const w = W();
     w.setConfig({ watchEnabled: false });
     ok('关闭盯盘开关后完全不工作', w.update('A', { '10m': lv({ key: '10m' }) }).length === 0);
   }
-  ok('配置默认：只扫 10分/15分/30分/1时 四个级别 + 用户指定的次级别对应表 + 0.3% 阈值',
+  {
+    // 只产出一条通道：stats 里不应再有 confirm
+    const w = W();
+    w.update('A', { '10m': lv({ key: '10m', dist: 0.2 }) });
+    ok('★ 只有预警一条通道（stats 里没有 confirm 计数）',
+      w.stats.warning === 1 && w.stats.confirm === undefined, JSON.stringify(w.stats));
+  }
+  ok('配置默认：只扫 10分/15分/30分/1时、只看回调、0.3% 阈值',
     JSON.stringify(DEFAULT_SIGNAL.watchLevels) === JSON.stringify(['10m', '15m', '30m', '1h'])
-    && DEFAULT_SIGNAL.watchSubMap['10m'] === '2m' && DEFAULT_SIGNAL.watchSubMap['15m'] === '3m'
-    && DEFAULT_SIGNAL.watchSubMap['30m'] === '5m' && DEFAULT_SIGNAL.watchSubMap['1h'] === '10m'
-    && Object.keys(DEFAULT_SIGNAL.watchSubMap).length === 4
-    && DEFAULT_SIGNAL.watchNearPct === 0.3,
-    JSON.stringify(DEFAULT_SIGNAL.watchSubMap));
+    && DEFAULT_SIGNAL.watchNeedFalling === true
+    && DEFAULT_SIGNAL.watchNearPct === 0.3
+    && DEFAULT_SIGNAL.watchSubMap === undefined,
+    JSON.stringify(DEFAULT_SIGNAL.watchLevels) + ' falling=' + DEFAULT_SIGNAL.watchNeedFalling);
 }
 
 /* ============ 14. 独立形态提醒：双阴不破（多） / 双阳不穿（空） ============ */

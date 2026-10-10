@@ -127,10 +127,10 @@ const cfg = { ...DEFAULT_SIGNAL };
 cfg.watchEnabled = true; cfg.signalEnabled = false; cfg.dualEnabled = false;
 cfg.filterBeichi = false; cfg.requireStrokeChain = false; cfg.useLiveCandle = false;
 
-const LV_KEYS_USED = [...new Set([...(cfg.watchLevels ?? []), ...Object.values(cfg.watchSubMap ?? {})])];
+const LV_KEYS_USED = [...new Set(cfg.watchLevels ?? [])];   // 只看扫描级别（次级别已去掉）
 const AXIS = arg('axis', '10m');   // 逐根回放所用的级别（最小的扫描级别）
 const watcher = new Watcher(null, {
-  enabled: true, levels: cfg.watchLevels, subMap: cfg.watchSubMap,
+  enabled: true, levels: cfg.watchLevels, needFalling: cfg.watchNeedFalling,
   nearPct: cfg.watchNearPct, tieRatio: cfg.watchTieRatio, useLiveCandle: false,
 });
 
@@ -287,7 +287,7 @@ for (const tag of ['mid', 'base']) {
   const label = '按报警级别K线（1时或2时）';
   console.log(`\n【${label}】`);
   for (const k of HORIZONS) show(`+${k} 根`, agg(samples.map(s => s[tag]?.[k])));
-  for (const st of ['warning', 'confirm']) {
+  for (const st of ['warning']) {
     const arr = samples.filter(s => s.stage === st);
     if (arr.length) { const a5 = agg(arr.map(s => s[tag]?.[5])); console.log(`    · ${st === 'warning' ? '预警' : '确认'} n=${arr.length}` + (a5 ? `  +5根 均值 ${a5.avg}% 胜率 ${a5.win}%` : '')); }
   }

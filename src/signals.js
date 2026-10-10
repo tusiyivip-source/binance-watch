@@ -764,6 +764,8 @@ function watchView(v, series, cfg) {
     macdGoldIn: gold,                            // DIF 上穿 DEA 发生在几根前（null = 最近没金叉）
     distPct,                                     // 「离零轴」相对距离：|DEA（MACD均线）| / 收盘价
     difPct,                                      // 快线同样的口径（仅展示）
+    // ⚠ 用户口径：只看**回调中**的 —— MACD 均线(DEA) 必须正在回落，不看上涨途中贴近零轴的
+    deaFalling: (m && Number.isFinite(m.dea) && Number.isFinite(m.deaPrev)) ? m.dea < m.deaPrev : null,
     nearZero: m != null && distPct != null && m.dea > 0 && distPct <= nearPct,  // MACD均线(DEA) 靠近零轴且未跌破
     aboveZero: m ? m.dea > 0 : null,          // 以 MACD 均线为准
     difAboveZero: m ? m.dif > 0 : null,
@@ -792,7 +794,8 @@ function macdValues(series, i, cfg) {
   const m = series.macd(cfg.macdFast ?? 12, cfg.macdSlow ?? 26, cfg.macdSignal ?? 9);
   const d = m.dif[i], e = m.dea[i];
   if (!Number.isFinite(d) || !Number.isFinite(e)) return null;
-  return { dif: d, dea: e };
+  const ePrev = i > 0 ? m.dea[i - 1] : NaN;
+  return { dif: d, dea: e, deaPrev: ePrev };
 }
 
 function pickLevel(v) {
@@ -876,16 +879,10 @@ export function evaluateSymbol(symbol, seriesMap, cfg, includeLive = true) {
   const watch = {};
   const watchLive = {};
   if (cfg.watchEnabled) {
-    const mains = cfg.watchLevels ?? [];
-    const subs = Object.values(cfg.watchSubMap ?? {});
-    for (const k of new Set([...mains, ...subs])) {
+    // 只看这 4 个扫描级别（次级别已按用户要求去掉）
+    for (const k of (cfg.watchLevels ?? [])) {
       const v = closedViews[k];
       if (v) watch[k] = watchView(v, seriesMap[k], cfg);
-    }
-    // 扫描级别 + 次级别：把「正在形成的那根K线」也带上
-    //   · 扫描级别 → 预警可以在K线收完之前就发（否则 4时 级别最多要等 4 小时）
-    //   · 次级别   → 确认可以提前到金叉/突破发生的那一刻
-    for (const k of new Set([...mains, ...subs])) {
       const lv = liveViews[k];
       if (lv) watchLive[k] = watchView(lv, seriesMap[k], cfg);
     }

@@ -737,7 +737,7 @@ const CFG_FIELDS = [
   ['requireStrokeChain', 'bool'], ['chainRequireAboveMa', 'bool'],
   ['pullbackPattern', 'str'], ['pullbackBars', 'int'],
   ['watchEnabled', 'bool'],
-  ['watchNearPct', 'pct'], ['watchTieRatio', 'num'], ['watchConfirmLookback', 'int'],
+  ['watchNearPct', 'pct'], ['watchTieRatio', 'num'], ['watchNeedFalling', 'bool'],
   ['macdFast', 'int'], ['macdSlow', 'int'], ['macdSignal', 'int'],
   ['watchUseLiveCandle', 'bool'],
   ['dualEnabled', 'bool'], ['dualBars', 'int'], ['dualMinQuoteVolume', 'num'],
@@ -751,7 +751,7 @@ const CFG_DEFAULTS = {
   filterBeichi: true, beichiScope: 'mid', beichiMinBars: 5, beichiRatio: 1.0, beichiMinProgress: 0.3,
   requireStrokeChain: true, chainRequireAboveMa: false,
   pullbackPattern: 'twoBearHold', pullbackBars: 2,
-  watchEnabled: true, watchNearPct: 0.3, watchTieRatio: 1.25, watchConfirmLookback: 2,
+  watchEnabled: true, watchNearPct: 0.3, watchTieRatio: 1.25, watchNeedFalling: true,
   macdFast: 12, macdSlow: 26, macdSignal: 9, watchUseLiveCandle: true,
   dualEnabled: false, dualBars: 2, dualMinQuoteVolume: 4000000, signalEnabled: false,
 };

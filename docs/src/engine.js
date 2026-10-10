@@ -26,13 +26,13 @@ export class Engine extends Emitter {
     this.evaluations = 0;
     this.signalCount = 0;
     this.beichiBlocked = 0;        // 累计拦截次数（按每轮评估累加）
-    // 盯盘通道 v3：8 个级别 MACD 靠零轴 → 预警；次级别金叉/突破EMA7 → 确认
+    // 盯盘通道 v4：4 个级别「回调中、MACD 均线(DEA) 贴近零轴且未跌破」→ 预警（无次级别/无确认段）
     this.watcher = new Watcher(log, {
       enabled: this.cfg.watchEnabled,
       levels: this.cfg.watchLevels,
-      subMap: this.cfg.watchSubMap,
       nearPct: this.cfg.watchNearPct,
       tieRatio: this.cfg.watchTieRatio,
+      needFalling: this.cfg.watchNeedFalling,
       useLiveCandle: this.cfg.watchUseLiveCandle,
     });
     this.watchDbg = { seen: 0, enabled: 0, hasWatch: 0, called: 0, err: null };

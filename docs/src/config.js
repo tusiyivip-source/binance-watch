@@ -133,7 +133,7 @@ export const DEFAULT_SIGNAL = {
   // —— 盯盘通道（用户最新口径 v3：MACD 靠近零轴 → 次级别确认）——
   //   扫描 8 个级别：10分 / 15分 / 30分 / 1时 / 2时 / 3时 / 4时 / 6时
   //
-  //   ① 预警提醒：**任意一个级别的 MACD 靠近零轴、且没有跌破零轴**
+  //   ① 唯一提醒：**回调中、MACD 的均线（DEA）贴近零轴且没有跌破**
   //      · 「没跌破零轴」= DIF > 0；「靠近零轴」= |DIF| / 收盘价 ≤ watchNearPct（默认 0.3%）
   //      · 多个级别同时满足时**只报一个**：先看谁更接近零轴，接近程度在 watchTieRatio 倍以内的
   //        候选里再**优先小级别**（用户口径：「同时看更接近和级别更小」）
@@ -144,10 +144,9 @@ export const DEFAULT_SIGNAL = {
   //   MACD 统一 12/26/9、以收盘为准。预警按「一段」去重：该级别离开近零区间或跌破零轴后才允许下一次。
   watchEnabled: true,
   watchLevels: ['10m', '15m', '30m', '1h'],   // 只看这 4 个级别（用户口径）
-  watchSubMap: {                 // 预警级别 → 确认用的次级别（用户指定的对应表）
-    '10m': '2m', '15m': '3m', '30m': '5m', '1h': '10m',
-  },
-  watchNearPct: 0.3,             // 「靠近零轴」：|DIF| / 收盘价 ≤ 0.3%
+  // （次级别与确认段已按用户要求整体去掉，不再需要对应表）
+  watchNearPct: 0.3,             // 「贴近零轴」：|MACD均线(DEA)| / 收盘价 ≤ 0.3%
+  watchNeedFalling: true,        // **只看回调中**：MACD 均线正在回落；上涨途中贴近零轴的不报
   watchTieRatio: 1.25,           // 接近程度的并列容差：差距在这个倍数内就优先小级别
   watchConfirmLookback: 2,       // 次级别金叉须发生在最近几根K线内
   macdFast: 12, macdSlow: 26, macdSignal: 9,
