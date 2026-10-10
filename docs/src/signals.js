@@ -751,7 +751,9 @@ function watchView(v, series, cfg) {
   const macdDead = m ? m.dif < m.dea : null;
   const gold = macdGoldCrossIn(series, i, cfg);
   const nearPct = cfg.watchNearPct ?? 0.3;
-  const distPct = (m && v.close > 0) ? Math.abs(m.dif) / v.close * 100 : null;
+  // ⚠ 用户口径：贴近零轴看的是 **MACD 的均线（信号线 DEA）**，不是快线 DIF
+  const distPct = (m && v.close > 0) ? Math.abs(m.dea) / v.close * 100 : null;
+  const difPct = (m && v.close > 0) ? Math.abs(m.dif) / v.close * 100 : null;
   return {
     key: v.key,
     minutes: (LEVELS[LEVEL_INDEX[v.key]]?.minutes) ?? null,
@@ -760,9 +762,11 @@ function watchView(v, series, cfg) {
     dea: m?.dea ?? null,
     macdDead,                                    // DIF < DEA
     macdGoldIn: gold,                            // DIF 上穿 DEA 发生在几根前（null = 最近没金叉）
-    distPct,                                     // 「离零轴」相对距离：|DIF| / 收盘价
-    nearZero: m != null && distPct != null && m.dif > 0 && distPct <= nearPct,  // 靠近零轴且未跌破
-    aboveZero: m ? m.dif > 0 : null,
+    distPct,                                     // 「离零轴」相对距离：|DEA（MACD均线）| / 收盘价
+    difPct,                                      // 快线同样的口径（仅展示）
+    nearZero: m != null && distPct != null && m.dea > 0 && distPct <= nearPct,  // MACD均线(DEA) 靠近零轴且未跌破
+    aboveZero: m ? m.dea > 0 : null,          // 以 MACD 均线为准
+    difAboveZero: m ? m.dif > 0 : null,
     aboveEma7: v.aboveEma7,
     close: v.close, ma7: v.ma7, ma25: v.ma25, ema7: v.ema7,
     above7: v.above7, ma7Up: v.ma7Up, bull: v.bull,

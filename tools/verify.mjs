@@ -998,8 +998,10 @@ section('13. 盯盘通道 v3（8 级别靠零轴预警 + 次级别金叉/突破E
 {
   const mkLog = () => ({ info() { }, warn() { }, error() { }, signal() { }, ok() { }, debug() { } });
   const lv = (o = {}) => ({
-    key: o.key, distPct: o.dist === undefined ? 0.1 : o.dist, dif: o.dif === undefined ? 0.001 : o.dif,
-    dea: o.dea ?? 0.0, nearZero: o.near === undefined ? (o.dist === undefined ? true : o.dist <= 0.3) : o.near,
+    key: o.key, distPct: o.dist === undefined ? 0.1 : o.dist,
+    dif: o.dif === undefined ? 0.001 : o.dif,
+    dea: o.dea === undefined ? (o.dif === undefined ? 0.001 : o.dif) : o.dea,   // 零轴判定看 DEA
+    nearZero: o.near === undefined ? (o.dist === undefined ? true : o.dist <= 0.3) : o.near,
     macdGoldIn: o.gold ?? null, aboveEma7: o.aboveEma7 === true,
     close: 100, ema7: 99, candleT: o.t ?? 2000, live: o.live === true,
   });
@@ -1060,13 +1062,13 @@ section('13. 盯盘通道 v3（8 级别靠零轴预警 + 次级别金叉/突破E
     const w = W();
     w.update('A', { '1h': lv({ key: '1h', dist: 0.2 }) });
     const e = w.update('A', { '1h': lv({ key: '1h', dist: 0.2, t: 3000 }), '10m': lv({ key: '10m', gold: null, aboveEma7: true, dif: 0.02, near: false, dist: 1 }) });
-    ok('★ 确认：次级别突破 EMA7 且 DIF>0 → 出确认警报',
+    ok('★ 确认：次级别突破 EMA7 且 MACD均线(DEA)>0 → 出确认警报',
       e.length === 1 && e[0].stage === 'confirm' && /突破 EMA7/.test(e[0].text), e[0] ? e[0].text : '无');
     const w2 = W();
     w2.update('A', { '1h': lv({ key: '1h', dist: 0.2 }) });
     const e2 = w2.update('A', { '1h': lv({ key: '1h', dist: 0.2, t: 3000 }), '10m': lv({ key: '10m', gold: null, aboveEma7: true, dif: -0.02, near: false, dist: 1 }) });
-    ok('★ 次级别突破 EMA7 但 DIF<0（跌破零轴）→ 不出确认', e2.length === 0);
-    const c = confirmOk({ macdGoldIn: null, aboveEma7: true, dif: -0.02 });
+    ok('★ 次级别突破 EMA7 但 MACD均线(DEA)<0（跌破零轴）→ 不出确认', e2.length === 0);
+    const c = confirmOk({ macdGoldIn: null, aboveEma7: true, dif: -0.02, dea: -0.01 });
     ok('★ confirmOk 两个条件都不满足 → ok=false', c.ok === false);
   }
   {
@@ -1086,15 +1088,15 @@ section('13. 盯盘通道 v3（8 级别靠零轴预警 + 次级别金叉/突破E
     w.update('A', { '10m': lv({ key: '10m', dist: 0.2 }) });                     // 先预警 10分
     // 10分 DIF 变成负数（水下），同时 2分 金叉 → 不得出确认
     const e = w.update('A', {
-      '10m': lv({ key: '10m', dist: 0.2, dif: -0.001, near: false, t: 3000 }),
+      '10m': lv({ key: '10m', dist: 0.2, dif: -0.001, dea: -0.0005, near: false, t: 3000 }),
       '2m': lv({ key: '2m', gold: 0, near: false, dist: 1 }),
     });
-    ok('★ 10分 MACD 已在水下、2分上穿 → 不算确认',
+    ok('★ 10分 MACD 均线已在水下、2分上穿 → 不算确认',
       e.filter(a => a.stage === 'confirm').length === 0, e.map(a => a.stage + ':' + a.level).join(',') || '无');
     ok('★ 被水下拦截的预警段被作废（不会等会儿又拿来确认）', w.stats.voided >= 1, 'voided=' + w.stats.voided);
     // 该段作废后，即便 10分 回到零轴上方，也必须**重新预警**才可能确认
     const e2 = w.update('A', {
-      '10m': lv({ key: '10m', dist: 0.2, dif: 0.001, t: 4000 }),
+      '10m': lv({ key: '10m', dist: 0.2, dif: 0.001, dea: 0.0008, t: 4000 }),
       '2m': lv({ key: '2m', gold: 0, near: false, dist: 1, t: 4000 }),
     });
     ok('★ 作废后重新靠零轴 → 先出新的预警（而不是直接确认）',
@@ -1104,15 +1106,15 @@ section('13. 盯盘通道 v3（8 级别靠零轴预警 + 次级别金叉/突破E
   // —— 正常情形：预警级别仍在零轴上方 → 确认照发 ——
   {
     const w = W();
-    w.update('A', { '10m': lv({ key: '10m', dist: 0.2, dif: 0.0005 }) });
+    w.update('A', { '10m': lv({ key: '10m', dist: 0.2, dif: 0.0005, dea: 0.0004 }) });
     const e = w.update('A', {
-      '10m': lv({ key: '10m', dist: 0.2, dif: 0.0006, t: 3000 }),
+      '10m': lv({ key: '10m', dist: 0.2, dif: 0.0006, dea: 0.0005, t: 3000 }),
       '2m': lv({ key: '2m', gold: 1, near: false, dist: 1, t: 3000 }),
     });
     ok('★ 10分 DIF 仍在零轴上方 → 2分金叉照常确认',
       e.filter(a => a.stage === 'confirm').length === 1,
       e.map(a => a.stage + ':' + a.level).join(',') || '无');
-    ok('★ 确认文案注明「预警级别 DIF 仍在零轴上方」',
+    ok('★ 确认文案注明「预警级别 MACD 均线仍在零轴上方」',
       /仍在零轴上方/.test(e.find(a => a.stage === 'confirm')?.text ?? ''), e.find(a => a.stage === 'confirm')?.text);
   }
 

@@ -50,8 +50,8 @@ export function confirmOk(sub) {
   if (sub.macdGoldIn != null) {
     return { ok: true, why: `次级别 MACD 金叉（${sub.macdGoldIn === 0 ? '本根' : sub.macdGoldIn + ' 根前'}）` };
   }
-  if (sub.aboveEma7 === true && sub.dif != null && sub.dif > 0) {
-    return { ok: true, why: '次级别收盘突破 EMA7 且 DIF > 0（未跌破零轴）' };
+  if (sub.aboveEma7 === true && sub.dea != null && sub.dea > 0) {
+    return { ok: true, why: '次级别收盘突破 EMA7 且 MACD均线(DEA) > 0（未跌破零轴）' };
   }
   return { ok: false, why: null };
 }
@@ -106,7 +106,7 @@ export class Watcher {
       //   一掉到水下，这一段直接作废；等它重回零轴上方并再次进入近零区间才会重新预警。
       const mainLive = this.cfg.useLiveCandle ? liveLevels?.[cur0.level] : null;
       const mainV = (mainLive && mainLive.live) ? mainLive : levels[cur0.level];
-      const mainDif = mainV?.dif;
+      const mainDif = mainV?.dea;          // 以 MACD 均线（DEA）为准：它在零轴上方才算没破
       if (!(mainDif != null && mainDif > 0)) {
         this.armed.delete(symbol);
         this.stats.voided = (this.stats.voided ?? 0) + 1;
@@ -192,9 +192,11 @@ export class Watcher {
       dif: v.dif ?? null,
       dea: v.dea ?? null,
       distPct: v.distPct ?? null,
+      difPct: v.difPct ?? null,
       nearPct: this.cfg.nearPct,
-      text: `【预警·MACD 靠零轴】${label(v.key)} DIF ${Number(v.dif).toFixed(6)} > 0（未跌破零轴）、`
+      text: `【预警·MACD 均线靠零轴】${label(v.key)} MACD均线(DEA) ${Number(v.dea).toFixed(6)} > 0（未跌破零轴）、`
         + `离零轴 ${v.distPct.toFixed(3)}%（阈值 ${this.cfg.nearPct}%）；${v.__live ? '现价' : '收盘'} ${v.close}`
+        + `（DIF ${Number(v.dif).toFixed(6)}）`
         + candTxt
         + (v.__live ? ' · [预警/未收盘]' : ''),
     };
@@ -222,7 +224,7 @@ export class Watcher {
       dea: sub?.dea ?? null,
       goldIn: sub?.macdGoldIn ?? null,
       text: `【确认·${label(st.level)} 靠零轴后 ${label(subKey)} 跟进】${r.why}`
-        + (Number.isFinite(st.mainDif) ? `（${label(st.level)} DIF ${st.mainDif.toFixed(6)} 仍在零轴上方）` : '')
+        + (Number.isFinite(st.mainDif) ? `（${label(st.level)} MACD均线(DEA) ${st.mainDif.toFixed(6)} 仍在零轴上方）` : '')
         + `（${label(subKey)} 收盘 ${sub?.close} / EMA7 ${sub?.ema7} / DIF ${Number(sub?.dif).toFixed(6)}）`
         + (live ? ' · [预警/未收盘]' : ' · [已确认]'),
     };
