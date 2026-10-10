@@ -1080,6 +1080,42 @@ section('13. 盯盘通道 v3（8 级别靠零轴预警 + 次级别金叉/突破E
       e.map(a => a.stage + ':' + a.level).join(','));
   }
 
+  // —— 水下拦截：预警级别掉到零轴下方后，次级别再上穿也不算确认 ——
+  {
+    const w = W();
+    w.update('A', { '10m': lv({ key: '10m', dist: 0.2 }) });                     // 先预警 10分
+    // 10分 DIF 变成负数（水下），同时 2分 金叉 → 不得出确认
+    const e = w.update('A', {
+      '10m': lv({ key: '10m', dist: 0.2, dif: -0.001, near: false, t: 3000 }),
+      '2m': lv({ key: '2m', gold: 0, near: false, dist: 1 }),
+    });
+    ok('★ 10分 MACD 已在水下、2分上穿 → 不算确认',
+      e.filter(a => a.stage === 'confirm').length === 0, e.map(a => a.stage + ':' + a.level).join(',') || '无');
+    ok('★ 被水下拦截的预警段被作废（不会等会儿又拿来确认）', w.stats.voided >= 1, 'voided=' + w.stats.voided);
+    // 该段作废后，即便 10分 回到零轴上方，也必须**重新预警**才可能确认
+    const e2 = w.update('A', {
+      '10m': lv({ key: '10m', dist: 0.2, dif: 0.001, t: 4000 }),
+      '2m': lv({ key: '2m', gold: 0, near: false, dist: 1, t: 4000 }),
+    });
+    ok('★ 作废后重新靠零轴 → 先出新的预警（而不是直接确认）',
+      e2.some(a => a.stage === 'warning') && e2.filter(a => a.stage === 'confirm').length === 0,
+      e2.map(a => a.stage).join(','));
+  }
+  // —— 正常情形：预警级别仍在零轴上方 → 确认照发 ——
+  {
+    const w = W();
+    w.update('A', { '10m': lv({ key: '10m', dist: 0.2, dif: 0.0005 }) });
+    const e = w.update('A', {
+      '10m': lv({ key: '10m', dist: 0.2, dif: 0.0006, t: 3000 }),
+      '2m': lv({ key: '2m', gold: 1, near: false, dist: 1, t: 3000 }),
+    });
+    ok('★ 10分 DIF 仍在零轴上方 → 2分金叉照常确认',
+      e.filter(a => a.stage === 'confirm').length === 1,
+      e.map(a => a.stage + ':' + a.level).join(',') || '无');
+    ok('★ 确认文案注明「预警级别 DIF 仍在零轴上方」',
+      /仍在零轴上方/.test(e.find(a => a.stage === 'confirm')?.text ?? ''), e.find(a => a.stage === 'confirm')?.text);
+  }
+
   {
     const w = W();
     ok('★ 非扫描级别（5分）靠零轴 → 不报', w.update('A', { '5m': lv({ key: '5m', dist: 0.1 }) }).length === 0);

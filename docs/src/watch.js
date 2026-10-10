@@ -69,7 +69,7 @@ export class Watcher {
     };
     this.armed = new Map();      // symbol -> { level, since, candleT, confirmed }
     this.seen = new Map();       // 去重键 -> ts
-    this.stats = { warning: 0, confirm: 0, preview: 0, evaluations: 0, byLevel: {} };
+    this.stats = { warning: 0, confirm: 0, preview: 0, voided: 0, evaluations: 0, byLevel: {} };
     this.seq = 0;
   }
 
@@ -81,7 +81,7 @@ export class Watcher {
     if (patch.watchUseLiveCandle !== undefined) this.cfg.useLiveCandle = !!patch.watchUseLiveCandle;
     if (patch.watchReset === true) {
       this.armed.clear(); this.seen.clear();
-      this.stats = { warning: 0, confirm: 0, preview: 0, evaluations: 0, byLevel: {} };
+      this.stats = { warning: 0, confirm: 0, preview: 0, voided: 0, evaluations: 0, byLevel: {} };
     }
     return { ...this.cfg };
   }
@@ -101,6 +101,16 @@ export class Watcher {
     // —— 先判「确认」：用**上一轮已经预警过**的级别，避免被本轮新预警覆盖 ——
     const cur0 = this.armed.get(symbol) ?? null;
     if (cur0 && !cur0.confirmed) {
+      // ⚠ 用户口径：确认那一刻，**预警级别自己不能已经掉到零轴下方（水下）**。
+      //   例：10分 MACD 在水下、2分上穿 → 不算确认。
+      //   一掉到水下，这一段直接作废；等它重回零轴上方并再次进入近零区间才会重新预警。
+      const mainLive = this.cfg.useLiveCandle ? liveLevels?.[cur0.level] : null;
+      const mainV = (mainLive && mainLive.live) ? mainLive : levels[cur0.level];
+      const mainDif = mainV?.dif;
+      if (!(mainDif != null && mainDif > 0)) {
+        this.armed.delete(symbol);
+        this.stats.voided = (this.stats.voided ?? 0) + 1;
+      } else {
       const subKey = this.cfg.subMap[cur0.level];
       const sub = levels[subKey];
       let r = confirmOk(sub);
@@ -114,10 +124,12 @@ export class Watcher {
         if (!this.seen.has(id)) {
           this.seen.set(id, now);
           cur0.confirmed = true;
+          cur0.mainDif = mainDif;
           this.stats.confirm++;
           if (live) this.stats.preview++;
           out.push(this._confirmAlert(symbol, cur0, levels, sub, r, now, live));
         }
+      }
       }
     }
 
@@ -210,6 +222,7 @@ export class Watcher {
       dea: sub?.dea ?? null,
       goldIn: sub?.macdGoldIn ?? null,
       text: `【确认·${label(st.level)} 靠零轴后 ${label(subKey)} 跟进】${r.why}`
+        + (Number.isFinite(st.mainDif) ? `（${label(st.level)} DIF ${st.mainDif.toFixed(6)} 仍在零轴上方）` : '')
         + `（${label(subKey)} 收盘 ${sub?.close} / EMA7 ${sub?.ema7} / DIF ${Number(sub?.dif).toFixed(6)}）`
         + (live ? ' · [预警/未收盘]' : ' · [已确认]'),
     };
