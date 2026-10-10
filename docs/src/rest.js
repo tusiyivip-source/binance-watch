@@ -133,7 +133,16 @@ export class RestClient {
 
         if (res.status === 429 || res.status === 418) {
           const retryAfter = Number(res.headers.get('retry-after') || 0);
-          const backoff = retryAfter ? retryAfter * 1000 : Math.min(60_000, 2000 * 2 ** attempt);
+          // —— 反复被罚要**指数级拉长静默期** ——
+          // 币安的 418 惩罚是「持续触碰就持续续期」：队列里成百上千个待发请求在
+          // bannedUntil 到点后会集体试探一次，于是 retry-after 被一直刷新，封禁永远解不开
+          // （实测：等了半小时仍是 418，且 retry-after 从 27 秒一路涨到 3840 秒）。
+          // 因此每次被罚就把静默期翻倍（最高 8 倍），并加随机抖动，
+          // 让一整批请求不再同时撞上去；成功一次后清零。
+          this.banStrikes = Math.min((this.banStrikes ?? 0) + 1, 8);
+          const factor = 1 + this.banStrikes;
+          const base = retryAfter ? retryAfter * 1000 : Math.min(60_000, 2000 * 2 ** attempt);
+          const backoff = Math.min(base * factor, 30 * 60_000) + Math.round(Math.random() * 5000);
           this.bannedUntil = Date.now() + backoff;
           this.rotateHost();
           this.stats.errors++;
@@ -163,6 +172,7 @@ export class RestClient {
           const body = await res.text().catch(() => '');
           throw new Error(`HTTP ${res.status} ${body.slice(0, 200)}`);
         }
+        this.banStrikes = 0;          // 成功一次 → 连续被罚计数清零
         return await res.json();
       } catch (err) {
         this.stats.errors++;

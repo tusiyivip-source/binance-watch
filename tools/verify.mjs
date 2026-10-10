@@ -1125,10 +1125,11 @@ section('13. 盯盘通道 v3（8 级别靠零轴预警 + 次级别金叉/突破E
     w.setConfig({ watchEnabled: false });
     ok('关闭盯盘开关后完全不工作', w.update('A', { '10m': lv({ key: '10m' }) }).length === 0);
   }
-  ok('配置默认：8 个扫描级别 + 用户指定的次级别对应表 + 0.3% 阈值',
-    JSON.stringify(DEFAULT_SIGNAL.watchLevels) === JSON.stringify(['10m', '15m', '30m', '1h', '2h', '3h', '4h', '6h'])
-    && DEFAULT_SIGNAL.watchSubMap['15m'] === '3m' && DEFAULT_SIGNAL.watchSubMap['6h'] === '1h'
-    && DEFAULT_SIGNAL.watchSubMap['4h'] === '30m'
+  ok('配置默认：只扫 10分/15分/30分/1时 四个级别 + 用户指定的次级别对应表 + 0.3% 阈值',
+    JSON.stringify(DEFAULT_SIGNAL.watchLevels) === JSON.stringify(['10m', '15m', '30m', '1h'])
+    && DEFAULT_SIGNAL.watchSubMap['10m'] === '2m' && DEFAULT_SIGNAL.watchSubMap['15m'] === '3m'
+    && DEFAULT_SIGNAL.watchSubMap['30m'] === '5m' && DEFAULT_SIGNAL.watchSubMap['1h'] === '10m'
+    && Object.keys(DEFAULT_SIGNAL.watchSubMap).length === 4
     && DEFAULT_SIGNAL.watchNearPct === 0.3,
     JSON.stringify(DEFAULT_SIGNAL.watchSubMap));
 }

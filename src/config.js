@@ -143,10 +143,9 @@ export const DEFAULT_SIGNAL = {
   //
   //   MACD 统一 12/26/9、以收盘为准。预警按「一段」去重：该级别离开近零区间或跌破零轴后才允许下一次。
   watchEnabled: true,
-  watchLevels: ['10m', '15m', '30m', '1h', '2h', '3h', '4h', '6h'],
+  watchLevels: ['10m', '15m', '30m', '1h'],   // 只看这 4 个级别（用户口径）
   watchSubMap: {                 // 预警级别 → 确认用的次级别（用户指定的对应表）
     '10m': '2m', '15m': '3m', '30m': '5m', '1h': '10m',
-    '2h': '15m', '3h': '30m', '4h': '30m', '6h': '1h',
   },
   watchNearPct: 0.3,             // 「靠近零轴」：|DIF| / 收盘价 ≤ 0.3%
   watchTieRatio: 1.25,           // 接近程度的并列容差：差距在这个倍数内就优先小级别
