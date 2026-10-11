@@ -136,6 +136,28 @@ try {
     ok(`★ 筛选「${lv}」后只显示该级别的报警`, same, `卡片 ${onlyOne.n} · 级别 ${[...new Set(onlyOne.labels)].join('/')}`);
   }
 
+  // 报警级别筛选：必须住在**右侧控件组**、且只在报警级别K线视图露出
+  const place = await evalJs(`(() => {
+    const al = document.querySelector('#alert-level');
+    const cols = document.querySelector('#chart-cols');
+    const cs = getComputedStyle(al);
+    const r = al.getBoundingClientRect(), rc = cols.getBoundingClientRect();
+    return {
+      visibleInAlert: cs.display !== 'none',
+      domNext: al.nextElementSibling?.id ?? null,
+      x: Math.round(r.x), colsX: Math.round(rc.x), w: Math.round(r.width),
+    };
+  })()`);
+  ok('★ 报警级别筛选在报警视图可见', place.visibleInAlert);
+  ok('★ 它就在右侧控件组里（紧邻每行列数选择）', place.domNext === 'chart-cols', 'next=' + place.domNext);
+  ok('★ 位置在标头右侧（x 接近列数选择器）', Math.abs(place.x - place.colsX) < 200, `x=${place.x} colsX=${place.colsX}`);
+
+  // 切到矩阵视图 → 应隐藏
+  await evalJs(`document.querySelector('#tab-matrix').click()`);
+  await sleep(1200);
+  const hiddenInMatrix = await evalJs(`getComputedStyle(document.querySelector('#alert-level')).display === 'none'`);
+  ok('★ 非报警视图里自动隐藏（不干扰其它视图）', hiddenInMatrix);
+
   const errs = await evalJs(`(window.__DSH_ERRORS__ || []).length`);
   ok('★ 无 JS 异常', !errs || errs === 0, `异常数 ${errs}`);
 } catch (e) {

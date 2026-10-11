@@ -76,6 +76,9 @@ function setView(mode) {
   // 多级别视图才有币种切换控件
   document.querySelector('#chart-symbar').style.display = mode === 'multi' ? '' : 'none';
   document.querySelector('#alert-symbar').style.display = mode === 'alert' ? '' : 'none';
+  // 报警级别筛选住在右侧控件组，只在「报警级别K线」视图露出
+  const al = document.querySelector('#alert-level');
+  if (al) al.style.display = mode === 'alert' ? '' : 'none';
   if (mode === 'matrix') stopLoop(); else startLoop();
 }
 
