@@ -9,7 +9,7 @@ const PORT = 9352;
 const CHROME = ['C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'].find(p => fs.existsSync(p));
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-bprobe-'));
-const child = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${PORT}`, `--user-data-dir=${profile}`,
+const child = spawn(CHROME, ['--headless=new', '--remote-allow-origins=*', `--remote-debugging-port=${PORT}`, `--user-data-dir=${profile}`,
   '--window-size=1200,900', '--no-first-run', '--disable-gpu', 'about:blank'], { stdio: 'ignore' });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let ws, id = 0; const pending = new Map();

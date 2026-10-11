@@ -26,7 +26,7 @@ for (const p of assets) {
 
 /* ---------- 2) 真实浏览器渲染 ---------- */
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-live-'));
-const child = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${PORT}`, `--user-data-dir=${profile}`,
+const child = spawn(CHROME, ['--headless=new', '--remote-allow-origins=*', `--remote-debugging-port=${PORT}`, `--user-data-dir=${profile}`,
   '--window-size=1440,900', '--hide-scrollbars', '--no-first-run', '--disable-gpu', 'about:blank'], { stdio: 'ignore' });
 let ws, id = 0; const pending = new Map();
 const send = (m, p = {}) => { const i = ++id; ws.send(JSON.stringify({ id: i, method: m, params: p }));

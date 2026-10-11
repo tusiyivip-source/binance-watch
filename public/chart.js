@@ -41,6 +41,26 @@ const VIEWS = {
   alert: { kind: 'alert', grid: null, entries: [], items: [], roles: {}, cols: 4 },
 };
 let activeView = 'matrix';         // 'matrix' | 'multi' | 'alert'
+/**
+ * 级别下拉：把「全部 + 各报警/各展示级别」填进 select，并保持当前选择不丢。
+ * 只在选项集合发生变化时才重建，避免每 3 秒刷新把用户的选择打回去。
+ */
+function fillLevelSel(id, pairs, allText) {
+  const sel = document.querySelector(id);
+  if (!sel) return 'all';
+  const cur = sel.dataset.__v || sel.value || 'all';
+  const want = ['all', ...pairs.map(p => p.key)];
+  const have = [...sel.options].map(o => o.value);
+  if (want.join('|') !== have.join('|')) {
+    sel.innerHTML = ['<option value="all">' + (allText || '全部级别') + '</option>']
+      .concat(pairs.map(p => '<option value="' + p.key + '">' + (p.label || p.key) + '</option>'))
+      .join('');
+  }
+  sel.value = want.includes(cur) ? cur : 'all';
+  sel.dataset.__v = sel.value;
+  return sel.value;
+}
+
 let chartSymbol = null;
 let chartList = [];
 let viewTimer = null;
@@ -437,14 +457,18 @@ async function refreshMulti() {
   try {
     const d = await fetch(`/api/chart?symbol=${encodeURIComponent(chartSymbol)}&bars=${bars}`).then(r => r.json());
     if (d.error) return;
-    view.items = d.levels;
+    // 级别选择器（含报警级别）——只画选中的那一个级别
+    const allLevels = Array.isArray(d.levels) ? d.levels : Object.values(d.levels ?? {});
+    const pairs = allLevels.map(v => ({ key: v.key, label: v.label ?? v.key }));
+    const pick = fillLevelSel('#chart-level', pairs, '全部级别');
+    view.items = pick === 'all' ? allLevels : allLevels.filter(v => v.key === pick);
     view.roles = d.roles ?? {};
     ensureCards(view, view.items);
     paintView(view);
     applyCols(view);
     const age = d.tickAt ? ((Date.now() - d.tickAt) / 1000).toFixed(1) : '—';
     document.querySelector('#chart-live').textContent =
-      `共振 ${d.bullCount}/14 · ${bars} 根 · 行情 ${age}s 前 · ` +
+      `共振 ${d.bullCount}/14 · ${pick === 'all' ? '全部级别' : '只看 ' + (allLevels.find(v => v.key === pick)?.label ?? pick)} · ${bars} 根 · 行情 ${age}s 前 · ` +
       new Date().toLocaleTimeString('zh-CN', { hour12: false });
   } catch { /* 忽略单次失败 */ }
 }
@@ -457,7 +481,10 @@ async function refreshAlertView() {
   const limit = +document.querySelector('#alert-limit').value || 24;
   try {
     const d = await fetch(`/api/alertchart?bars=${bars}&limit=${limit}`).then(r => r.json());
-    view.items = d.items ?? [];
+    const all = d.items ?? [];
+    const pairs = [...new Map(all.map(it => [it.key, { key: it.key, label: it.label ?? it.key }])).values()];
+    const pickA = fillLevelSel('#alert-level', pairs, '全部报警级别');
+    view.items = pickA === 'all' ? all : all.filter(it => it.key === pickA);
     ensureCards(view, view.items);
     paintView(view);
     applyCols(view);
@@ -467,7 +494,7 @@ async function refreshAlertView() {
     const scrollable = view.grid.scrollHeight - view.grid.clientHeight > 4;
     document.querySelector('#alert-live').textContent =
       n
-        ? `共 ${d.total} 条报警，展示最近 ${n} 条 · ${view.cols} 列 × ${rows} 行 · `
+        ? `共 ${d.total} 条报警${pickA === 'all' ? '' : '（只看 ' + (view.items[0]?.label ?? pickA) + '）'}，展示最近 ${n} 条 · ${view.cols} 列 × ${rows} 行 · `
           + `${scrollable ? '可上下滚动' : '一屏看全'} · ${bars} 根 · `
           + new Date().toLocaleTimeString('zh-CN', { hour12: false })
         : `暂无报警`;
@@ -527,6 +554,8 @@ function initCharts() {
   document.querySelector('#chart-detail').addEventListener('click', () => { if (chartSymbol) openDetail(chartSymbol); });
   document.querySelector('#chart-cols').addEventListener('change', () => { applyCols(VIEWS.multi); refreshActive(); });
   document.querySelector('#chart-bars').addEventListener('change', () => refreshActive());
+  document.querySelector('#chart-level').addEventListener('change', e => { e.target.dataset.__v = e.target.value; refreshMulti(); });
+  document.querySelector('#alert-level').addEventListener('change', e => { e.target.dataset.__v = e.target.value; refreshAlertView(); });
   document.querySelector('#alert-limit').addEventListener('change', () => refreshAlertView());
   document.querySelector('#alert-size').addEventListener('change', () => { applyCols(VIEWS.alert); refreshAlertView(); });
   ['#chart-ma', '#chart-chan', '#chart-mark', '#chart-macd'].forEach(s =>
@@ -558,8 +587,12 @@ if (typeof LC === 'undefined') {
   initCharts();
 }
 
-function openChartFor(sym) {
+function openChartFor(sym, level) {
   ensureChartList();
   selectChartSymbol(sym);
+  if (level) {
+    const sel = document.querySelector('#chart-level');
+    if (sel) { sel.dataset.__v = level; sel.value = level; }
+  }
   setView('multi');
 }

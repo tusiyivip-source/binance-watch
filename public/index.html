@@ -68,9 +68,15 @@
       <button id="chart-prev" class="vt mini" title="上一个币种">◀</button>
       <button id="chart-next" class="vt mini" title="下一个币种">▶</button>
       <button id="chart-detail" class="vt mini" title="查看该币种的级别明细表">📋 明细</button>
+      <select id="chart-level" class="vtsel" title="只看某个级别的K线（含报警级别）">
+        <option value="all" selected>全部级别</option>
+      </select>
     </span>
     <span id="alert-symbar" style="display:none">
       <span class="chartsym">每条报警的<b style="color:#f0b90b">确认级别</b>K线 · 按报警顺序</span>
+      <select id="alert-level" class="vtsel" title="只看某个级别的报警（报警级别筛选）">
+        <option value="all" selected>全部报警级别</option>
+      </select>
       <select id="alert-limit" class="vtsel" title="最多展示多少条报警">
         <option value="12">最近 12 条</option>
         <option value="24" selected>最近 24 条</option>
