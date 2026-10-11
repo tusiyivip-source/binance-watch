@@ -91,14 +91,12 @@ copy(path.join('public', 'vendor', 'lightweight-charts.js'), path.join('vendor',
 let html = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
 
 // 静态资源改相对路径（部署到子目录时绝对路径会 404）
-html = html.replace('href="/style.css"', 'href="./style.css"');
+// ⚠ 用正则、容忍 ?v=xxx 版本号：之前用精确字符串匹配，加了版本号后就悄悄失效，
+//   线上变成 /style.css 绝对路径 → 404 → 整个界面没样式没脚本。
+html = html.replace(/href="\/style\.css(\?[^"]*)?"/g, 'href="./style.css$1"');
 
 // 替换底部的三个 script 标签为「先装补丁、再加载界面」的引导器
-const scripts = [
-  '<script src="/vendor/lightweight-charts.js"></script>',
-  '<script src="/app.js"></script>',
-  '<script src="/chart.js"></script>',
-];
+const TAG_RE = /<script src="\/(vendor\/lightweight-charts|app|chart)\.js(\?[^"]*)?"><\/script>/g;
 const bootstrap = `<script>
 /* 纯前端版引导：先把 /api/* 与 EventSource 换成内存实现，再加载界面脚本。
    界面脚本必须保持「经典脚本」身份（它们靠全局作用域互相访问），
@@ -126,11 +124,16 @@ const bootstrap = `<script>
 })();
 </script>`;
 
-const first = scripts[0];
-if (!html.includes(first)) { console.log('✗ 找不到脚本标签锚点，index.html 结构可能已变'); process.exit(1); }
-html = html.replace(scripts.join('\n'), bootstrap);
-// 万一三个标签不连续，逐个兜底
-for (const s of scripts) html = html.replace(s + '\n', '').replace(s, '');
+const found = [...html.matchAll(TAG_RE)];
+if (found.length !== 3) {
+  console.log('✗ 找不到三个脚本标签（实际 ' + found.length + ' 个），index.html 结构可能已变');
+  process.exit(1);
+}
+const verQ = found.find(m => m[1] === 'app')?.[2] ?? '';      // 例如 ?v=20261011b
+html = html.replace(TAG_RE, '');                              // 先摘掉原来的三个标签
+// 引导器里的三个相对路径也带上版本号，避免浏览器缓存旧脚本
+const boot = bootstrap.replace(/\.\/(vendor\/lightweight-charts|app|chart)\.js/g, './$1.js' + verQ).replace(/\.js\.js/g, '.js');
+html = html.replace('</body>', boot + '\n</body>');
 
 // 顶部插入「在线版」说明条
 const note = `<div id="web-mode-note" style="display:none;padding:6px 14px;font-size:12px;

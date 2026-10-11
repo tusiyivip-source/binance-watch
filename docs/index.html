@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>币安多级别 MACD 反弹盯盘系统</title>
-<link rel="stylesheet" href="/style.css?v=20261011b">
+<link rel="stylesheet" href="./style.css?v=20261011b">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>📡</text></svg>">
 </head>
 <body>
@@ -376,8 +376,35 @@
 
 <div id="toasts"></div>
 
-<script src="/app.js?v=20261011b"></script>
-<script src="/chart.js?v=20261011b"></script>
+
+
+
+<script>
+/* 纯前端版引导：先把 /api/* 与 EventSource 换成内存实现，再加载界面脚本。
+   界面脚本必须保持「经典脚本」身份（它们靠全局作用域互相访问），
+   所以这里用动态 import + 顺序注入，而不是把它们变成 module。 */
+(function () {
+  var banner = document.getElementById('web-mode-note');
+  function fail(e) {
+    var msg = (e && (e.stack || e.message)) || String(e);
+    if (banner) { banner.style.display = 'block'; banner.innerHTML = '<b>启动失败</b>：' + msg; }
+    console.error('[web] 启动失败', e);
+  }
+  import('./src/browser/boot.js').then(function () {
+    if (banner) banner.style.display = 'block';
+    function load(src) {
+      return new Promise(function (res, rej) {
+        var s = document.createElement('script');
+        s.src = src; s.onload = res; s.onerror = function () { rej(new Error('脚本加载失败：' + src)); };
+        document.body.appendChild(s);
+      });
+    }
+    return load('./vendor/lightweight-charts.js?v=20261011b')
+      .then(function () { return load('./app.js?v=20261011b'); })
+      .then(function () { return load('./chart.js?v=20261011b'); });
+  }).catch(fail);
+})();
+</script>
 </body>
 </html>
 
