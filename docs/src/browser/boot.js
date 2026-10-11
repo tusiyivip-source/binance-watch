@@ -46,7 +46,11 @@ function localStorageAdapter(key) {
 }
 
 /* ---------------- 实例 ---------------- */
-const bucket = new TokenBucket(APP.weightPerMinute, APP.weightBurst);
+// 纯前端版：每个访客用**自己的 IP** 拉数据（不与他人共享额度），所以不必沿用后端那份
+// 为了「两个实例共存」压到 420/分钟 的保守预算 —— 否则 200 个标的要 6 分钟才铺完，
+// 打开页面会显得半天没数据。900/分钟 是实测安全值（币安硬上限 2400/分钟）。
+// ⚠ 例外：如果这台机器上同时还跑着后端实例（8848/8860），两边共享同一出口 IP，请把这里调低。
+const bucket = new TokenBucket(900, 150);
 const rest = new RestClient(bucket);
 const market = new Market(rest, createLogger('market'));
 const engine = new Engine(market, createLogger('engine'));
