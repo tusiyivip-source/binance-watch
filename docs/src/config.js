@@ -143,7 +143,7 @@ export const DEFAULT_SIGNAL = {
   //
   //   MACD 统一 12/26/9、以收盘为准。预警按「一段」去重：该级别离开近零区间或跌破零轴后才允许下一次。
   watchEnabled: true,
-  watchLevels: ['15m', '30m', '1h'],   // 只看这 3 个级别（用户口径，10分已去除）
+  watchLevels: ['15m', '30m', '1h', '2h', '3h', '4h'],   // 6 个级别（10分已去除，新增 2时/3时/4时）
   // （次级别与确认段已按用户要求整体去掉，不再需要对应表）
   watchNearPct: 0.3,             // 「贴近零轴」：|MACD均线(DEA)| / 收盘价 ≤ 0.3%
   watchNeedFalling: true,        // **只看回调中**：MACD 均线正在回落；上涨途中贴近零轴的不报

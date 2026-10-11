@@ -994,7 +994,7 @@ section('12. 回踩形态「两根阴K不破均线」（跌无可跌）');
 }
 
 /* ============ 13. 盯盘通道 v4：回调中 MACD 均线靠零轴（4 级别、无次级别） ============ */
-section('13. 盯盘通道 v4（15分/30分/1时：回调中 MACD 均线(DEA) 贴近零轴且未跌破）');
+section('13. 盯盘通道 v4（15分/30分/1时/2时/3时/4时：回调中 MACD 均线(DEA) 贴近零轴且未跌破）');
 {
   const mkLog = () => ({ info() { }, warn() { }, error() { }, signal() { }, ok() { }, debug() { } });
   const lv = (o = {}) => ({
@@ -1006,7 +1006,7 @@ section('13. 盯盘通道 v4（15分/30分/1时：回调中 MACD 均线(DEA) 贴
     nearZero: o.near === undefined ? (o.dist === undefined ? true : o.dist <= 0.3) : o.near,
     close: 100, ema7: 99, candleT: o.t ?? 2000, live: o.live === true,
   });
-  const LV = ['15m', '30m', '1h'];
+  const LV = ['15m', '30m', '1h', '2h', '3h', '4h'];
   const W = (o = {}) => new Watcher(mkLog(), { enabled: true, levels: LV, nearPct: 0.3, tieRatio: 1.25, needFalling: true, useLiveCandle: false, ...o });
 
   // —— 三条判据 ——
@@ -1022,40 +1022,40 @@ section('13. 盯盘通道 v4（15分/30分/1时：回调中 MACD 均线(DEA) 贴
 
   // —— 挑级别：更贴近 + 级别更小 ——
   {
-    const r = pickNear([lv({ key: '10m', dist: 0.258 }), lv({ key: '15m', dist: 0.220 })], { tieRatio: 1.25 });
-    ok('★ 10分 0.258% 与 15分 0.220% 并列（容差内）→ 报更小的 10分',
-      r.chosen.key === '10m' && r.best.key === '15m', 'chosen=' + r.chosen.key + ' best=' + r.best.key);
-    const r2 = pickNear([lv({ key: '10m', dist: 0.30 }), lv({ key: '15m', dist: 0.05 })], { tieRatio: 1.25 });
+    const r = pickNear([lv({ key: '30m', dist: 0.258 }), lv({ key: '15m', dist: 0.220 })], { tieRatio: 1.25 });
+    ok('★ 15分 0.220% 与 30分 0.258% 并列（容差内）→ 报更小的 15分',
+      r.chosen.key === '15m' && r.best.key === '15m', 'chosen=' + r.chosen.key + ' best=' + r.best.key);
+    const r2 = pickNear([lv({ key: '30m', dist: 0.30 }), lv({ key: '15m', dist: 0.05 })], { tieRatio: 1.25 });
     ok('★ 差距超出容差（0.30% vs 0.05%）→ 报最贴近的 15分', r2.chosen.key === '15m');
   }
 
   // —— 触发与「一段一次」 ——
   {
     const w = W();
-    const e1 = w.update('A', { '10m': lv({ key: '10m', dist: 0.2 }) });
-    const e2 = w.update('A', { '10m': lv({ key: '10m', dist: 0.2, t: 3000 }) });
+    const e1 = w.update('A', { '30m': lv({ key: '30m', dist: 0.2 }) });
+    const e2 = w.update('A', { '30m': lv({ key: '30m', dist: 0.2, t: 3000 }) });
     ok('★ 命中 → 出预警；同一段内（换K线）不重复',
-      e1.length === 1 && e1[0].stage === 'warning' && e1[0].level === '10m' && e2.length === 0,
+      e1.length === 1 && e1[0].stage === 'warning' && e1[0].level === '30m' && e2.length === 0,
       e1[0] ? e1[0].text : '无');
     ok('★ 报警文案写明「回调中 / MACD均线(DEA) / 未跌破零轴」',
       /回调中/.test(e1[0].text) && /MACD均线\(DEA\)/.test(e1[0].text) && /未跌破零轴/.test(e1[0].text));
     ok('★ 文案里不再出现次级别/确认字样',
       !/次级别|确认/.test(e1[0].text), e1[0].text);
-    const e3 = w.update('A', { '10m': lv({ key: '10m', dist: 0.2, near: false }) });   // 离开近零区间
-    const e4 = w.update('A', { '10m': lv({ key: '10m', dist: 0.2, t: 5000 }) });
+    const e3 = w.update('A', { '30m': lv({ key: '30m', dist: 0.2, near: false }) });   // 离开近零区间
+    const e4 = w.update('A', { '30m': lv({ key: '30m', dist: 0.2, t: 5000 }) });
     ok('★ 离开近零区间后再回来 → 可以再报一次', e3.length === 0 && e4.length === 1);
   }
   {
     const w = W();
     ok('★ 上涨途中贴近零轴 → 整轮不报',
-      w.update('A', { '10m': lv({ key: '10m', dist: 0.05, falling: false }) }).length === 0);
+      w.update('A', { '30m': lv({ key: '30m', dist: 0.05, falling: false }) }).length === 0);
     const w2 = W();
     ok('★ 离零轴 0.5% 超过阈值 0.3% → 不报',
       w2.update('A', { '15m': lv({ key: '15m', dist: 0.5 }) }).length === 0);
   }
   {
     const w = W();
-    const e = w.update('A', { '10m': lv({ key: '10m', dist: 0.2 }), '15m': lv({ key: '15m', dist: 0.05 }) });
+    const e = w.update('A', { '30m': lv({ key: '30m', dist: 0.2 }), '15m': lv({ key: '15m', dist: 0.05 }) });
     ok('★ 多级别命中：15分更贴近（0.05%）且在容差外 → 报 15分', e.length === 1 && e[0].level === '15m');
   }
   {
@@ -1066,17 +1066,17 @@ section('13. 盯盘通道 v4（15分/30分/1时：回调中 MACD 均线(DEA) 贴
   {
     const w = W();
     w.setConfig({ watchEnabled: false });
-    ok('关闭盯盘开关后完全不工作', w.update('A', { '10m': lv({ key: '10m' }) }).length === 0);
+    ok('关闭盯盘开关后完全不工作', w.update('A', { '30m': lv({ key: '30m' }) }).length === 0);
   }
   {
     // 只产出一条通道：stats 里不应再有 confirm
     const w = W();
-    w.update('A', { '10m': lv({ key: '10m', dist: 0.2 }) });
+    w.update('A', { '30m': lv({ key: '30m', dist: 0.2 }) });
     ok('★ 只有预警一条通道（stats 里没有 confirm 计数）',
       w.stats.warning === 1 && w.stats.confirm === undefined, JSON.stringify(w.stats));
   }
-  ok('配置默认：只扫 15分/30分/1时、只看回调、0.3% 阈值',
-    JSON.stringify(DEFAULT_SIGNAL.watchLevels) === JSON.stringify(['15m', '30m', '1h'])
+  ok('配置默认：只扫 15分/30分/1时/2时/3时/4时、只看回调、0.3% 阈值',
+    JSON.stringify(DEFAULT_SIGNAL.watchLevels) === JSON.stringify(['15m', '30m', '1h', '2h', '3h', '4h'])
     && DEFAULT_SIGNAL.watchNeedFalling === true
     && DEFAULT_SIGNAL.watchNearPct === 0.3
     && DEFAULT_SIGNAL.watchSubMap === undefined,

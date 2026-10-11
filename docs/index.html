@@ -20,8 +20,8 @@
   <div class="brand">
     <span class="logo">📡</span>
     <div>
-      <h1>币安多级别 MACD 回调盯盘 · 3 级别</h1>
-      <p>涨幅榜 Top200 · 15分/30分/1时 · 回调中 MACD 均线(DEA) 贴近零轴不跌破即报</p>
+      <h1>币安多级别 MACD 回调盯盘 · 6 级别</h1>
+      <p>涨幅榜 Top200 · 15分/30分/1时/2时/3时/4时 · 回调中 MACD 均线(DEA) 贴近零轴不跌破即报</p>
     </div>
   </div>
   <div class="pills">
@@ -280,11 +280,11 @@
     <div class="groupbox">
       <div class="gtitle">
         <b>回调中 · MACD 均线靠零轴</b>
-        <span class="gsub">15分/30分/1时 里谁在回调中贴近零轴（未跌破）就报谁；不再有次级别/确认段</span>
+        <span class="gsub">15分/30分/1时/2时/3时/4时 里谁在回调中贴近零轴（未跌破）就报谁；无次级别/确认段</span>
         <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-watchEnabled"> 启用</label>
       </div>
       <div class="prow">
-        <label style="flex:1 1 100%">扫描级别：<code>15分</code> <code>30分</code> <code>1时</code>（10分已去除；只看回调，不看上涨途中贴近零轴的）</label>
+        <label style="flex:1 1 100%">扫描级别：<code>15分</code> <code>30分</code> <code>1时</code> <code>2时</code> <code>3时</code> <code>4时</code>（10分已去除；只看回调，不看上涨途中贴近零轴的）</label>
       </div>
       <div class="prow">
         <label>「贴近零轴」阈值 (%) <input id="c-watchNearPct" type="number" min="0.01" max="5" step="0.01"></label>
@@ -298,7 +298,7 @@
         <label>信号线 <input id="c-macdSignal" type="number" min="2" max="60" step="1"></label>
       </div>
       <div class="gnote">
-        <b>唯一的一条提醒</b>：这 3 个级别里<b>任意一个</b>满足下面三条 → 报警。<br>
+        <b>唯一的一条提醒</b>：这 6 个级别里<b>任意一个</b>满足下面三条 → 报警。<br>
         <b style="color:#f0b90b">① 贴近零轴</b>：<b>|MACD均线(DEA)| ÷ 收盘价 ≤ 阈值</b>（默认 0.3%）—— 看的是
         <b>MACD 的均线（信号线 DEA）</b>，不是快线 DIF。<br>
         <b style="color:#f0b90b">② 没有跌破</b>：<b>DEA &gt; 0</b>。<br>
