@@ -994,7 +994,7 @@ section('12. 回踩形态「两根阴K不破均线」（跌无可跌）');
 }
 
 /* ============ 13. 盯盘通道 v4：回调中 MACD 均线靠零轴（4 级别、无次级别） ============ */
-section('13. 盯盘通道 v4（10分/15分/30分/1时：回调中 MACD 均线(DEA) 贴近零轴且未跌破）');
+section('13. 盯盘通道 v4（15分/30分/1时：回调中 MACD 均线(DEA) 贴近零轴且未跌破）');
 {
   const mkLog = () => ({ info() { }, warn() { }, error() { }, signal() { }, ok() { }, debug() { } });
   const lv = (o = {}) => ({
@@ -1006,7 +1006,7 @@ section('13. 盯盘通道 v4（10分/15分/30分/1时：回调中 MACD 均线(DE
     nearZero: o.near === undefined ? (o.dist === undefined ? true : o.dist <= 0.3) : o.near,
     close: 100, ema7: 99, candleT: o.t ?? 2000, live: o.live === true,
   });
-  const LV = ['10m', '15m', '30m', '1h'];
+  const LV = ['15m', '30m', '1h'];
   const W = (o = {}) => new Watcher(mkLog(), { enabled: true, levels: LV, nearPct: 0.3, tieRatio: 1.25, needFalling: true, useLiveCandle: false, ...o });
 
   // —— 三条判据 ——
@@ -1075,8 +1075,8 @@ section('13. 盯盘通道 v4（10分/15分/30分/1时：回调中 MACD 均线(DE
     ok('★ 只有预警一条通道（stats 里没有 confirm 计数）',
       w.stats.warning === 1 && w.stats.confirm === undefined, JSON.stringify(w.stats));
   }
-  ok('配置默认：只扫 10分/15分/30分/1时、只看回调、0.3% 阈值',
-    JSON.stringify(DEFAULT_SIGNAL.watchLevels) === JSON.stringify(['10m', '15m', '30m', '1h'])
+  ok('配置默认：只扫 15分/30分/1时、只看回调、0.3% 阈值',
+    JSON.stringify(DEFAULT_SIGNAL.watchLevels) === JSON.stringify(['15m', '30m', '1h'])
     && DEFAULT_SIGNAL.watchNeedFalling === true
     && DEFAULT_SIGNAL.watchNearPct === 0.3
     && DEFAULT_SIGNAL.watchSubMap === undefined,

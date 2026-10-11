@@ -13,8 +13,8 @@
   <div class="brand">
     <span class="logo">📡</span>
     <div>
-      <h1>币安多级别 MACD 回调盯盘 · 4 级别</h1>
-      <p>涨幅榜 Top200 · 10分/15分/30分/1时 · 回调中 MACD 均线(DEA) 贴近零轴不跌破即报</p>
+      <h1>币安多级别 MACD 回调盯盘 · 3 级别</h1>
+      <p>涨幅榜 Top200 · 15分/30分/1时 · 回调中 MACD 均线(DEA) 贴近零轴不跌破即报</p>
     </div>
   </div>
   <div class="pills">
@@ -273,11 +273,11 @@
     <div class="groupbox">
       <div class="gtitle">
         <b>回调中 · MACD 均线靠零轴</b>
-        <span class="gsub">4 个级别里谁在回调中贴近零轴（未跌破）就报谁；不再有次级别/确认段</span>
+        <span class="gsub">15分/30分/1时 里谁在回调中贴近零轴（未跌破）就报谁；不再有次级别/确认段</span>
         <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-watchEnabled"> 启用</label>
       </div>
       <div class="prow">
-        <label style="flex:1 1 100%">扫描级别：<code>10分</code> <code>15分</code> <code>30分</code> <code>1时</code>（只看回调，不看上涨途中贴近零轴的）</label>
+        <label style="flex:1 1 100%">扫描级别：<code>15分</code> <code>30分</code> <code>1时</code>（10分已去除；只看回调，不看上涨途中贴近零轴的）</label>
       </div>
       <div class="prow">
         <label>「贴近零轴」阈值 (%) <input id="c-watchNearPct" type="number" min="0.01" max="5" step="0.01"></label>
@@ -291,15 +291,15 @@
         <label>信号线 <input id="c-macdSignal" type="number" min="2" max="60" step="1"></label>
       </div>
       <div class="gnote">
-        <b>唯一的一条提醒</b>：这 4 个级别里<b>任意一个</b>满足下面三条 → 报警。<br>
+        <b>唯一的一条提醒</b>：这 3 个级别里<b>任意一个</b>满足下面三条 → 报警。<br>
         <b style="color:#f0b90b">① 贴近零轴</b>：<b>|MACD均线(DEA)| ÷ 收盘价 ≤ 阈值</b>（默认 0.3%）—— 看的是
         <b>MACD 的均线（信号线 DEA）</b>，不是快线 DIF。<br>
         <b style="color:#f0b90b">② 没有跌破</b>：<b>DEA &gt; 0</b>。<br>
         <b style="color:#f0b90b">③ 回调中</b>：<b>DEA 正在回落</b>（本根 &lt; 上一根）—— <b>上涨途中贴近零轴的直接不报</b>。<br>
         多个级别同时满足 → <b>只报一条</b>：先看谁<b>更贴近零轴</b>，接近程度在<b>并列容差</b>倍数以内的候选里
-        再<b>优先小级别</b>（例：10分 0.258% 与 15分 0.220% 同时满足 → 报 <b>10分</b>）。<br>
+        再<b>优先小级别</b>（例：15分 0.258% 与 30分 0.220% 同时满足 → 报 <b>15分</b>）。<br>
         一段一次：该级别离开近零区间、跌破零轴、或均线转为上行后，这一段结束。<br>
-        <span style="color:#5b6f8c">报警文案示例：<code>【预警·回调中 MACD 均线靠零轴】10分 MACD均线(DEA) 0.000021 &gt; 0（未跌破零轴）、离零轴 0.118%（阈值 0.3%）、均线正在回落（回调中）；收盘 0.0181（DIF -0.000022）</code></span>
+        <span style="color:#5b6f8c">报警文案示例：<code>【预警·回调中 MACD 均线靠零轴】15分 MACD均线(DEA) 0.000021 &gt; 0（未跌破零轴）、离零轴 0.118%（阈值 0.3%）、均线正在回落（回调中）；收盘 0.0181（DIF -0.000022）</code></span>
       </div>
     </div>
     <label class="row"><span>多头排列最少级别数</span><input id="c-minBullLevels" type="number" min="2" max="14" step="1"></label>
