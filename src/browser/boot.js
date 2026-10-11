@@ -258,6 +258,12 @@ window.EventSource = LocalEventSource;
   engine.start();
   log.ok(`引擎已启动，评估 ${market.symbols.size} 个标的 × ${LEVELS.length} 个级别`);
 
+  // ⚠ 必须和后端版一样在这里主动拉一次清单：
+  //   只靠下面 tickerRefreshMs 的定时器，第一包要等满 60 秒 —— 打开页面就是「白的、没反应」。
+  market.bootstrap()
+    .then(() => log.ok(`初始清单就绪，播种 ${market.symbols.size} 个标的`))
+    .catch(e => log.warn('初始清单获取失败（60 秒后自动重试）：' + e.message));
+
   setInterval(() => market.refreshUniverse().catch(e => log.warn(e.message)), APP.tickerRefreshMs);
   setInterval(() => market.refreshExchangeInfo().catch(() => { }), APP.exchangeInfoRefreshMs);
   setInterval(() => { if (market.feedMode === 'tick-rest') return; market.resyncAll().catch(e => log.warn(e.message)); }, APP.resyncMs);
