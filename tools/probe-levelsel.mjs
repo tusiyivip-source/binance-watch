@@ -129,7 +129,7 @@ try {
     await sleep(5000);
     const onlyOne = await evalJs(`(() => {
       const cards = [...document.querySelectorAll('#alertchartgrid .card, #alertchartgrid > div')];
-      const labels = cards.map(c => c.querySelector('.lv')?.textContent ?? '').filter(Boolean);
+      const labels = cards.map(c => c.querySelector('.rb.lvl')?.textContent ?? c.querySelector('.lv')?.textContent ?? '').filter(Boolean);
       return { n: cards.length, labels };
     })()`);
     const same = onlyOne.labels.length === 0 || new Set(onlyOne.labels).size === 1;

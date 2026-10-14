@@ -39,6 +39,9 @@ function alertMinH() {
 const VIEWS = {
   multi: { kind: 'multi', grid: null, entries: [], items: [], roles: {}, cols: 4 },
   alert: { kind: 'alert', grid: null, entries: [], items: [], roles: {}, cols: 4 },
+  // ⚠ 必须和 alert 同构（entries/items 都不能少）：卡片渲染复用同一套 ensureCards，
+  //   少了 entries 就会在 view.entries.push 处抛异常，界面表现为状态栏/空态不更新。
+  wave: { kind: 'wave', grid: null, entries: [], items: [], roles: {}, cols: 4 },
 };
 let activeView = 'matrix';         // 'matrix' | 'multi' | 'alert'
 /**
@@ -518,7 +521,7 @@ async function refreshWaveView() {
     document.querySelector('#wave-live').textContent = view.items.length
       ? `共 ${all.length} 条五浪信号${pickW === 'all' ? '' : '（只看 ' + (pairs.find(p => p.key === pickW)?.label ?? pickW) + '）'} · ${bars} 根 · ` + new Date().toLocaleTimeString('zh-CN', { hour12: false })
       : '暂无五浪反弹信号';
-  } catch { /* 忽略单次失败 */ }
+  } catch (e) { console.warn('[wave] 刷新失败：' + (e && e.message)); }
 }
 
 async function refreshAlertView() {
@@ -593,7 +596,7 @@ function fmtCandleTime(ts, minutes) {
 function initCharts() {
   VIEWS.multi.grid = document.querySelector('#chartgrid');
   VIEWS.alert.grid = document.querySelector('#alertchartgrid');
-  VIEWS.wave = { grid: document.querySelector('#wavechartgrid'), items: [], cards: new Map(), cols: 0, rows: 0 };
+  VIEWS.wave.grid = document.querySelector('#wavechartgrid');
 
   document.querySelector('#tab-matrix').addEventListener('click', () => setView('matrix'));
   document.querySelector('#tab-multi').addEventListener('click', () => setView('multi'));
