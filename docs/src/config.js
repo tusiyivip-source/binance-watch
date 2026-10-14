@@ -151,6 +151,22 @@ export const DEFAULT_SIGNAL = {
   watchConfirmLookback: 2,       // 次级别金叉须发生在最近几根K线内
   macdFast: 12, macdSlow: 26, macdSignal: 9,
   watchUseLiveCandle: true,      // 次级别那根未收盘时先给一条「预警」形式的确认
+  // —— 五浪反弹通道（v5 独立策略，与盯盘通道互不影响）——
+  //   主级别「一笔下」= 最近窗口内 高点 → 之后最低点 跨度 ≥ waveMinBars 根（不靠缠论、高点不要求顶分型）；
+  //   这笔下跌的**次级别** MACD 交叉末尾五个必须是 死→金→死→金→死（五浪）；
+  //   先见最低点、之后才出现「再次金叉」；
+  //   该金叉后 waveCrossWindow 根主级别收盘K线内，主级别**由下向上穿越 EMA7** → 报警。
+  waveEnabled: true,
+  wavePairs: [
+    { main: '15m', sub: '3m' },
+    { main: '30m', sub: '5m' },
+    { main: '1h', sub: '10m' },
+    { main: '2h', sub: '15m' },
+  ],
+  waveMinBars: 5,          // 主级别 高点→低点 至少几根K线
+  waveHighLookback: 20,    // 「高点」在最近几根里找
+  waveCrossWindow: 2,      // 金叉后 主级别 几根收盘K线内必须上穿 EMA7
+
   // —— 独立形态提醒：双阴不破均线（多） / 双阳不穿破均线（空）——
   //   不依赖共振组合，也不依赖盯盘状态机；这几档级别上一出现形态、第二根K线一收盘就提醒。
   // 「双阴不破 / 双阳不穿」独立形态提醒。

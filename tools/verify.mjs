@@ -14,6 +14,7 @@ import { buildSMA, buildEMA } from '../src/indicators.js';
 import { evaluateSymbol, analyzeLevel, findResonance, triplesFor, strokeChain, checkStrokeChain, findTwoBearHold, findTwoBullHold, dualPattern, pullbackStructure, downRunLen, recentDownRun, strokeContinuation, twoBullReclaim, barsFromHigh, macdDead } from '../src/signals.js';
 import { LEVELS, VISIBLE_LEVELS, DEFAULT_SIGNAL, DEFAULT_GROUPS, LEVEL_INDEX, APP, DEFAULT_WATCH_GROUPS, watchInnerLevels } from '../src/config.js';
 import { Watcher, pickNear, nearOk } from '../src/watch.js';
+import { detectWave, makeAlert, macdCrosses, waveView, scanWaves } from '../src/wave.js';
 
 // 验证脚本自己控制序列保留上限，避免受实盘 maxCandlesKept 影响导致对比样本数漂移
 APP.maxCandlesKept = 3000;
@@ -1083,106 +1084,103 @@ section('13. 盯盘通道 v4（15分/30分/1时/2时/3时/4时：回调中 MACD 
     JSON.stringify(DEFAULT_SIGNAL.watchLevels) + ' falling=' + DEFAULT_SIGNAL.watchNeedFalling);
 }
 
-/* ============ 14. 独立形态提醒：双阴不破（多） / 双阳不穿（空） ============ */
-section('14. 独立形态提醒：双阴不破均线（多） / 双阳不穿破均线（空）');
+/* ============ 14. 五浪反弹通道（独立策略） ============ */
+section('14. 五浪反弹（主级别一笔下 → 次级别 死金死金死 五浪 → 再次金叉 → 主级别 2 根内上穿 EMA7）');
 {
-  const mk = (candles, ma7, ema7) => ({
-    s: {
-      o: candles.map(c => c[0]), h: candles.map(c => c[1]),
-      l: candles.map(c => c[2]), c: candles.map(c => c[3]),
-    },
-    ind: { ma7: candles.map(() => ma7), ema7: candles.map(() => ema7) },
+  const M = 600_000, S = 120_000;   // 主级别 10 分钟/根，次级别 2 分钟/根
+
+  /** 次级别：dea 恒为 0，dif 在指定下标处翻转符号 → 每次翻转就是一个交叉
+   *  负→正 = 金叉(G)，正→负 = 死叉(D) */
+  const mkSub = (len, flips, key = '3m', ms = S) => {
+    const dif = []; let s = -1;
+    for (let i = 0; i < len; i++) { if (flips.has(i)) s = -s; dif.push(s); }
+    return { key, ms, minutes: ms / 60000, t: dif.map((_, i) => i * ms),
+      h: dif.map(() => 1), l: dif.map(() => 1), c: dif.map(() => 1), ema7: dif.map(() => 1),
+      dif, dea: dif.map(() => 0) };
+  };
+  const mkMain = (highs, lows, closes, ema7, key = '15m', ms = M) => ({
+    key, ms, minutes: ms / 60000, t: closes.map((_, i) => i * ms),
+    h: highs, l: lows, c: closes, ema7, dif: closes.map(() => 0), dea: closes.map(() => 0),
   });
-  const MA = 9.5, EMA = 9.6;
 
-  /* ---- 双阳不穿（做空） ---- */
+  // 主级别 12 根：高点在第 2 根、低点在第 8 根 → 跨度 7 根 ≥5；第 9 根收盘 1.3 由下向上穿过 EMA7 1.25
+  const HIGH = [2.0, 2.0, 5.0, 4.0, 3.0, 3.0, 2.0, 2.0, 1.5, 1.2, 1.3, 1.5];
+  const LOW = [1.9, 1.9, 2.0, 1.9, 1.8, 1.7, 1.5, 1.2, 1.0, 1.1, 1.2, 1.4];   // 最低点在 index 8
+  const CLOSE = [1.95, 1.95, 4.0, 3.0, 2.5, 2.4, 2.0, 1.6, 1.2, 1.3, 1.4, 1.6];
+  const EMA7OK = CLOSE.map((_, i) => (i < 9 ? 1.25 : 1.28));   // 第 9 根：1.2 ≤ 1.25 且 1.3 > 1.28 → 由下向上穿
+  // 下跌窗口（t高 1.8e6 → t低 5.4e6）内的翻转：16,20,24,28,32,36,40,44（末尾为死叉），k=48 再来金叉
+  const FLIPS_OK = new Set([16, 20, 24, 28, 32, 36, 40, 44, 48]);
+
   {
-    // [开, 高, 低, 收]；前两根收在均线下方
-    const cs = [
-      [10.0, 10.1, 9.4, 9.5],    // 0 参考
-      [9.30, 9.45, 9.20, 9.35],  // 1 阳K，收 9.35 < MA7/EMA7
-      [9.38, 9.52, 9.30, 9.42],  // 2 阳K，收 9.42 < MA7/EMA7（影线刺到 9.52）
-      [9.42, 9.50, 9.20, 9.25],  // 3 触发K
-    ];
-    const { s, ind } = mk(cs, MA, EMA);
-    const r = findTwoBullHold(s, ind, 3, 2);
-    ok('★ 双阳不穿：两根阳K收盘都没涨破 MA7/EMA7 → 成立',
-      !!r && r.bars === 2, r ? 'bars=' + r.bars + ' 幅度 ' + (r.depth * 100).toFixed(2) + '%' : 'null');
-  }
-  {
-    const cs = [
-      [10.0, 10.1, 9.4, 9.5],
-      [9.30, 9.45, 9.20, 9.35],
-      [9.38, 9.52, 9.30, 9.42],
-      [9.42, 9.50, 9.20, 9.25],
-    ];
-    // 影线刺破均线（最高 9.75 > MA 9.5）但收盘仍在下方 → 仍成立
-    cs[2] = [9.38, 9.75, 9.30, 9.42];
-    const { s, ind } = mk(cs, MA, EMA);
-    ok('★ 双阳：影线允许刺破均线（收盘不穿即可）',
-      findTwoBullHold(s, ind, 3, 2) !== null, '最高 9.75 > MA ' + MA);
-  }
-  {
-    const cs = [
-      [10.0, 10.1, 9.4, 9.5],
-      [9.30, 9.45, 9.20, 9.35],
-      [9.38, 9.52, 9.30, 9.42],
-      [9.42, 9.50, 9.20, 9.25],
-    ];
-    cs[2] = [9.60, 9.70, 9.55, 9.65];   // 收盘 9.65 > EMA7 9.6 → 涨破了
-    const { s, ind } = mk(cs, MA, EMA);
-    ok('★ 双阳：有一根收盘涨破 EMA7 → 不成立',
-      findTwoBullHold(s, ind, 3, 2) === null);
-  }
-  {
-    const cs = [
-      [10.0, 10.1, 9.4, 9.5],
-      [9.45, 9.40, 9.30, 9.35],   // 阴K（收 < 开）
-      [9.38, 9.52, 9.30, 9.42],
-      [9.42, 9.50, 9.20, 9.25],
-    ];
-    const { s, ind } = mk(cs, MA, EMA);
-    ok('★ 双阳：有一根不是阳K → 不成立',
-      findTwoBullHold(s, ind, 3, 2) === null);
-  }
-  {
-    const cs = [[10, 10.1, 9.4, 9.5], [9.30, 9.45, 9.20, 9.35]];
-    const { s, ind } = mk(cs, MA, EMA);
-    ok('双阳：K线不足时返回 null 而不是抛错', findTwoBullHold(s, ind, 1, 2) === null);
-  }
-  {
-    // 多空互斥：同一组K线不可能同时成立
-    const bearCs = [
-      [10.0, 10.8, 9.9, 10.6],
-      [10.6, 10.7, 10.2, 10.1],
-      [10.1, 10.2, 9.8, 10.0],
-      [10.0, 10.6, 9.95, 10.5],
-    ];
-    const { s, ind } = mk(bearCs, MA, EMA);
-    ok('★ 双阴与双阳互斥（同一组K线不会同时成立）',
-      findTwoBearHold(s, ind, 3, 2) !== null && findTwoBullHold(s, ind, 3, 2) === null);
+    const main = mkMain(HIGH, LOW, CLOSE, EMA7OK);
+    const sub = mkSub(52, FLIPS_OK);
+    const hit = detectWave(main, sub, { minBars: 5, lookback: 20, crossWindow: 2 });
+    ok('★ 五浪 + 再次金叉 + 主级别 2 根内上穿 EMA7 → 命中', !!hit,
+      hit ? 'seq=' + hit.crosses.map(c => c.type).join('') + ' lag=' + hit.lagBars + ' bars=' + hit.bars : 'null');
+    if (hit) {
+      ok('★ 窗口末尾五个交叉正好是 死→金→死→金→死', hit.crosses.map(c => c.type).join('') === 'DGDGD',
+        hit.crosses.map(c => c.type).join(''));
+      ok('★ 「再次金叉」发生在最低点之后', hit.goldT > hit.lowT);
+      ok('★ 上穿 EMA7 发生在金叉后 2 根主级别K线内', hit.lagBars <= 2, 'lag=' + hit.lagBars);
+      ok('★ 一笔下根数 ≥5', hit.bars >= 5, 'bars=' + hit.bars);
+    }
   }
 
-  /* ---- 配置与默认值 ---- */
-  // 默认已关：用户把策略换成了「主级别回踩结构盯盘」，要求「三条同时成立才可以预警提醒」
-  ok('独立形态提醒默认关闭（可一键开启），级别为 15m/30m/1h/2h/3h',
-    DEFAULT_SIGNAL.dualEnabled === false
-    && DEFAULT_SIGNAL.watchEnabled === true
-    && JSON.stringify(DEFAULT_SIGNAL.dualLevels) === JSON.stringify(['15m', '30m', '1h', '2h', '3h'])
-    && DEFAULT_SIGNAL.dualBars === 2,
-    'dual=' + DEFAULT_SIGNAL.dualEnabled + ' watch=' + DEFAULT_SIGNAL.watchEnabled
-    + ' levels=' + (DEFAULT_SIGNAL.dualLevels || []).join(',') + ' bars=' + DEFAULT_SIGNAL.dualBars);
-
-  /* ---- 视图字段接线 ---- */
   {
-    const series = buildLevels();
-    const cfgD = { ...cfg, dualEnabled: true, dualLevels: ['15m', '30m'], dualBars: 2 };
-    const views = {};
-    for (const lv of LEVELS) views[lv.key] = analyzeLevel(series[lv.key], cfgD, 'closed');
-    ok('级别视图带出双阴/双阳形态字段与K线时间',
-      views['15m'] && 'twoBearD' in views['15m'] && 'twoBullD' in views['15m'] && 'candleT' in views['15m'],
-      '15m: candleT=' + views['15m'].candleT);
+    const main = mkMain(HIGH, LOW, CLOSE, EMA7OK);
+    ok('★ 次级别窗口内交叉不足五个 → 不命中',
+      detectWave(main, mkSub(52, new Set([16, 20, 24, 48])), { minBars: 5, lookback: 20, crossWindow: 2 }) === null);
   }
+  {
+    const main = mkMain(HIGH, LOW, CLOSE, EMA7OK);
+    ok('★ 窗口内最后一个交叉不是死叉（序列不对）→ 不命中',
+      detectWave(main, mkSub(52, new Set([16, 20, 24, 28, 32, 36, 40, 48])), { minBars: 5, lookback: 20, crossWindow: 2 }) === null);
+  }
+  {
+    const highs = [2, 2, 2, 2, 2, 2, 2, 2, 2, 3.0, 2.5, 2.0];     // 最高点在 index 9
+    const lows = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2.0, 1.5, 1.0];     // 最低点在 index 11 → 跨度 3 根 < 5
+    const closes = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2.6, 1.8, 1.2];
+    const ema7 = closes.map(() => 2.5);
+    ok('★ 高点到低点不足 5 根 → 不命中',
+      detectWave(mkMain(highs, lows, closes, ema7), mkSub(52, FLIPS_OK), { minBars: 5, lookback: 20, crossWindow: 2 }) === null);
+  }
+  {
+    ok('★ 主级别始终没收在 EMA7 上方 → 不命中',
+      detectWave(mkMain(HIGH, LOW, CLOSE, CLOSE.map(() => 9)), mkSub(52, FLIPS_OK), { minBars: 5, lookback: 20, crossWindow: 2 }) === null);
+  }
+  {
+    const sub = mkSub(120, new Set([16, 20, 24, 28, 32, 36, 40, 44, 100]));   // 金叉被推到很后面
+    ok('★ 金叉距离主级别上穿超过 2 根 → 不命中（窗口可调）',
+      detectWave(mkMain(HIGH, LOW, CLOSE, EMA7OK), sub, { minBars: 5, lookback: 20, crossWindow: 2 }) === null);
+  }
+  {
+    const hit = detectWave(mkMain(HIGH, LOW, CLOSE, EMA7OK), mkSub(52, FLIPS_OK), { minBars: 5, lookback: 20, crossWindow: 2 });
+    const a = makeAlert('XUSDT', hit, Date.now(), false);
+    ok('★ 报警对象：kind=wave、报警级别=主级别、带次级别与五浪序列',
+      a.kind === 'wave' && a.level === '15m' && a.subLevel === '3m' && a.waveSeq === '死→金→死→金→死', a.waveSeq);
+    ok('★ 文案含「五浪反弹 / 一笔下 / 上穿 EMA7」',
+      /五浪反弹/.test(a.text) && /一笔下/.test(a.text) && /上穿 EMA7/.test(a.text), a.text.slice(0, 72));
+  }
+  {
+    const cfg = { wavePairs: [{ main: '15m', sub: '3m' }], waveMinBars: 5, waveHighLookback: 20, waveCrossWindow: 2 };
+    const mainV = mkMain(HIGH, LOW, CLOSE, EMA7OK), subV = mkSub(52, FLIPS_OK);
+    const fake = {
+      '15m': { t: mainV.t, h: mainV.h, l: mainV.l, c: mainV.c, ms: M, ensure: () => ({ ema7: mainV.ema7 }), macd: () => ({ dif: mainV.dif, dea: mainV.dea }) },
+      '3m': { t: subV.t, h: subV.h, l: subV.l, c: subV.c, ms: S, ensure: () => ({ ema7: subV.ema7 }), macd: () => ({ dif: subV.dif, dea: subV.dea }) },
+    };
+    const seen = new Map();
+    const first = scanWaves('YUSDT', fake, cfg, seen, Date.now(), false);
+    const second = scanWaves('YUSDT', fake, cfg, seen, Date.now(), true);
+    ok('★ 同一笔下跌只报一次（同数据第二轮不再报）', first.length === 1 && second.length === 0,
+      first.length + '/' + second.length);
+  }
+
+  ok('配置默认：4 组级别对（15分←3分 / 30分←5分 / 1时←10分 / 2时←15分）',
+    JSON.stringify(DEFAULT_SIGNAL.wavePairs) === JSON.stringify([
+      { main: '15m', sub: '3m' }, { main: '30m', sub: '5m' },
+      { main: '1h', sub: '10m' }, { main: '2h', sub: '15m' },
+    ]) && DEFAULT_SIGNAL.waveMinBars === 5 && DEFAULT_SIGNAL.waveCrossWindow === 2,
+    JSON.stringify(DEFAULT_SIGNAL.wavePairs));
 }
 
 /* ============ 15. 双阴/双阳判定修正：窗口右移 + 两条前置条件 ============ */

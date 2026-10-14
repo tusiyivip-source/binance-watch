@@ -69,13 +69,19 @@ let viewTimer = null;
 function setView(mode) {
   activeView = mode;
   document.body.classList.toggle('chartmode', mode === 'multi' || mode === 'alert');
-  document.body.classList.toggle('alertchartmode', mode === 'alert');
+  document.body.classList.toggle('alertchartmode', mode === 'alert' || mode === 'wave');
   document.querySelector('#tab-matrix').classList.toggle('on', mode === 'matrix');
   document.querySelector('#tab-multi').classList.toggle('on', mode === 'multi');
+  document.querySelector('#tab-wave')?.classList.toggle('on', mode === 'wave');
   document.querySelector('#tab-alert').classList.toggle('on', mode === 'alert');
   // 多级别视图才有币种切换控件
   document.querySelector('#chart-symbar').style.display = mode === 'multi' ? '' : 'none';
   document.querySelector('#alert-symbar').style.display = mode === 'alert' ? '' : 'none';
+  document.querySelector('#wave-symbar').style.display = mode === 'wave' ? '' : 'none';
+  const wl = document.querySelector('#wave-level');
+  if (wl) wl.style.display = mode === 'wave' ? '' : 'none';
+  document.querySelector('#wavechartwrap').style.display = mode === 'wave' ? '' : 'none';
+  document.querySelector('#alertchartwrap').style.display = (mode === 'multi' || mode === 'matrix') ? 'none' : '';
   // 报警级别筛选住在右侧控件组，只在「报警级别K线」视图露出
   const al = document.querySelector('#alert-level');
   if (al) al.style.display = mode === 'alert' ? '' : 'none';
@@ -93,6 +99,7 @@ function stopLoop() {
 function refreshActive() {
   if (activeView === 'multi') refreshMulti();
   else if (activeView === 'alert') refreshAlertView();
+  else if (activeView === 'wave') refreshWaveView();
 }
 
 /* ---------------- 币种列表（多级别视图用） ---------------- */
@@ -476,6 +483,28 @@ async function refreshMulti() {
   } catch { /* 忽略单次失败 */ }
 }
 
+async function refreshWaveView() {
+  const view = VIEWS.wave;
+  if (!view.grid) return;
+  applyCols(view);
+  const bars = currentBars(view);
+  const limit = +document.querySelector('#wave-limit').value || 24;
+  try {
+    const d = await fetch(`/api/alertchart?kind=wave&bars=${bars}&limit=${limit}`).then(r => r.json());
+    const all = d.items ?? [];
+    const pairs = [...new Map(all.map(it => [it.key, { key: it.key, label: it.label ?? it.key }])).values()];
+    const pickW = fillLevelSel('#wave-level', pairs, '全部主级别');
+    view.items = pickW === 'all' ? all : all.filter(it => it.key === pickW);
+    ensureCards(view, view.items);
+    paintView(view);
+    applyCols(view);
+    document.querySelector('#wave-empty').style.display = view.items.length ? 'none' : '';
+    document.querySelector('#wave-live').textContent = view.items.length
+      ? `共 ${all.length} 条五浪信号${pickW === 'all' ? '' : '（只看 ' + (pairs.find(p => p.key === pickW)?.label ?? pickW) + '）'} · ${bars} 根 · ` + new Date().toLocaleTimeString('zh-CN', { hour12: false })
+      : '暂无五浪反弹信号';
+  } catch { /* 忽略单次失败 */ }
+}
+
 async function refreshAlertView() {
   const view = VIEWS.alert;
   if (!view.grid) return;
@@ -548,10 +577,12 @@ function fmtCandleTime(ts, minutes) {
 function initCharts() {
   VIEWS.multi.grid = document.querySelector('#chartgrid');
   VIEWS.alert.grid = document.querySelector('#alertchartgrid');
+  VIEWS.wave = { grid: document.querySelector('#wavechartgrid'), items: [], cards: new Map(), cols: 0, rows: 0 };
 
   document.querySelector('#tab-matrix').addEventListener('click', () => setView('matrix'));
   document.querySelector('#tab-multi').addEventListener('click', () => setView('multi'));
   document.querySelector('#tab-alert').addEventListener('click', () => setView('alert'));
+  document.querySelector('#tab-wave').addEventListener('click', () => setView('wave'));
   document.querySelector('#chart-prev').addEventListener('click', () => stepChart(-1));
   document.querySelector('#chart-next').addEventListener('click', () => stepChart(1));
   document.querySelector('#chart-detail').addEventListener('click', () => { if (chartSymbol) openDetail(chartSymbol); });
@@ -567,6 +598,10 @@ function initCharts() {
       else if (activeView === 'alert') paintView(VIEWS.alert);
     }));
   document.querySelector('#alert-refresh').addEventListener('click', () => refreshAlertView());
+  document.querySelector('#wave-refresh').addEventListener('click', () => refreshWaveView());
+  document.querySelector('#wave-limit').addEventListener('change', () => refreshWaveView());
+  document.querySelector('#wave-size').addEventListener('change', () => { applyCols(VIEWS.wave); refreshWaveView(); });
+  document.querySelector('#wave-level').addEventListener('change', e => { e.target.dataset.__v = e.target.value; refreshWaveView(); });
 
   let rt = null;
   window.addEventListener('resize', () => {
@@ -582,6 +617,7 @@ function initCharts() {
   });
   applyCols(VIEWS.multi);
   applyCols(VIEWS.alert);
+  applyCols(VIEWS.wave);
 }
 
 if (typeof LC === 'undefined') {

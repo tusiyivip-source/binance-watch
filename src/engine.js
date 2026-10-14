@@ -4,6 +4,7 @@
 import { Emitter } from './emitter.js';
 import { LEVELS, LEVEL_KEYS, LEVEL_INDEX, VISIBLE_LEVELS, STATE, EVENT, APP } from './config.js';import { evaluateSymbol, describe, defaultSignalConfig } from './signals.js';
 import { Watcher } from './watch.js';
+import { scanWaves } from './wave.js';
 
 
 const SWEEP_MS = 1000;
@@ -38,6 +39,9 @@ export class Engine extends Emitter {
     this.watchDbg = { seen: 0, enabled: 0, hasWatch: 0, called: 0, err: null };
     // 独立形态提醒的去重表：同一 (币种, 级别, K线) 只提醒一次
     this.dualSeen = new Map();
+    // 五浪反弹通道：同一 (币种, 主级别, 这笔下跌的最低点) 只报一次
+    this.waveSeen = new Map();
+    this.waveCount = 0;
     this.dualCount = { long: 0, short: 0 };
     this.strokeBlocked = 0;        // 因「回踩不够成笔」被拦下的次数
     this.beichiPerMin = 0;         // 近一分钟拦截次数
@@ -147,6 +151,24 @@ export class Engine extends Emitter {
         this.signalCount++;
         this.emit('alert', a);
         this.log.signal((a.confirmed ? '👁 ' : '⚡ ') + a.symbol + ' ' + a.text);
+      }
+    }
+    // —— 五浪反弹通道（独立策略）：主级别一笔下 + 次级别五浪 + 再次金叉 + 2 根内上穿 EMA7 ——
+    if (this.cfg.waveEnabled) {
+      try {
+        const fired = scanWaves(st.symbol, st.series, this.cfg, this.waveSeen, Date.now(),
+          !!this.initialPhase && !forceNew);
+        for (const a of fired) {
+          a.id = ++this.alertSeq;
+          a.initial = forceNew ? false : !!this.initialPhase;
+          this.waveCount++;
+          this.alerts.push(a);
+          this.signalCount++;
+          this.emit('alert', a);
+          this.log.signal('🌊 ' + a.symbol + ' ' + a.text);
+        }
+      } catch (e) {
+        this.log.warn(`五浪判定 ${st.symbol} 失败：${e.message}`);
       }
     }
     // —— 独立形态提醒：双阴不破均线（多） / 双阳不穿破均线（空）——
@@ -373,11 +395,12 @@ export class Engine extends Emitter {
    * 报警视图：每条报警取它**组合里的确认级别**（如 3m>15m>2h 取 15m）画一张K线。
    * 顺序与右侧报警面板一致（最新在前）。
    */
-  alertCharts(bars = 150, limit = 24) {
+  alertCharts(bars = 150, limit = 24, kind = null) {
     const items = [];
     const skipped = [];
     for (let k = this.alerts.length - 1; k >= 0 && items.length < limit; k--) {
       const a = this.alerts[k];
+      if (kind && (a.kind ?? 'resonance') !== kind) continue;   // 视图可按通道过滤（例如只看五浪）
       const st = this.market.symbols.get(a.symbol);
       if (!st) { skipped.push({ symbol: a.symbol, why: 'no-symbol' }); continue; }
       // 取级别，三类报警分别处理：

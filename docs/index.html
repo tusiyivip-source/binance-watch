@@ -69,6 +69,7 @@
     <button id="tab-matrix" class="vt on">▦ 多级别矩阵</button>
     <button id="tab-alert" class="vt">🔔 报警级别K线</button>
     <button id="tab-multi" class="vt">📈 K线图</button>
+    <button id="tab-wave" class="vt">🌊 五浪反弹</button>
     <span class="vtsep"></span>
     <span id="chart-symbar">
       <span id="chart-sym" class="chartsym">—</span>
@@ -78,6 +79,22 @@
       <select id="chart-level" class="vtsel" title="只看某个级别的K线（含报警级别）">
         <option value="all" selected>全部级别</option>
       </select>
+    </span>
+    <span id="wave-symbar" style="display:none">
+      <span class="chartsym">每条五浪信号的<b style="color:#f0b90b">主级别</b>K线 · 按时间倒序</span>
+      <select id="wave-limit" class="vtsel" title="最多展示多少条">
+        <option value="12">最近 12 条</option>
+        <option value="24" selected>最近 24 条</option>
+        <option value="40">最近 40 条</option>
+        <option value="60">最近 60 条</option>
+      </select>
+      <select id="wave-size" class="vtsel" title="每张图的尺寸">
+        <option value="compact">紧凑（塞进一屏）</option>
+        <option value="normal" selected>标准</option>
+        <option value="large">大</option>
+        <option value="xl">特大</option>
+      </select>
+      <button id="wave-refresh" class="vt mini" title="立即刷新">↻</button>
     </span>
     <span id="alert-symbar" style="display:none">
       <span class="chartsym">每条报警的<b style="color:#f0b90b">确认级别</b>K线 · 按报警顺序</span>
@@ -95,6 +112,9 @@
       </select>
       <button id="alert-refresh" class="vt mini" title="立即刷新">↻</button>
     </span>
+    <select id="wave-level" class="vtsel" style="display:none" title="按主级别筛选五浪信号">
+      <option value="all" selected>全部主级别</option>
+    </select>
     <select id="alert-level" class="vtsel" style="display:none" title="按报警级别筛选：只显示这些级别的报警">
       <option value="all" selected>全部报警级别</option>
     </select>
@@ -121,6 +141,7 @@
     <label class="toggle"><input type="checkbox" id="chart-macd" checked> MACD副图</label>
     <span id="chart-live" class="chartlive">—</span>
     <span id="alert-live" class="chartlive"></span>
+    <span id="wave-live" class="chartlive"></span>
   </div>
 
   <div id="mainbody">
@@ -145,6 +166,10 @@
       <div id="empty" class="empty">正在连接币安行情…</div>
     </div>
     <div id="chartgrid"></div>
+    <div id="wavechartwrap" style="display:none">
+      <div id="wavechartgrid"></div>
+      <div id="wave-empty" class="empty">暂无五浪反弹信号：主级别一笔下（高点→低点 ≥5 根）内部次级别走出 <b>死→金→死→金→死</b> 五浪、随后再次金叉，且主级别在金叉后 2 根收盘K线内上穿 EMA7 时才会出现在这里。</div>
+    </div>
     <div id="alertchartwrap">
       <div id="alertchartgrid"></div>
       <div id="alert-empty" class="empty" style="display:none">
@@ -281,6 +306,28 @@
         这一组提醒<b>不依赖</b>共振组合，也<b>不依赖</b>上面的主级别回踩结构盯盘，是独立的形态信号。<br>
         <b>成交额下限</b>：24H 成交额低于此值<b>不提醒</b>（默认 400 万 USDT）——
         小成交额的币容易凑出假形态，且滑点大不好成交。填 0 表示不限制。
+      </div>
+    </div>
+    <div class="groupbox">
+      <div class="gtitle">
+        <b>五浪反弹（独立通道）</b>
+        <span class="gsub">主级别一笔下 ≥5 根 → 次级别 死金死金死 五浪 → 再次金叉 → 主级别 2 根内上穿 EMA7</span>
+        <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-waveEnabled"> 启用</label>
+      </div>
+      <div class="prow">
+        <label style="flex:1 1 100%">级别对：<code>15分←3分</code>　<code>30分←5分</code>　<code>1时←10分</code>　<code>2时←15分</code></label>
+      </div>
+      <div class="prow">
+        <label>一笔下最少根数 <input id="c-waveMinBars" type="number" min="2" max="30" step="1"></label>
+        <label>高点回看根数 <input id="c-waveHighLookback" type="number" min="5" max="100" step="1"></label>
+        <label>金叉后几根内上穿EMA7 <input id="c-waveCrossWindow" type="number" min="1" max="10" step="1"></label>
+      </div>
+      <div class="gnote">
+        <b>① 主级别一笔下</b>：<b>不靠缠论</b> —— 最近「高点回看根数」内取「高点 → 之后的最低点」，跨度 ≥ 「一笔下最少根数」（默认 5 根）即可，<b>高点不要求是顶分型</b>。<br>
+        <b>② 次级别五浪</b>：这笔下跌的<b>时间窗内</b>，次级别 MACD 交叉<b>末尾五个必须是 死→金→死→金→死</b>（最后一个必须是死叉）。<br>
+        <b>③ 先见低点</b>：必须<b>先出现这笔下跌的最低点</b>，之后才出现<b>再次金叉</b>（DIF 上穿 DEA）。<br>
+        <b>④ 主级别确认</b>：该金叉之后 <b>2 根收盘K线内</b>（可调），主级别出现<b>由下向上穿越 EMA7</b>（前一根收盘 ≤ EMA7、这一根 &gt; EMA7）→ ★ 报警。<br>
+        右侧「🌊 五浪反弹」按钮里按时间倒序显示每条信号的主级别K线；同一「币种+主级别+这笔下跌的最低点」只报一次。
       </div>
     </div>
     <div class="groupbox">
