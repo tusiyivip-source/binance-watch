@@ -1085,17 +1085,20 @@ section('13. 盯盘通道 v4（15分/30分/1时/2时/3时/4时：回调中 MACD 
 }
 
 /* ============ 14. 五浪反弹通道（独立策略） ============ */
-section('14. 五浪反弹（主级别一笔下 → 次级别 死金死金死 五浪 → 再次金叉 → 主级别 2 根内上穿 EMA7）');
+section('14. 五浪反弹（一笔下 → 次级别**正好五个**交叉 死金死金死 + 三波低点逐个降低 + 再次金叉 + 2 根内上穿 EMA7）');
 {
   const M = 600_000, S = 120_000;   // 主级别 10 分钟/根，次级别 2 分钟/根
 
   /** 次级别：dea 恒为 0，dif 在指定下标处翻转符号 → 每次翻转就是一个交叉
-   *  负→正 = 金叉(G)，正→负 = 死叉(D) */
-  const mkSub = (len, flips, key = '3m', ms = S) => {
+   *  负→正 = 金叉(G)，正→负 = 死叉(D)。lows 默认是**逐根降低**的，用于满足「三波低点逐个降低」。 */
+  const mkSub = (len, flips, opts = {}) => {
+    const key = opts.key ?? '3m', ms = opts.ms ?? S;
+    const lowOf = opts.lowOf ?? (k => 1000 - k);
     const dif = []; let s = -1;
     for (let i = 0; i < len; i++) { if (flips.has(i)) s = -s; dif.push(s); }
     return { key, ms, minutes: ms / 60000, t: dif.map((_, i) => i * ms),
-      h: dif.map(() => 1), l: dif.map(() => 1), c: dif.map(() => 1), ema7: dif.map(() => 1),
+      h: dif.map((_, i) => lowOf(i) + 1), l: dif.map((_, i) => lowOf(i)),
+      c: dif.map((_, i) => lowOf(i) + 0.5), ema7: dif.map(() => 1),
       dif, dea: dif.map(() => 0) };
   };
   const mkMain = (highs, lows, closes, ema7, key = '15m', ms = M) => ({
@@ -1103,67 +1106,93 @@ section('14. 五浪反弹（主级别一笔下 → 次级别 死金死金死 五
     h: highs, l: lows, c: closes, ema7, dif: closes.map(() => 0), dea: closes.map(() => 0),
   });
 
-  // 主级别 12 根：高点在第 2 根、低点在第 8 根 → 跨度 7 根 ≥5；第 9 根收盘 1.3 由下向上穿过 EMA7 1.25
+  // 主级别 12 根：高点 index 2、低点 index 8（跨度 7 根 ≥5）；第 9 根由下向上穿 EMA7
   const HIGH = [2.0, 2.0, 5.0, 4.0, 3.0, 3.0, 2.0, 2.0, 1.5, 1.2, 1.3, 1.5];
-  const LOW = [1.9, 1.9, 2.0, 1.9, 1.8, 1.7, 1.5, 1.2, 1.0, 1.1, 1.2, 1.4];   // 最低点在 index 8
+  const LOW = [1.9, 1.9, 2.0, 1.9, 1.8, 1.7, 1.5, 1.2, 1.0, 1.1, 1.2, 1.4];
   const CLOSE = [1.95, 1.95, 4.0, 3.0, 2.5, 2.4, 2.0, 1.6, 1.2, 1.3, 1.4, 1.6];
-  const EMA7OK = CLOSE.map((_, i) => (i < 9 ? 1.25 : 1.28));   // 第 9 根：1.2 ≤ 1.25 且 1.3 > 1.28 → 由下向上穿
-  // 下跌窗口（t高 1.8e6 → t低 5.4e6）内的翻转：16,20,24,28,32,36,40,44（末尾为死叉），k=48 再来金叉
-  const FLIPS_OK = new Set([16, 20, 24, 28, 32, 36, 40, 44, 48]);
+  const EMA7OK = CLOSE.map((_, i) => (i < 9 ? 1.25 : 1.28));
+  // 窗口内正好 5 个交叉（k=24,28,32,36,40）→ 死金死金死
+  const F5 = new Set([8, 24, 28, 32, 36, 40, 48]);   // 8 在窗口外（把符号先翻正）；24..40 是窗口内五个；48 是低点后的「再次金叉」
 
   {
-    const main = mkMain(HIGH, LOW, CLOSE, EMA7OK);
-    const sub = mkSub(52, FLIPS_OK);
-    const hit = detectWave(main, sub, { minBars: 5, lookback: 20, crossWindow: 2 });
-    ok('★ 五浪 + 再次金叉 + 主级别 2 根内上穿 EMA7 → 命中', !!hit,
-      hit ? 'seq=' + hit.crosses.map(c => c.type).join('') + ' lag=' + hit.lagBars + ' bars=' + hit.bars : 'null');
+    const hit = detectWave(mkMain(HIGH, LOW, CLOSE, EMA7OK), mkSub(52, F5), { minBars: 5, lookback: 20, crossWindow: 2 });
+    ok('★ 标准五浪（正好5个交叉+三波低点逐个降低）+ 再次金叉 + 2 根内上穿 EMA7 → 命中', !!hit,
+      hit ? `seq=${hit.crosses.map(c => c.type).join('')} lows=${hit.waveLows.map(x => x.toFixed(1)).join('>')} lag=${hit.lagBars}` : 'null');
     if (hit) {
-      ok('★ 窗口末尾五个交叉正好是 死→金→死→金→死', hit.crosses.map(c => c.type).join('') === 'DGDGD',
+      ok('★ 窗口内正好五个交叉，且依次是 死→金→死→金→死',
+        hit.crosses.length === 5 && hit.crosses.map(c => c.type).join('') === 'DGDGD',
         hit.crosses.map(c => c.type).join(''));
-      ok('★ 「再次金叉」发生在最低点之后', hit.goldT > hit.lowT);
-      ok('★ 上穿 EMA7 发生在金叉后 2 根主级别K线内', hit.lagBars <= 2, 'lag=' + hit.lagBars);
-      ok('★ 一笔下根数 ≥5', hit.bars >= 5, 'bars=' + hit.bars);
+      ok('★ 三波低点逐个降低（第5浪创新低）',
+        hit.waveLows[0] > hit.waveLows[1] && hit.waveLows[1] > hit.waveLows[2],
+        hit.waveLows.map(x => x.toFixed(1)).join(' > '));
+      ok('★ 「再次金叉」在最低点之后', hit.goldT > hit.lowT);
+      ok('★ 上穿 EMA7 在金叉后 2 根主级别K线内', hit.lagBars <= 2, 'lag=' + hit.lagBars);
     }
   }
 
+  // ① 多一个交叉就不算标准五浪（窗口内 7 个交叉）
   {
-    const main = mkMain(HIGH, LOW, CLOSE, EMA7OK);
-    ok('★ 次级别窗口内交叉不足五个 → 不命中',
-      detectWave(main, mkSub(52, new Set([16, 20, 24, 48])), { minBars: 5, lookback: 20, crossWindow: 2 }) === null);
+    const many = new Set([8, 16, 20, 24, 28, 32, 36, 40, 48]);   // 窗口内 7 个交叉
+    ok('★ 窗口内交叉多于五个（7 个）→ 不命中',
+      detectWave(mkMain(HIGH, LOW, CLOSE, EMA7OK), mkSub(52, many), { minBars: 5, lookback: 20, crossWindow: 2 }) === null);
   }
+  // ①b 五个交叉但顺序不对（金死金死金）
   {
-    const main = mkMain(HIGH, LOW, CLOSE, EMA7OK);
-    ok('★ 窗口内最后一个交叉不是死叉（序列不对）→ 不命中',
-      detectWave(main, mkSub(52, new Set([16, 20, 24, 28, 32, 36, 40, 48])), { minBars: 5, lookback: 20, crossWindow: 2 }) === null);
-  }
-  {
-    const highs = [2, 2, 2, 2, 2, 2, 2, 2, 2, 3.0, 2.5, 2.0];     // 最高点在 index 9
-    const lows = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2.0, 1.5, 1.0];     // 最低点在 index 11 → 跨度 3 根 < 5
-    const closes = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2.6, 1.8, 1.2];
-    const ema7 = closes.map(() => 2.5);
-    ok('★ 高点到低点不足 5 根 → 不命中',
-      detectWave(mkMain(highs, lows, closes, ema7), mkSub(52, FLIPS_OK), { minBars: 5, lookback: 20, crossWindow: 2 }) === null);
-  }
-  {
-    ok('★ 主级别始终没收在 EMA7 上方 → 不命中',
-      detectWave(mkMain(HIGH, LOW, CLOSE, CLOSE.map(() => 9)), mkSub(52, FLIPS_OK), { minBars: 5, lookback: 20, crossWindow: 2 }) === null);
-  }
-  {
-    const sub = mkSub(120, new Set([16, 20, 24, 28, 32, 36, 40, 44, 100]));   // 金叉被推到很后面
-    ok('★ 金叉距离主级别上穿超过 2 根 → 不命中（窗口可调）',
+    const wrongSeq = new Set([24, 28, 32, 36, 40, 48]);
+    // 初始为正 → 第一次翻转是 正→负 = 死叉；要造 G,D,G,D,G 就让初始为负、首次翻转为金叉但顺序反
+    const sub = mkSub(52, new Set([16, 20, 24, 28, 32]));   // 窗口内 G,D,G,D,G —— 顺序不对
+    ok('★ 五个交叉但顺序不是 死金死金死 → 不命中',
       detectWave(mkMain(HIGH, LOW, CLOSE, EMA7OK), sub, { minBars: 5, lookback: 20, crossWindow: 2 }) === null);
   }
+  // ② 三波低点没有逐个降低（等高）→ 不命中
   {
-    const hit = detectWave(mkMain(HIGH, LOW, CLOSE, EMA7OK), mkSub(52, FLIPS_OK), { minBars: 5, lookback: 20, crossWindow: 2 });
-    const a = makeAlert('XUSDT', hit, Date.now(), false);
-    ok('★ 报警对象：kind=wave、报警级别=主级别、带次级别与五浪序列',
-      a.kind === 'wave' && a.level === '15m' && a.subLevel === '3m' && a.waveSeq === '死→金→死→金→死', a.waveSeq);
-    ok('★ 文案含「五浪反弹 / 一笔下 / 上穿 EMA7」',
-      /五浪反弹/.test(a.text) && /一笔下/.test(a.text) && /上穿 EMA7/.test(a.text), a.text.slice(0, 72));
+    const flat = mkSub(52, F5, { lowOf: () => 1000 });
+    ok('★ 三波低点没有逐个降低（等高）→ 不命中',
+      detectWave(mkMain(HIGH, LOW, CLOSE, EMA7OK), flat, { minBars: 5, lookback: 20, crossWindow: 2 }) === null);
   }
+  // ②b 第二波低点比第一波还低？(倒序) → 不命中  —— 构造：低点先降后升
+  {
+    const zig = mkSub(52, F5, { lowOf: k => (k <= 28 ? 1000 - k : 1000 + k) });
+    ok('★ 三波低点不是逐个降低（先降后升）→ 不命中',
+      detectWave(mkMain(HIGH, LOW, CLOSE, EMA7OK), zig, { minBars: 5, lookback: 20, crossWindow: 2 }) === null);
+  }
+  // ③ 交叉不足五个
+  {
+    ok('★ 窗口内交叉不足五个（3 个）→ 不命中',
+      detectWave(mkMain(HIGH, LOW, CLOSE, EMA7OK), mkSub(52, new Set([8, 24, 32])), { minBars: 5, lookback: 20, crossWindow: 2 }) === null);
+  }
+  // ④ 一笔下不足 5 根
+  {
+    const highs = [2, 2, 2, 2, 2, 2, 2, 2, 2, 3.0, 2.5, 2.0];
+    const lows = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2.0, 1.5, 1.0];
+    const closes = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2.6, 1.8, 1.2];
+    ok('★ 高点到低点不足 5 根 → 不命中',
+      detectWave(mkMain(highs, lows, closes, closes.map(() => 2.5)), mkSub(52, F5), { minBars: 5, lookback: 20, crossWindow: 2 }) === null);
+  }
+  // ⑤ 主级别没有由下向上穿越 EMA7
+  {
+    ok('★ 主级别始终没收在 EMA7 上方 → 不命中',
+      detectWave(mkMain(HIGH, LOW, CLOSE, CLOSE.map(() => 9)), mkSub(52, F5), { minBars: 5, lookback: 20, crossWindow: 2 }) === null);
+  }
+  // ⑥ 金叉后拖太久才上穿
+  {
+    const late = mkSub(120, new Set([8, 24, 28, 32, 36, 40, 100]));
+    ok('★ 金叉距离主级别上穿超过 2 根 → 不命中（窗口可调）',
+      detectWave(mkMain(HIGH, LOW, CLOSE, EMA7OK), late, { minBars: 5, lookback: 20, crossWindow: 2 }) === null);
+  }
+  // ⑦ 报警对象 / 文案
+  {
+    const hit = detectWave(mkMain(HIGH, LOW, CLOSE, EMA7OK), mkSub(52, F5), { minBars: 5, lookback: 20, crossWindow: 2 });
+    const a = makeAlert('XUSDT', hit, Date.now(), false);
+    ok('★ 报警对象：kind=wave、级别=主级别、带次级别与五浪序列',
+      a.kind === 'wave' && a.level === '15m' && a.subLevel === '3m' && a.waveSeq === '死→金→死→金→死', a.waveSeq);
+    ok('★ 文案含「标准五浪 / 三波低点 / 上穿 EMA7」',
+      /标准五浪/.test(a.text) && /三波低点/.test(a.text) && /上穿 EMA7/.test(a.text), a.text.slice(0, 80));
+  }
+  // ⑧ 去重
   {
     const cfg = { wavePairs: [{ main: '15m', sub: '3m' }], waveMinBars: 5, waveHighLookback: 20, waveCrossWindow: 2 };
-    const mainV = mkMain(HIGH, LOW, CLOSE, EMA7OK), subV = mkSub(52, FLIPS_OK);
+    const mainV = mkMain(HIGH, LOW, CLOSE, EMA7OK), subV = mkSub(52, F5);
     const fake = {
       '15m': { t: mainV.t, h: mainV.h, l: mainV.l, c: mainV.c, ms: M, ensure: () => ({ ema7: mainV.ema7 }), macd: () => ({ dif: mainV.dif, dea: mainV.dea }) },
       '3m': { t: subV.t, h: subV.h, l: subV.l, c: subV.c, ms: S, ensure: () => ({ ema7: subV.ema7 }), macd: () => ({ dif: subV.dif, dea: subV.dea }) },
@@ -1171,8 +1200,7 @@ section('14. 五浪反弹（主级别一笔下 → 次级别 死金死金死 五
     const seen = new Map();
     const first = scanWaves('YUSDT', fake, cfg, seen, Date.now(), false);
     const second = scanWaves('YUSDT', fake, cfg, seen, Date.now(), true);
-    ok('★ 同一笔下跌只报一次（同数据第二轮不再报）', first.length === 1 && second.length === 0,
-      first.length + '/' + second.length);
+    ok('★ 同一笔下跌只报一次', first.length === 1 && second.length === 0, first.length + '/' + second.length);
   }
 
   ok('配置默认：4 组级别对（15分←3分 / 30分←5分 / 1时←10分 / 2时←15分）',

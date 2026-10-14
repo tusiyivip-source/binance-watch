@@ -80,13 +80,34 @@ export function detectWave(main, sub, opt = {}) {
   const tHigh = main.t[hIdx] + main.ms;            // 高点的收盘时刻
   const tLow = main.t[lIdx] + main.ms;             // 低点的收盘时刻
 
-  // ② 次级别：下跌窗内末尾五个交叉必须是 死→金→死→金→死
+  // ② 次级别：下跌窗内必须**正好**五个交叉，且依次是 死→金→死→金→死
+  //    （用户口径收紧：多一个交叉就不算标准的五浪，避免把来回抖动的行情当成五浪）
   const all = macdCrosses(sub);
   const inWin = all.filter(x => x.t > tHigh && x.t <= tLow);
-  if (inWin.length < 5) return null;
-  const seq = inWin.slice(-5).map(x => x.type).join('');
+  if (inWin.length !== 5) return null;
+  const seq = inWin.map(x => x.type).join('');
   if (seq !== 'DGDGD') return null;
-  if (inWin[inWin.length - 1].type !== 'D') return null;
+
+  // ②b 价格结构：三波下跌（三次死叉）的低点必须**逐个降低**，第 5 浪创下这段最低点
+  //     —— 这才是教科书式的五浪下跌；只数 MACD 交叉不看价格会被"下跌中继"骗。
+  const deads = inWin.filter(x => x.type === 'D');           // 正好 3 个（见上）
+  if (deads.length !== 3) return null;
+  const lastK = Math.max(...inWin.map(x => x.k));
+  const lastKInWindow = (() => {                             // 窗口内次级别最后一根
+    let k = lastK;
+    for (let j = 0; j < sub.t.length; j++) if (sub.t[j] + sub.ms <= tLow) k = j;
+    return k;
+  })();
+  const segLow = (fromK, toK) => {
+    let m = Infinity;
+    for (let k = Math.max(1, fromK); k <= toK && k < sub.l.length; k++) if (sub.l[k] < m) m = sub.l[k];
+    return m;
+  };
+  const w1Low = segLow(deads[0].k + 1, deads[1].k);
+  const w3Low = segLow(deads[1].k + 1, deads[2].k);
+  const w5Low = segLow(deads[2].k + 1, lastKInWindow);
+  if (!Number.isFinite(w1Low) || !Number.isFinite(w3Low) || !Number.isFinite(w5Low)) return null;
+  if (!(w1Low > w3Low && w3Low > w5Low)) return null;        // 低点必须逐个降低（第 5 浪创新低）
 
   // ③ 先见最低点，之后才出现「再次金叉」
   const gold = all.find(x => x.type === 'G' && x.t > tLow);
@@ -110,7 +131,8 @@ export function detectWave(main, sub, opt = {}) {
     highT: main.t[hIdx], highPrice: main.h[hIdx],
     lowT: main.t[lIdx], lowPrice: main.l[lIdx],
     bars,
-    crosses: inWin.slice(-5).map(x => ({ t: x.t, type: x.type, price: x.price })),
+    crosses: inWin.map(x => ({ t: x.t, type: x.type, price: x.price })),
+    waveLows: [w1Low, w3Low, w5Low],                       // 三波低点（逐个降低）
     goldT: gold.t, goldPrice: gold.price,
     crossBarT: main.t[hit], crossClose: main.c[hit], crossEma7: main.ema7[hit],
     lagBars: Math.round((main.t[hit] + main.ms - gold.t) / main.ms),
@@ -180,7 +202,8 @@ export function makeAlert(symbol, hit, now, initial = false) {
     waveGoldT: hit.goldT,
     waveLagBars: hit.lagBars,
     text: `【五浪反弹】${L} 一笔下 ${hit.bars} 根（高点 ${fmt(hit.highPrice)} → 低点 ${fmt(hit.lowPrice)}）；`
-      + `${S} 五浪完成（${seq}）+ 再次金叉（${hit.lagBars} 根主级别K线前后）；`
+      + `${S} 标准五浪（${seq}，三波低点 ${(hit.waveLows ?? []).map(fmt).join(' → ')} 逐个降低）`
+      + ` + 再次金叉（${hit.lagBars} 根主级别K线前后）；`
       + `${L} 收盘 ${fmt(hit.crossClose)} 上穿 EMA7 ${fmt(hit.crossEma7)}`
       + (hit.lagBars <= 2 ? `（金叉后第 ${Math.max(1, hit.lagBars)} 根内）` : '')
       + ' · [已确认]',
