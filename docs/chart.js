@@ -43,7 +43,7 @@ const VIEWS = {
   //   少了 entries 就会在 view.entries.push 处抛异常，界面表现为状态栏/空态不更新。
   wave: { kind: 'wave', grid: null, entries: [], items: [], roles: {}, cols: 4 },
 };
-let activeView = 'matrix';         // 'matrix' | 'multi' | 'alert'
+let activeView = 'wave';         // 'matrix' | 'multi' | 'alert'
 /**
  * 级别下拉：把「全部 + 各报警/各展示级别」填进 select，并保持当前选择不丢。
  * 只在选项集合发生变化时才重建，避免每 3 秒刷新把用户的选择打回去。
@@ -64,35 +64,29 @@ function fillLevelSel(id, pairs, allText) {
   return sel.value;
 }
 
-let chartSymbol = null;
 let chartSkip = 0;        // 连续跳到下一个币种的次数（防止空图表时无限跳）
 let chartList = [];
 let viewTimer = null;
 
-/* ---------------- 视图切换 ---------------- */
+/* ---------------- 视图切换（只剩「报警级别K线」+「五浪反弹」） ---------------- */
 function setView(mode) {
+  if (mode !== 'alert' && mode !== 'wave') mode = 'wave';
   activeView = mode;
-  document.body.classList.toggle('chartmode', mode === 'multi' || mode === 'alert');
+  document.body.classList.toggle('chartmode', mode === 'alert');
   document.body.classList.toggle('alertchartmode', mode === 'alert');
-  // ⚠ 五浪视图必须用**独立**的 body class：复用 alertchartmode 会让
-  //   tablewrap / alertchartwrap / wavechartwrap 三个容器同时显示，各占 1/3 宽度。
+  // 五浪视图用**独立** body class：复用 alertchartmode 会让多个容器同时显示、各占 1/3 宽
   document.body.classList.toggle('wavemode', mode === 'wave');
-  document.querySelector('#tab-matrix').classList.toggle('on', mode === 'matrix');
-  document.querySelector('#tab-multi').classList.toggle('on', mode === 'multi');
   document.querySelector('#tab-wave')?.classList.toggle('on', mode === 'wave');
-  document.querySelector('#tab-alert').classList.toggle('on', mode === 'alert');
-  // 多级别视图才有币种切换控件
-  document.querySelector('#chart-symbar').style.display = mode === 'multi' ? '' : 'none';
+  document.querySelector('#tab-alert')?.classList.toggle('on', mode === 'alert');
   document.querySelector('#alert-symbar').style.display = mode === 'alert' ? '' : 'none';
   document.querySelector('#wave-symbar').style.display = mode === 'wave' ? '' : 'none';
   const wl = document.querySelector('#wave-level');
   if (wl) wl.style.display = mode === 'wave' ? '' : 'none';
   document.querySelector('#wavechartwrap').style.display = mode === 'wave' ? '' : 'none';
-  document.querySelector('#alertchartwrap').style.display = (mode === 'multi' || mode === 'matrix') ? 'none' : '';
-  // 报警级别筛选住在右侧控件组，只在「报警级别K线」视图露出
+  document.querySelector('#alertchartwrap').style.display = mode === 'alert' ? '' : 'none';
   const al = document.querySelector('#alert-level');
   if (al) al.style.display = mode === 'alert' ? '' : 'none';
-  if (mode === 'matrix') stopLoop(); else startLoop();
+  startLoop();
 }
 
 function startLoop() {
@@ -104,34 +98,8 @@ function stopLoop() {
   if (viewTimer) { clearInterval(viewTimer); viewTimer = null; }
 }
 function refreshActive() {
-  if (activeView === 'multi') refreshMulti();
-  else if (activeView === 'alert') refreshAlertView();
-  else if (activeView === 'wave') refreshWaveView();
-}
-
-/* ---------------- 币种列表（多级别视图用） ---------------- */
-function ensureChartList() {
-  if (chartList.length) return true;
-  const order = (typeof DISPLAY_ORDER !== 'undefined' && DISPLAY_ORDER.length)
-    ? DISPLAY_ORDER
-    : (typeof SNAP !== 'undefined' && SNAP?.symbols ? SNAP.symbols : []);
-  if (!order.length) return false;
-  chartList = order.slice();
-  return true;
-}
-function selectChartSymbol(sym) {
-  if (!sym) return;
-  ensureChartList();
-  chartSymbol = sym;
-  document.querySelector('#chart-sym').textContent = sym;
-  refreshMulti();
-}
-function stepChart(dir) {
-  if (!ensureChartList()) return;
-  let i = chartList.indexOf(chartSymbol);
-  if (i < 0) i = 0;
-  i = (i + dir + chartList.length) % chartList.length;
-  selectChartSymbol(chartList[i]);
+  if (activeView === 'alert') refreshAlertView();
+  else refreshWaveView();
 }
 
 /* ---------------- 布局 ---------------- */
@@ -296,10 +264,6 @@ function initChart(card, minutes) {
   const ema7 = chart.addLineSeries({ color: C.ema7, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
   const ma7 = chart.addLineSeries({ color: C.ma7, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
   // 缠论笔：一条折线穿过所有笔端点（顶底天然交替，单条折线画出来就是笔）
-  const pen = chart.addLineSeries({
-    color: C.pen, lineWidth: 1, lineStyle: LC.LineStyle.Dashed,
-    priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, pointMarkersVisible: true,
-  });
   const macdHist = chart.addHistogramSeries({
     priceScaleId: 'macd', priceFormat: { type: 'price', precision: 8 },
     priceLineVisible: false, lastValueVisible: false, base: 0,
@@ -313,7 +277,7 @@ function initChart(card, minutes) {
   chart.priceScale('macd').applyOptions({ scaleMargins: { top: 0.78, bottom: 0.02 }, visible: true });
   chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.86, bottom: 0 }, visible: false });
 
-  const e = { card, chart, candle, ma7, ema7, ma25, pen, macdHist, macdDif, macdDea, vol, minutes, tip: null };
+  const e = { card, chart, candle, ma7, ema7, ma25, macdHist, macdDif, macdDea, vol, minutes, tip: null };
   chart.subscribeCrosshairMove(p => onCrosshair(e, p));
   holder.addEventListener('click', () => toggleZoom(card, e.view));
   return e;
@@ -380,8 +344,7 @@ function paintCard(view, i, it) {
   card.className = cls.join(' ');
 
   const head = card.querySelector('.cchead');
-  const divBadge = it.chanState?.divergence === 'pending'
-    ? `<span class="st badge-div">${it.chanState.divDir === 'top' ? '顶' : '底'}背驰酝酿</span>` : '';
+  const divBadge = '';   // 背驰已彻底移除
 
   if (isAlert) {
     head.querySelector('.lv').innerHTML = `<span class="sym">${it.symbol}</span>`;
@@ -414,7 +377,7 @@ function paintCard(view, i, it) {
   } else {
     // K线图（多级别）：同一个币种的所有级别 —— 每张卡片也标出**币种名称**，
     // 方便放大单张、截图或滚动时辨认。
-    const sym = it.symbol ?? chartSymbol ?? '';
+    const sym = it.symbol ?? '';
     head.querySelector('.lv').innerHTML =
       (sym ? `<span class="sym">${sym}</span> ` : '') + (it.label ?? '');
     head.querySelector('.roles').innerHTML = (view.roles?.[it.key] ?? [])
@@ -431,7 +394,6 @@ function paintCard(view, i, it) {
   const cs = it.candles;
   if (!cs.length) {
     e.candle.setData([]); e.ma7.setData([]); e.ema7.setData([]); e.ma25.setData([]);
-    e.pen.setData([]); e.pen.setMarkers([]);
     e.macdHist.setData([]); e.macdDif.setData([]); e.macdDea.setData([]); e.vol.setData([]);
     return;
   }
@@ -444,15 +406,7 @@ function paintCard(view, i, it) {
   e.ma25.setData(showMA ? line(it.ma25) : []);
 
   // 缠论笔
-  const showChan = document.querySelector('#chart-chan').checked;
-  if (showChan && it.strokes?.length >= 2) {
-    const idx = s => Math.max(0, Math.min(cs.length - 1, s[0]));
-    e.pen.setData(it.strokes.map(s => ({ time: T(idx(s)), value: s[1] })));
-    e.pen.setMarkers(it.strokes.map(s => ({
-      time: T(idx(s)), position: s[2] > 0 ? 'aboveBar' : 'belowBar',
-      color: s[2] > 0 ? '#f87171' : '#4ade80', shape: 'circle', size: 0.6,
-    })));
-  } else { e.pen.setData([]); e.pen.setMarkers([]); }
+  // 「缠论笔」已按需求彻底移除：不画笔线、不标分型
 
   // MACD 副图
   const showMacd = document.querySelector('#chart-macd').checked;
@@ -488,43 +442,6 @@ function paintCard(view, i, it) {
 
 function paintView(view) {
   view.items.forEach((it, i) => paintCard(view, i, it));
-}
-
-/* ---------------- 数据拉取 ---------------- */
-async function refreshMulti() {
-  const view = VIEWS.multi;
-  if (!view.grid) return;
-  if (!chartSymbol) {
-    if (!ensureChartList()) return;
-    selectChartSymbol(chartList[0]);
-    return;
-  }
-  applyCols(view);
-  const bars = currentBars(view);
-  try {
-    const d = await fetch(`/api/chart?symbol=${encodeURIComponent(chartSymbol)}&bars=${bars}`).then(r => r.json());
-    if (d.error) return;
-    // 级别选择器（含报警级别）——只画选中的那一个级别
-    const allLevels = Array.isArray(d.levels) ? d.levels : Object.values(d.levels ?? {});
-    // 冷启动时排行榜最前面的币种可能还没播种完 → 这一张会是空的。
-    // 自动跳到下一个有K线的币种，避免打开就是一片空白（最多连跳 8 次）。
-    if (!allLevels.length) {
-      if (chartSkip < 40) { chartSkip++; stepChart(1); }   // 冷启动可能连续多个币种未播种
-      return;
-    }
-    chartSkip = 0;
-    const pairs = allLevels.map(v => ({ key: v.key, label: v.label ?? v.key }));
-    const pick = fillLevelSel('#chart-level', pairs, '全部级别');
-    view.items = pick === 'all' ? allLevels : allLevels.filter(v => v.key === pick);
-    view.roles = d.roles ?? {};
-    ensureCards(view, view.items);
-    paintView(view);
-    applyCols(view);
-    const age = d.tickAt ? ((Date.now() - d.tickAt) / 1000).toFixed(1) : '—';
-    document.querySelector('#chart-live').textContent =
-      `共振 ${d.bullCount}/14 · ${pick === 'all' ? '全部级别' : '只看 ' + (allLevels.find(v => v.key === pick)?.label ?? pick)} · ${bars} 根 · 行情 ${age}s 前 · ` +
-      new Date().toLocaleTimeString('zh-CN', { hour12: false });
-  } catch { /* 忽略单次失败 */ }
 }
 
 async function refreshWaveView() {
@@ -599,7 +516,7 @@ function onCrosshair(e, param) {
   e.tip.style.left = Math.min(param.point.x + 14, Math.max(4, w - 140)) + 'px';
   e.tip.style.top = Math.max(4, param.point.y - 78) + 'px';
   e.tip.innerHTML =
-    `<b>${item?.symbol ?? chartSymbol ?? ''}</b> <span class="k">${item?.label ?? ''}</span><br>`
+    `<b>${item?.symbol ?? ''}</b> <span class="k">${item?.label ?? ''}</span><br>`
     + `开 ${fmtPrice(d.open)}　高 ${fmtPrice(d.high)}<br>`
     + `低 ${fmtPrice(d.low)}　收 ${fmtPrice(d.close)}<br>`
     + (mv != null ? `<span class="k">MACD柱</span> ${mv.toFixed(4)}<br>` : '')
@@ -619,27 +536,19 @@ function fmtCandleTime(ts, minutes) {
 
 /* ---------------- 绑定 ---------------- */
 function initCharts() {
-  VIEWS.multi.grid = document.querySelector('#chartgrid');
   VIEWS.alert.grid = document.querySelector('#alertchartgrid');
   VIEWS.wave.grid = document.querySelector('#wavechartgrid');
 
-  document.querySelector('#tab-matrix').addEventListener('click', () => setView('matrix'));
-  document.querySelector('#tab-multi').addEventListener('click', () => setView('multi'));
   document.querySelector('#tab-alert').addEventListener('click', () => setView('alert'));
   document.querySelector('#tab-wave').addEventListener('click', () => setView('wave'));
-  document.querySelector('#chart-prev').addEventListener('click', () => stepChart(-1));
-  document.querySelector('#chart-next').addEventListener('click', () => stepChart(1));
-  document.querySelector('#chart-detail').addEventListener('click', () => { if (chartSymbol) openDetail(chartSymbol); });
-  document.querySelector('#chart-cols').addEventListener('change', () => { applyCols(VIEWS.multi); refreshActive(); });
+  document.querySelector('#chart-cols').addEventListener('change', () => { applyCols(VIEWS.alert); applyCols(VIEWS.wave); refreshActive(); });
   document.querySelector('#chart-bars').addEventListener('change', () => refreshActive());
-  document.querySelector('#chart-level').addEventListener('change', e => { e.target.dataset.__v = e.target.value; refreshMulti(); });
   document.querySelector('#alert-level').addEventListener('change', e => { e.target.dataset.__v = e.target.value; refreshAlertView(); });
   document.querySelector('#alert-limit').addEventListener('change', () => refreshAlertView());
   document.querySelector('#alert-size').addEventListener('change', () => { applyCols(VIEWS.alert); refreshAlertView(); });
-  ['#chart-ma', '#chart-chan', '#chart-mark', '#chart-macd'].forEach(s =>
+  ['#chart-ma', '#chart-mark', '#chart-macd'].forEach(s =>
     document.querySelector(s).addEventListener('change', () => {
-      if (activeView === 'multi') paintView(VIEWS.multi);
-      else if (activeView === 'alert') paintView(VIEWS.alert);
+      paintView(activeView === 'alert' ? VIEWS.alert : VIEWS.wave);
     }));
   document.querySelector('#alert-refresh').addEventListener('click', () => refreshAlertView());
   document.querySelector('#wave-refresh').addEventListener('click', () => refreshWaveView());
@@ -653,15 +562,9 @@ function initCharts() {
     clearTimeout(rt);
     rt = setTimeout(() => refreshActive(), 250);
   });
-  document.addEventListener('keydown', e => {
-    if (activeView !== 'multi') return;
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-    if (e.key === 'ArrowLeft') stepChart(-1);
-    if (e.key === 'ArrowRight') stepChart(1);
-  });
-  applyCols(VIEWS.multi);
   applyCols(VIEWS.alert);
   applyCols(VIEWS.wave);
+  setView('wave');   // 默认打开五浪反弹
 }
 
 if (typeof LC === 'undefined') {
@@ -670,12 +573,7 @@ if (typeof LC === 'undefined') {
   initCharts();
 }
 
-function openChartFor(sym, level) {
-  ensureChartList();
-  selectChartSymbol(sym);
-  if (level) {
-    const sel = document.querySelector('#chart-level');
-    if (sel) { sel.dataset.__v = level; sel.value = level; }
-  }
-  setView('multi');
+function openChartFor(sym) {
+  // 「K线图」视图已按需求移除：点币种时改为打开该币种的级别明细抽屉
+  if (sym && typeof openDetail === 'function') openDetail(sym);
 }

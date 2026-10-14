@@ -13,8 +13,8 @@
   <div class="brand">
     <span class="logo">📡</span>
     <div>
-      <h1>币安多级别 MACD 回调盯盘 · 6 级别</h1>
-      <p>涨幅榜 Top200 · 15分/30分/1时/2时/3时/4时 · 回调中 MACD 均线(DEA) 贴近零轴不跌破即报</p>
+      <h1>币安盯盘 · 回调靠零轴 + 五浪反弹</h1>
+      <p>涨幅榜 Top200 · 两条独立通道：① 回调中 MACD 均线(DEA) 贴近零轴不跌破 ② 五浪反弹（次级别 死金死金死 + 主级别上穿 EMA7）</p>
     </div>
   </div>
   <div class="pills">
@@ -34,23 +34,6 @@
 </header>
 
 <section id="toolbar">
-  <input id="q" type="search" placeholder="搜索币种…  ( / 聚焦 )">
-  <label class="fld">最小共振级别
-    <select id="f-bull"><option>0</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>8</option></select>
-  </label>
-  <label class="fld">最小评分
-    <select id="f-score"><option selected>0</option><option>40</option><option>50</option><option>60</option><option>70</option><option>80</option></select>
-  </label>
-  <label class="fld">最大级别不破
-    <select id="f-bigma"><option value="ema7" selected>EMA7</option><option value="ma7">MA7</option></select>
-  </label>
-  <button id="f-groups" class="gchip" title="当前生效的级别组合（点击修改）">组合：—</button>
-  <div class="chips" id="chips"></div>
-  <div class="legend">
-    <span class="lg s1">多头排列</span><span class="lg s2">站上MA7</span><span class="lg s3">纠缠</span>
-    <span class="lg s4">弱势</span><span class="lg s5">空头排列</span><span class="lg s0">不足</span>
-    <span class="lg ev4">★回踩突破</span><span class="lg ev1">▲上穿</span><span class="lg ev2">·回踩</span><span class="lg ev3">▼跌破</span>
-  </div>
   <div class="right">
     <label class="toggle"><input type="checkbox" id="t-live" checked> 含未收盘预警</label>
     <button id="btn-resync" class="btn small">↻ 对账</button>
@@ -59,20 +42,9 @@
 
 <main>
   <div class="viewtabs">
-    <button id="tab-matrix" class="vt on">▦ 多级别矩阵</button>
     <button id="tab-alert" class="vt">🔔 报警级别K线</button>
-    <button id="tab-multi" class="vt">📈 K线图</button>
-    <button id="tab-wave" class="vt">🌊 五浪反弹</button>
+    <button id="tab-wave" class="vt on">🌊 五浪反弹</button>
     <span class="vtsep"></span>
-    <span id="chart-symbar">
-      <span id="chart-sym" class="chartsym">—</span>
-      <button id="chart-prev" class="vt mini" title="上一个币种">◀</button>
-      <button id="chart-next" class="vt mini" title="下一个币种">▶</button>
-      <button id="chart-detail" class="vt mini" title="查看该币种的级别明细表">📋 明细</button>
-      <select id="chart-level" class="vtsel" title="只看某个级别的K线（含报警级别）">
-        <option value="all" selected>全部级别</option>
-      </select>
-    </span>
     <span id="wave-symbar" style="display:none">
       <span class="chartsym">每条五浪信号的<b style="color:#f0b90b">主级别</b>K线 · 按时间倒序</span>
       <select id="wave-limit" class="vtsel" title="最多展示多少条">
@@ -129,8 +101,7 @@
       <option value="400">400 根</option>
     </select>
     <label class="toggle"><input type="checkbox" id="chart-ma" checked> 均线</label>
-    <label class="toggle"><input type="checkbox" id="chart-chan" checked> 缠论笔</label>
-    <label class="toggle"><input type="checkbox" id="chart-mark" checked> 事件标记</label>
+        <label class="toggle"><input type="checkbox" id="chart-mark" checked> 事件标记</label>
     <label class="toggle"><input type="checkbox" id="chart-macd" checked> MACD副图</label>
     <span id="chart-live" class="chartlive">—</span>
     <span id="alert-live" class="chartlive"></span>
@@ -139,26 +110,6 @@
 
   <div id="mainbody">
   <div id="view-matrix" class="view">
-    <div id="tablewrap">
-      <table id="grid">
-        <thead>
-          <tr id="head">
-            <th class="c-rank">#</th>
-            <th class="c-sym sortable" data-sort="sym">币种</th>
-            <th class="c-price sortable num" data-sort="price">价格</th>
-            <th class="c-chg sortable num" data-sort="change">24h%</th>
-            <th class="c-vol num" title="24小时成交额（USDT）">成交额</th>
-            <th class="c-bull sortable num" data-sort="bull">共振</th>
-            <th class="c-score sortable num" data-sort="score">评分</th>
-            <th class="c-flag"></th>
-            <!-- 级别列由 JS 注入 -->
-          </tr>
-        </thead>
-        <tbody id="body"></tbody>
-      </table>
-      <div id="empty" class="empty">正在连接币安行情…</div>
-    </div>
-    <div id="chartgrid"></div>
     <div id="wavechartwrap" style="display:none">
       <div id="wavechartgrid"></div>
       <div id="wave-empty" class="empty">暂无五浪反弹信号：主级别一笔下（高点→低点 ≥5 根）内部次级别走出 <b>死→金→死→金→死</b> 五浪、随后再次金叉，且主级别在金叉后 2 根收盘K线内上穿 EMA7 时才会出现在这里。</div>
@@ -188,76 +139,11 @@
   <div class="dbody">
     <p class="hint">对应需求：<b>主级别连续走低够N根且不破左侧上涨低点</b> → <b>中间级别站上 MA7/EMA7</b> → <b>次级别收盘上穿 MA7/EMA7</b>。</p>
 
-    <div class="groupbox">
-      <div class="gtitle">
-        <b>级别组合（基准 → 确认 → 最大）</b>
-        <span class="gsub">三者不必相邻，例如 3分 → 15分 → 2时</span>
-      </div>
-      <div id="grouplist"></div>
-      <div class="gfoot">
-        <button id="btn-addgroup" class="btn small">＋ 添加组合</button>
-        <button id="btn-preset" class="btn small">恢复示例组合</button>
-        <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-scanModeAuto"> 穷举扫描模式</label>
-      </div>
-      <div class="gnote">穷举模式 = 自动扫描「基准 + 它的下一档 + 任意更大级别」的全部组合，信号量会大很多。</div>
-    </div>
+    
 
-    <div class="groupbox">
-      <div class="gtitle">
-        <b>缠论背驰过滤</b>
-        <span class="gsub">确认级别「将要出现背驰笔」→ 判定上涨衰竭，拦下该信号</span>
-        <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-filterBeichi"> 启用</label>
-      </div>
-      <div class="prow">
-        <label>检查范围
-          <select id="c-beichiScope">
-            <option value="mid">仅确认级别</option>
-            <option value="mid+big">确认级别 + 最大级别</option>
-          </select>
-        </label>
-        <label>笔的严格度
-          <select id="c-beichiMinBars">
-            <option value="5">标准笔（≥5根K线）</option>
-            <option value="4">新笔（≥4根）</option>
-            <option value="3">宽松（≥3根）</option>
-          </select>
-        </label>
-      </div>
-      <div class="prow">
-        <label>面积衰减阈值 <input id="c-beichiRatio" type="number" min="0.5" max="1.5" step="0.05"></label>
-        <label>最小幅度比 <input id="c-beichiMinProgress" type="number" min="0" max="2" step="0.05"></label>
-      </div>
-      <div class="gnote" id="beichi-stats">—</div>
-      <div class="gnote">
-        判定口径：<b>包含处理 → 分型 → 标准笔 → MACD 红柱面积对比</b>。
-        当前这一笔还没走完，但价格已越过前一同向笔的极值、而累计 MACD 面积反而更小 → 视为「将要出现背驰笔」。<br>
-        实测（60 标的 / 24 小时）：15分 处于该状态的时间仅占 <b>2.76%</b>，却拦掉了 <b>17.9%</b> 的信号
-        —— 说明信号恰好高度聚集在顶部区域。<br>
-        「面积衰减阈值」越小越严格（1.0 = 只要变小就判定）；「最小幅度比」用于避免把刚起步的短笔误判成背驰。
-      </div>
-    </div>
+    
 
-    <div class="groupbox">
-      <div class="gtitle">
-        <b>回踩成笔链（笔延续级别）</b>
-        <span class="gsub">回调必须深到让中间的每个级别都成笔</span>
-        <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-requireStrokeChain"> 启用</label>
-      </div>
-      <div class="prow">
-        <label class="toggle"><input type="checkbox" id="c-chainRequireAboveMa"> 链上各级别同时站上 MA7</label>
-      </div>
-      <div class="gnote" id="chain-stats">—</div>
-      <div class="gnote">
-        只让最小级别成笔的回调是<b>浅回调</b>，撑不起大级别的延续。要算作 <b>30分 笔延续</b>，
-        必须让 <b>5分、10分、15分全部成笔</b>（即从基准级别到确认级别之间、不含确认级别的所有级别）：
-        <br>· <code>5m&gt;30m&gt;3h</code> → 要求 5m / 10m / 15m 成笔
-        <br>· <code>3m&gt;15m&gt;2h</code> → 要求 3m / 5m / 10m 成笔
-        <br>· <code>2m&gt;10m&gt;1h</code> → 要求 2m / 3m / 5m 成笔
-        <br>判定方式：某级别的「最近一个完成的向下笔」的底，必须落在<b>基准级别回调起点之后</b>。
-        <br>实测（140 条信号）：只要求成笔保留 <b>25.0%</b>；再加上「都站上 MA7」保留 <b>17.9%</b>。
-        卡住的总是<b>紧挨确认级别的那一级</b>（30分组卡 10分、10分组卡 5分）——它的笔最长、最难成。
-      </div>
-    </div>
+    
 
     <div class="groupbox">
       <div class="gtitle">
@@ -357,28 +243,7 @@
     </div>
     <label class="row"><span>多头排列最少级别数</span><input id="c-minBullLevels" type="number" min="2" max="14" step="1"></label>
 
-    <div class="groupbox">
-      <div class="gtitle">
-        <b>回踩形态</b>
-        <span class="gsub">基准级别的回踩长什么样才算数</span>
-      </div>
-      <div class="prow">
-        <label>判定方式
-          <select id="c-pullbackPattern">
-            <option value="twoBearHold">两根阴K不破均线（跌无可跌）</option>
-            <option value="touch">最低价触及 MA7 后上穿</option>
-          </select>
-        </label>
-        <label>阴K根数 <input id="c-pullbackBars" type="number" min="1" max="6" step="1"></label>
-      </div>
-      <div class="gnote">
-        <b>两根阴K不破均线</b>：连续 N 根K线都是阴线，且每根的<b>收盘价</b>都没有跌破 MA7、也没有跌破 EMA7
-        —— <b>影线允许插破</b>。随后当前K线<b>收盘同时站上 MA7 与 EMA7</b> 即触发。<br>
-        含义：上涨途中<b>极浅的回调</b>，连收盘都没能把价格压到均线下方，说明抛压枯竭（跌无可跌）。<br>
-        <span style="color:#f0b90b">注意</span>：这种形态下价格压根没离开均线上方，所以<b>不存在「上穿 MA7」事件</b>，
-        触发条件改用「收盘同时站上两条均线」。选另一种判定方式时行为与原来一致。
-      </div>
-    </div>
+    
 
     <label class="row"><span>回踩回看K线数<br><small style="color:#5b6f8c;font-size:10.5px">仅「触及MA7后上穿」形态使用</small></span><input id="c-pullbackLookback" type="number" min="1" max="20" step="1"></label>
     <label class="row"><span>回踩容差 (%)<br><small style="color:#5b6f8c;font-size:10.5px">仅「触及MA7后上穿」形态使用</small></span><input id="c-pullbackTolerance" type="number" min="0" max="2" step="0.05"></label>

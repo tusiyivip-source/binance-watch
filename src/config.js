@@ -181,14 +181,7 @@ export const DEFAULT_SIGNAL = {
   // 小成交额的币容易凑出「两根K线勉强不破均线」的假形态，而且滑点大、实际不好成交。
   dualMinQuoteVolume: 4_000_000,   // 400 万 USDT
   // —— 缠论背驰过滤（排除「确认级别将要出现背驰笔」的信号） ——
-  filterBeichi: true,      // 总开关
-  beichiScope: 'mid',      // mid = 只查确认级别；mid+big = 连最大级别一起查
-  beichiMinBars: 5,        // 标准笔：顶底分型之间至少 5 根K线（含包含处理）
-  beichiRatio: 1.0,        // MACD 柱面积衰减阈值：当前面积 < 前一同向笔面积 × 该值
-  beichiMinProgress: 0.3,  // 当前笔至少走到前一同向笔幅度的 30% 才判定（避免刚起步误判）
   // —— 回踩成笔链（笔延续级别） ——
-  requireStrokeChain: true,    // 基准 → 确认级别之间的所有级别，都必须被这波回调带动成笔
-  chainRequireAboveMa: false,  // 附加：链上各级别同时站上 MA7（「5m 带动 15m 也站上均线」）
 };
 
 /**

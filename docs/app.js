@@ -7,11 +7,7 @@ const EVENT_NAME = { 0: '', 1: '上穿MA7', 2: '回踩MA7', 3: '跌破MA7', 4: '
 
 let LEVELS = [];
 let SNAP = null;
-let HEADER_DONE = false;
 // null = 强制重建行顺序。注意不能用 ''：当筛选结果为空集时 orderKey 也是 ''，会被误判为"顺序未变"
-let lastOrderKey = null;
-let sortKey = 'change';
-let sortDir = -1;
 let stockRows = new Map();   // symbol -> {tr, refs}
 let DISPLAY_ORDER = [];      // 当前表格显示顺序（供 K 线图 ◀ ▶ 使用）
 let alerts = [];
@@ -19,7 +15,6 @@ let PRICE = new Map();       // symbol -> 最新价（用于报警卡片"信号�
 let cfg = null;
 let soundOn = localStorage.getItem('sound') === '1';
 let notifyOn = localStorage.getItem('notify') === '1';
-const activeChips = new Set();
 
 /* ---------------- 格式化 ---------------- */
 // 注意：不能用 !isFinite(p) 判断，因为 isFinite(null) === true（Number(null) 是 0），
@@ -95,9 +90,7 @@ function connect() {
     LEVELS = d.levels;
     ALL_LEVELS = d.allLevels ?? d.levels;
     cfg = d.cfg;
-    buildHeader();
     fillCfgForm();
-    renderGroups();
     if (d.app?.marketName) {
       MARKET_NAME = d.app.marketName;
       const sub = document.querySelector('.brand p');
@@ -114,9 +107,7 @@ function connect() {
     if (lastSnapAt) snapGap = t - lastSnapAt;
     lastSnapAt = t;
     SNAP = JSON.parse(e.data);
-    if (!HEADER_DONE && SNAP.levels) { LEVELS = LEVELS.length ? LEVELS : SNAP.levels; buildHeader(); }
-    render();
-  });
+      });
   sse.addEventListener('alerts', e => {
     alerts = JSON.parse(e.data);
     renderAlerts();
@@ -159,180 +150,13 @@ function setWs(kind, text) {
 }
 
 /* ---------------- 表头 ---------------- */
-function buildHeader() {
-  if (HEADER_DONE) return;
-  HEADER_DONE = true;
-  const head = $('#head');
-  for (const lv of LEVELS) {
-    const th = document.createElement('th');
-    th.className = 'lv';
-    th.textContent = lv.label ?? lv;
-    th.title = `${lv.label ?? lv} 级别`;
-    head.appendChild(th);
-  }
-}
+
 
 /* ---------------- 行构建 ---------------- */
-function makeRow(sym) {
-  const tr = document.createElement('tr');
-  const refs = {};
-  const td = (cls, html) => {
-    const c = document.createElement('td');
-    c.className = cls;
-    if (html != null) c.innerHTML = html;
-    tr.appendChild(c);
-    return c;
-  };
 
-  refs.rank = td('c-rank', '');
-  refs.sym = td('c-sym', `<span class="base">${base(sym)}</span><span class="quote">USDT</span><span class="det" title="级别明细表">📋</span>`);
-  refs.price = td('c-price num', '');
-  refs.chg = td('c-chg num', '');
-  refs.vol = td('c-vol num', '');
-  refs.bull = td('c-bull num', '');
-  refs.score = td('c-score num', '');
-  refs.flag = td('c-flag', '');
-  refs.cells = [];
-  for (let i = 0; i < LEVELS.length; i++) {
-    const c = td('lv', '<div class="cell"></div>');
-    refs.cells.push(c.firstChild);
-  }
-  refs.sym.addEventListener('click', e => {
-    // 点币种名 → K线图；点 📋 → 级别明细表
-    if (e.target.classList.contains('det')) { e.stopPropagation(); openDetail(sym); return; }
-    if (typeof openChartFor === 'function') openChartFor(sym);
-    else openDetail(sym);
-  });
-  refs._cache = {};
-  return { tr, refs };
-}
 
 /* ---------------- 主渲染 ---------------- */
-function render() {
-  if (!SNAP) return;
-  const { symbols, rows } = SNAP;
 
-  const q = $('#q').value.trim().toUpperCase();
-  const minBull = +$('#f-bull').value;
-  const minScore = +$('#f-score').value;
-
-  const list = [];
-  for (let i = 0; i < symbols.length; i++) {
-    const sym = symbols[i], r = rows[i];
-    if (!r) continue;
-    if (q && sym.indexOf(q) < 0) continue;
-    if (r[3] < minBull) continue;
-    if (r[5] < minScore) continue;
-    const flags = r[6], seeded = r[7];
-    if (activeChips.has('sig') && !flags) continue;
-    if (activeChips.has('conf') && flags !== 1) continue;
-    if (activeChips.has('up') && r[1] <= 0) continue;
-    if (activeChips.has('seed') && !seeded) continue;
-    list.push(i);
-  }
-
-  const dir = sortDir;
-  list.sort((a, b) => {
-    let x, y;
-    switch (sortKey) {
-      case 'sym': x = symbols[a]; y = symbols[b]; return x < y ? -dir : x > y ? dir : 0;
-      case 'price': x = rows[a][0]; y = rows[b][0]; break;
-      case 'score': x = rows[a][5]; y = rows[b][5]; break;
-      case 'bull': x = rows[a][3]; y = rows[b][3]; break;
-      default: x = rows[a][1]; y = rows[b][1];
-    }
-    return dir * (x - y);
-  });
-
-  const orderKey = list.join(',');
-  DISPLAY_ORDER = list.map(i => symbols[i]);
-  const body = $('#body');
-  const reorder = orderKey !== lastOrderKey;
-  lastOrderKey = orderKey;
-
-  if (reorder) {
-    const frag = document.createDocumentFragment();
-    for (const i of list) {
-      const sym = symbols[i];
-      let rec = stockRows.get(sym);
-      if (!rec) { rec = makeRow(sym); stockRows.set(sym, rec); }
-      frag.appendChild(rec.tr);
-    }
-    body.textContent = '';
-    body.appendChild(frag);
-  }
-
-  list.forEach((i, n) => {
-    const sym = symbols[i], r = rows[i];
-    const rec = stockRows.get(sym);
-    if (!rec) return;
-    const { refs } = rec, c = refs._cache;
-
-    if (c.rank !== n + 1) { refs.rank.textContent = n + 1; c.rank = n + 1; }
-
-    const price = fmtPrice(r[0]);
-    if (c.price !== price) { refs.price.textContent = price; c.price = price; }
-
-    const chg = pctStr(r[1]);
-    if (c.chg !== chg) {
-      refs.chg.textContent = chg;
-      refs.chg.className = 'c-chg num ' + (r[1] > 0 ? 'up' : r[1] < 0 ? 'down' : 'flat');
-      c.chg = chg;
-    }
-    const vol = fmtVol(r[2]);
-    if (c.vol !== vol) { refs.vol.textContent = vol; c.vol = vol; }
-
-    if (c.bull !== r[3]) {
-      refs.bull.textContent = r[3] || '';
-      refs.bull.style.color = r[3] >= 6 ? '#4ade80' : r[3] >= 3 ? '#a3e635' : '#64748b';
-      c.bull = r[3];
-    }
-    if (c.score !== r[5]) {
-      refs.score.textContent = r[5] || '';
-      refs.score.style.color = r[5] >= 70 ? '#fde047' : r[5] >= 50 ? '#fbbf24' : '#64748b';
-      c.score = r[5];
-    }
-    const flag = r[6] === 1 ? '🔔' : r[6] === 2 ? '🔕' : '';
-    if (c.flag !== flag) {
-      refs.flag.textContent = flag;
-      refs.flag.title = r[6] === 1 ? '已确认共振信号' : r[6] === 2 ? '未收盘预警' : '';
-      c.flag = flag;
-    }
-    const isSig = r[6] === 1;
-    if (c.sig !== isSig) { rec.tr.classList.toggle('sig', isSig); c.sig = isSig; }
-
-    for (let k = 0; k < LEVELS.length; k++) {
-      const cell = refs.cells[k];
-      const code = r[8 + k] ?? 0;
-      if (c['l' + k] === code) continue;
-      const st = code % 10, ev = Math.floor(code / 10);
-      cell.className = 'cell s' + st + (ev ? ' ev' + ev : '');
-      cell.textContent = ev === 4 ? '★' : ev === 1 ? '▲' : ev === 3 ? '▼' : ev === 2 ? '·' : '';
-      cell.title = `${lvLabel(LEVELS[k].key ?? LEVELS[k])}：${STATE_NAME[st]}${ev ? ' · ' + EVENT_NAME[ev] : ''}`;
-      c['l' + k] = code;
-    }
-  });
-
-  const emptyEl = $('#empty');
-  emptyEl.style.display = list.length ? 'none' : 'block';
-  if (!list.length && symbols.length) emptyEl.textContent = '当前筛选条件下没有匹配的币种';
-
-  const sigCount = rows.filter(r => r[6] === 1).length;
-  const pre = rows.filter(r => r[6] === 2).length;
-  const pm = new Map();
-  for (let i = 0; i < symbols.length; i++) pm.set(symbols[i], rows[i][0]);
-  PRICE = pm;
-  $('#pill-sym').textContent = `标的 ${symbols.length}`;
-  $('#pill-bull').innerHTML = `共振 <b>${rows.filter(r => r[3] >= 3).length}</b>`;
-  $('#pill-sig').innerHTML = `信号 <b>${sigCount}</b>${pre ? ` <span style="color:#fbbf24">+${pre}预警</span>` : ''}`;
-  $('#pill-time').textContent = hhmmss(SNAP.t);
-
-  // 长跑防漏：定期回收已跌出榜单的币种行缓存（DOM 节点在重建时已丢弃，这里清理 Map）
-  if ((render._n = (render._n || 0) + 1) % 60 === 0) {
-    const live = new Set(symbols);
-    for (const sym of stockRows.keys()) if (!live.has(sym)) stockRows.delete(sym);
-  }
-}
 
 /* ---------------- 报警列表 ---------------- */
 function renderAlerts() {
@@ -452,16 +276,7 @@ function perfRow(h) {
     <td>${fxPct(h?.worst)}</td>
   </tr>`;
 }
-function scoreRow(b) {
-  return `<tr>
-    <td>${b.name}</td>
-    <td>${b.n}</td>
-    <td>${fxPct(b.h1?.avg)} <span style="color:#5b6f8c;font-size:10.5px">n=${b.h1?.n ?? 0}</span></td>
-    <td>${fxPct(b.h4?.avg)} <span style="color:#5b6f8c;font-size:10.5px">n=${b.h4?.n ?? 0}</span></td>
-    <td>${b.h4?.n ? b.h4.win.toFixed(0) + '%' : '—'}</td>
-    <td>${fxPct(b.h24?.avg)} <span style="color:#5b6f8c;font-size:10.5px">n=${b.h24?.n ?? 0}</span></td>
-  </tr>`;
-}
+
 async function openPerf() {
   let d;
   try { d = await fetch('/api/performance').then(r => r.json()); }
@@ -539,80 +354,19 @@ const PRESET_GROUPS = [
   { base: '5m', mid: '30m', big: '3h', enabled: true },
 ];
 
-function levelOptions(selected, allowHidden) {
-  const src = ALL_LEVELS.length ? ALL_LEVELS : LEVELS;
-  return src.filter(l => allowHidden || !l.hidden)
-    .map(l => `<option value="${l.key}"${l.key === selected ? ' selected' : ''}>${l.label}</option>`).join('');
-}
 
-function renderGroups() {
-  const box = $('#grouplist');
-  const groups = cfg?.groups ?? [];
-  const auto = cfg?.scanMode === 'auto';
-  box.innerHTML = '';
-  if (auto) {
-    box.innerHTML = `<div class="gnote" style="color:#fbbf24">当前为【穷举扫描】模式，下面的固定组合不生效。
-      取消勾选下方开关即可切换回固定组合模式。</div>`;
-  }
-  groups.forEach((g, i) => {
-    const row = document.createElement('div');
-    row.className = 'grow' + (g.enabled === false ? ' off' : '');
-    row.innerHTML = `
-      <input type="checkbox" ${g.enabled === false ? '' : 'checked'} data-i="${i}" data-k="enabled" title="启用/停用">
-      <select data-i="${i}" data-k="base">${levelOptions(g.base, false)}</select>
-      <span class="arrow">→</span>
-      <select data-i="${i}" data-k="mid">${levelOptions(g.mid, false)}</select>
-      <span class="arrow">→</span>
-      <select data-i="${i}" data-k="big">${levelOptions(g.big, false)}</select>
-      <button class="del" data-i="${i}" title="删除">✕</button>`;
-    box.appendChild(row);
-  });
-  if (!groups.length) box.innerHTML = `<div class="gnote" style="color:#f87171">没有启用的组合 → 不会产生任何信号。点「＋ 添加组合」或「恢复示例组合」。</div>`;
 
-  box.querySelectorAll('select').forEach(sel => sel.addEventListener('change', () => {
-    const i = +sel.dataset.i, k = sel.dataset.k;
-    const g = cfg.groups[i];
-    g[k] = sel.value;
-    validateGroupRow(sel.closest('.grow'), g);
-  }));
-  box.querySelectorAll('input[type=checkbox]').forEach(cb => cb.addEventListener('change', () => {
-    cfg.groups[+cb.dataset.i].enabled = cb.checked;
-    cb.closest('.grow').classList.toggle('off', !cb.checked);
-  }));
-  box.querySelectorAll('.del').forEach(b => b.addEventListener('click', () => {
-    cfg.groups.splice(+b.dataset.i, 1);
-    renderGroups();
-  }));
-  $('#c-scanModeAuto').checked = auto;
-  updateGroupChip();
-}
 
-function validateGroupRow(row, g) {
-  const idx = k => ALL_LEVELS.findIndex(l => l.key === k);
-  const ok = idx(g.base) < idx(g.mid) && idx(g.mid) < idx(g.big);
-  let warn = row.querySelector('.bad');
-  if (!ok) {
-    if (!warn) { warn = document.createElement('span'); warn.className = 'bad'; row.appendChild(warn); }
-    warn.textContent = '⚠ 顺序必须是 基准 < 确认 < 最大';
-  } else if (warn) warn.remove();
-  return ok;
-}
 
-function updateGroupChip() {
-  const el = $('#f-groups');
-  if (!el) return;
-  if (cfg?.scanMode === 'auto') { el.textContent = '组合：穷举扫描模式'; return; }
-  const on = (cfg?.groups ?? []).filter(g => g.enabled !== false);
-  el.textContent = '组合：' + (on.length
-    ? on.map(g => `${lvLabel(g.base)}→${lvLabel(g.mid)}→${lvLabel(g.big)}`).join('  |  ')
-    : '（无）');
-}
+
+
+
 
 async function saveGroups() {
   const idx = k => ALL_LEVELS.findIndex(l => l.key === k);
   const bad = (cfg.groups ?? []).filter(g => !(idx(g.base) < idx(g.mid) && idx(g.mid) < idx(g.big)));
   if (bad.length) { toast('有组合的级别顺序不合法（必须 基准 < 确认 < 最大）', true); return; }
-  await postCfg({ groups: cfg.groups, scanMode: $('#c-scanModeAuto').checked ? 'auto' : 'groups' });
+  await postCfg({ groups: cfg.groups, scanMode: 'groups' });
   alerts = [];
   renderAlerts();
   toast('级别组合已更新，重新开始扫描');
@@ -732,9 +486,6 @@ const CFG_FIELDS = [
   ['bigTolerance', 'pct'], ['requireEma7', 'bool'], ['requireAdjacentCross', 'bool'],
   ['requireBaseBull', 'bool'], ['useLiveCandle', 'bool'], ['countRule', 'str'],
   ['baseMinIdx', 'int'], ['baseMaxIdx', 'int'], ['minScore', 'int'],
-  ['filterBeichi', 'bool'], ['beichiScope', 'str'], ['beichiMinBars', 'int'],
-  ['beichiRatio', 'num'], ['beichiMinProgress', 'num'],
-  ['requireStrokeChain', 'bool'], ['chainRequireAboveMa', 'bool'],
   ['pullbackPattern', 'str'], ['pullbackBars', 'int'],
   ['waveEnabled', 'bool'], ['waveMinBars', 'int'], ['waveHighLookback', 'int'], ['waveCrossWindow', 'int'],
   ['watchEnabled', 'bool'],
@@ -749,8 +500,6 @@ const CFG_DEFAULTS = {
   adjacentLookback: 3, requireEma7: true, requireAdjacentCross: true, requireBaseBull: true,
   bigMa: 'ema7', bigTolerance: 0, useLiveCandle: true, countRule: 'align',
   baseMinIdx: 2, baseMaxIdx: 6, minScore: 0,
-  filterBeichi: true, beichiScope: 'mid', beichiMinBars: 5, beichiRatio: 1.0, beichiMinProgress: 0.3,
-  requireStrokeChain: true, chainRequireAboveMa: false,
   pullbackPattern: 'twoBearHold', pullbackBars: 2,
   waveEnabled: true, waveMinBars: 5, waveHighLookback: 20, waveCrossWindow: 2,
   watchEnabled: true, watchNearPct: 0.3, watchTieRatio: 1.25, watchNeedFalling: true,
@@ -840,72 +589,12 @@ async function pollStats() {
     $('#pill-lat').title = `权重 ${m.rest.lastUsedWeight}/${m.weightCap} · 往返 ${m.rest.avgLatency}ms`
       + ` · 播种 ${m.seeding.done}/${m.seeding.total} · 评估耗时 ${s.engine.lastSweepMs}ms`
       + (t ? ` · 价格tick ${t.priceTicks} · 补K线 ${t.rollingTicks} 次` : '');
-    const bl = $('#beichi-stats');
-    if (bl) {
-      const en = s.engine.cfg?.filterBeichi;
-      bl.innerHTML = en
-        ? `背驰过滤已开启（${s.engine.cfg.beichiScope === 'mid+big' ? '确认+最大级别' : '仅确认级别'}）`
-          + ` · 近一分钟拦截 <b>${s.engine.beichiPerMin ?? 0}</b> 次评估`
-          + ` · 累计拦截 ${s.engine.beichiBlocked ?? 0} · 已产生信号 ${s.engine.signalCount} 条`
-        : `背驰过滤已关闭（当前不拦截任何信号）`;
-    }
-    const cl = $('#chain-stats');
-    if (cl) {
-      const en = s.engine.cfg?.requireStrokeChain;
-      cl.innerHTML = en
-        ? `成笔链已开启${s.engine.cfg.chainRequireAboveMa ? '（含站上MA7）' : ''}`
-          + ` · 累计因「回踩不够成笔」拦下 <b>${s.engine.strokeBlocked ?? 0}</b> 次评估`
-          + ` · 已产生信号 ${s.engine.signalCount} 条`
-        : `成笔链已关闭（当前不检查回踩深度）`;
-    }
   } catch { /* 忽略轮询失败 */ }
 }
 
 /* ---------------- 交互 ---------------- */
 function bind() {
-  $('#q').addEventListener('input', () => { lastOrderKey = null; render(); });
-  ['#f-bull', '#f-score'].forEach(s => $(s).addEventListener('change', () => { lastOrderKey = null; render(); }));
-
-  $('#f-bigma').addEventListener('change', async e => {
-    const c = await postCfg({ bigMa: e.target.value });
-    toast('最大级别判定均线：' + (c.bigMa === 'ema7' ? 'EMA7' : 'MA7'));
-  });
-  $('#f-groups').addEventListener('click', () => { fillCfgForm(); renderGroups(); $('#cfgpanel').classList.remove('hidden'); });
-  $('#btn-addgroup').addEventListener('click', () => {
-    if (!cfg?.groups) cfg = { ...(cfg || {}), groups: [] };
-    cfg.groups.push({ base: '3m', mid: '15m', big: '2h', enabled: true });
-    renderGroups();
-  });
-  $('#btn-preset').addEventListener('click', async () => {
-    await postCfg({ groups: PRESET_GROUPS.map(g => ({ ...g })), scanMode: 'groups' });
-    renderGroups();
-    toast('已恢复示例组合：3分→15分→2时 / 2分→10分→1时 / 5分→30分→3时');
-  });
   $('#t-live').addEventListener('change', e => postCfg({ useLiveCandle: e.target.checked }));
-
-  document.querySelectorAll('th.sortable').forEach(th => {
-    th.addEventListener('click', () => {
-      const k = th.dataset.sort;
-      if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = k === 'sym' ? 1 : -1; }
-      document.querySelectorAll('th.sortable').forEach(x => x.classList.remove('asc', 'desc'));
-      th.classList.add(sortDir > 0 ? 'asc' : 'desc');
-      lastOrderKey = null; render();
-    });
-  });
-  document.querySelector('th.sortable[data-sort=change]').classList.add('desc');
-
-  const CHIPS = [['sig', '仅看信号'], ['conf', '仅已确认'], ['up', '仅上涨'], ['seed', '仅数据完整']];
-  const box = $('#chips');
-  for (const [k, label] of CHIPS) {
-    const el = document.createElement('span');
-    el.className = 'chip'; el.textContent = label;
-    el.addEventListener('click', () => {
-      if (activeChips.has(k)) activeChips.delete(k); else activeChips.add(k);
-      el.classList.toggle('on', activeChips.has(k));
-      lastOrderKey = null; render();
-    });
-    box.appendChild(el);
-  }
 
   $('#btn-sound').addEventListener('click', e => {
     soundOn = !soundOn;
@@ -923,7 +612,6 @@ function bind() {
     localStorage.setItem('notify', notifyOn ? '1' : '0');
     e.currentTarget.classList.toggle('on', notifyOn);
   });
-  $('#btn-cfg').addEventListener('click', () => { fillCfgForm(); renderGroups(); renderPush(); $('#cfgpanel').classList.remove('hidden'); });
   $('#btn-perf').addEventListener('click', () => {
     openPerf();
     clearInterval(perfTimer);
@@ -966,17 +654,14 @@ function bind() {
   });
   $('#btn-cfgreset').addEventListener('click', async () => {
     await postCfg({ ...CFG_DEFAULTS, groups: PRESET_GROUPS.map(g => ({ ...g })), scanMode: 'groups' });
-    renderGroups();
     toast('已恢复默认参数与示例组合');
   });
   document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', e => {
     e.target.closest('.drawer').classList.add('hidden');
   }));
   document.addEventListener('keydown', e => {
-    if (e.key === '/' && document.activeElement !== $('#q')) { e.preventDefault(); $('#q').focus(); }
     if (e.key === 'Escape') {
       document.querySelectorAll('.drawer').forEach(d => d.classList.add('hidden'));
-      $('#q').blur();
     }
   });
 }
