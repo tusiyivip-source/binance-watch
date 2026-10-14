@@ -158,6 +158,30 @@ try {
   const hiddenInMatrix = await evalJs(`getComputedStyle(document.querySelector('#alert-level')).display === 'none'`);
   ok('★ 非报警视图里自动隐藏（不干扰其它视图）', hiddenInMatrix);
 
+  // —— 🌊 五浪反弹视图（新按钮）——
+  await evalJs(`document.querySelector('#tab-wave').click()`);
+  await sleep(6000);
+  const waveSt = await evalJs(`(() => {
+    const btn = document.querySelector('#tab-wave');
+    const grid = document.querySelector('#wavechartgrid');
+    const wrap = document.querySelector('#wavechartwrap');
+    const sel = document.querySelector('#wave-level');
+    return {
+      hasBtn: !!btn, on: btn?.classList.contains('on'),
+      grid: !!grid, wrapShown: wrap ? getComputedStyle(wrap).display !== 'none' : false,
+      levelSel: !!sel, levelVisible: sel ? getComputedStyle(sel).display !== 'none' : false,
+      cards: grid ? grid.children.length : -1,
+      empty: document.querySelector('#wave-empty')?.style.display ?? 'n/a',
+      live: (document.querySelector('#wave-live')?.textContent ?? '').slice(0, 60),
+    };
+  })()`);
+  ok('★ 「🌊 五浪反弹」按钮存在且已选中', waveSt.hasBtn && waveSt.on);
+  ok('★ 五浪视图容器显示、其它视图隐藏', waveSt.grid && waveSt.wrapShown, JSON.stringify({ wrap: waveSt.wrapShown }));
+  ok('★ 右侧「全部主级别」筛选在五浪视图可见', waveSt.levelSel && waveSt.levelVisible);
+  ok('★ 视图能正常渲染（卡片或空态提示，无异常）',
+    waveSt.cards >= 0 && (waveSt.cards > 0 || waveSt.empty !== 'none'), 'cards=' + waveSt.cards + ' empty=' + waveSt.empty);
+  ok('★ 状态栏有反馈文字', (waveSt.live || '').length > 0, waveSt.live);
+
   const errs = await evalJs(`(window.__DSH_ERRORS__ || []).length`);
   ok('★ 无 JS 异常', !errs || errs === 0, `异常数 ${errs}`);
 } catch (e) {

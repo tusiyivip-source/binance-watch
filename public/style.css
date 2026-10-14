@@ -147,9 +147,15 @@ body.chartmode .viewtabs{background:#0b1620}
 #view-chart{display:none}
 body.chartmode #chartgrid{display:grid}
 body.chartmode #tablewrap{display:none}
-#alertchartwrap{display:none;flex:1;min-width:0;flex-direction:column;min-height:0}
+#alertchartwrap,#wavechartwrap{display:none;flex:1;min-width:0;flex-direction:column;min-height:0}
 body.alertchartmode #alertchartwrap{display:flex}
-#alertchartgrid{
+body.wavemode #wavechartwrap{display:flex}
+body.wavemode #tablewrap{display:none}
+body.wavemode #alertchartwrap{display:none}
+body.wavemode #chartgrid{display:none}
+body.wavemode #tablewrap{display:none}
+
+#alertchartgrid,#wavechartgrid{
   flex:1;min-width:0;overflow-y:auto;overflow-x:hidden;padding:10px;display:grid;
   grid-template-columns:repeat(var(--cols,2),minmax(0,1fr));
   grid-auto-rows:max-content;
@@ -158,10 +164,10 @@ body.alertchartmode #alertchartwrap{display:flex}
   overscroll-behavior:contain;
 }
 /* 滚动提示条：内容超出时贴底显示 */
-body.alertchartmode #alertchartgrid::-webkit-scrollbar{width:11px}
-body.alertchartmode #alertchartgrid::-webkit-scrollbar-track{background:#0a1018}
-body.alertchartmode #alertchartgrid::-webkit-scrollbar-thumb{background:#2a3a4d;border-radius:6px;border:2px solid #0a1018}
-body.alertchartmode #alertchartgrid::-webkit-scrollbar-thumb:hover{background:#3b5170}
+body.alertchartmode #alertchartgrid::-webkit-scrollbar,body.wavemode #wavechartgrid::-webkit-scrollbar{width:11px}
+body.alertchartmode #alertchartgrid::-webkit-scrollbar-track,body.wavemode #wavechartgrid::-webkit-scrollbar-track{background:#0a1018}
+body.alertchartmode #alertchartgrid::-webkit-scrollbar-thumb,body.wavemode #wavechartgrid::-webkit-scrollbar-thumb{background:#2a3a4d;border-radius:6px;border:2px solid #0a1018}
+body.alertchartmode #alertchartgrid::-webkit-scrollbar-thumb:hover,body.wavemode #wavechartgrid::-webkit-scrollbar-thumb:hover{background:#3b5170}
 body.alertchartmode #chartgrid{display:none}
 /* 报警卡片：按确认/预警区分边框 */
 .chartcard.mode-closed{border-color:#0ea5e9}

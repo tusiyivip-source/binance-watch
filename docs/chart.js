@@ -69,7 +69,10 @@ let viewTimer = null;
 function setView(mode) {
   activeView = mode;
   document.body.classList.toggle('chartmode', mode === 'multi' || mode === 'alert');
-  document.body.classList.toggle('alertchartmode', mode === 'alert' || mode === 'wave');
+  document.body.classList.toggle('alertchartmode', mode === 'alert');
+  // ⚠ 五浪视图必须用**独立**的 body class：复用 alertchartmode 会让
+  //   tablewrap / alertchartwrap / wavechartwrap 三个容器同时显示，各占 1/3 宽度。
+  document.body.classList.toggle('wavemode', mode === 'wave');
   document.querySelector('#tab-matrix').classList.toggle('on', mode === 'matrix');
   document.querySelector('#tab-multi').classList.toggle('on', mode === 'multi');
   document.querySelector('#tab-wave')?.classList.toggle('on', mode === 'wave');
@@ -148,14 +151,16 @@ function computeFit(grid, n, minH = 0, minW = MIN_CW) {
   const availW = grid.clientWidth;
   if (!availH || !availW || !n) return null;
   const cand = [];
-  for (let cols = 2; cols <= 8; cols++) {
+  for (let cols = 1; cols <= 8; cols++) {          // 从 1 列起：只有 1 张时应当铺满整行
     const rows = Math.ceil(n / cols);
     const cw = (availW - GRID_PAD * 2 - (cols - 1) * GAP) / cols;
     if (cw < minW) continue;
     const chFit = (availH - GRID_PAD * 2 - (rows - 1) * GAP) / rows - HEAD_H - CARD_BORDER;
     const ch = Math.max(minH, Math.floor(chFit));
     if (ch < MIN_CH) continue;
-    const score = Math.abs(Math.log(((cw - 70) / ch) / TARGET_RATIO));
+    let score = Math.abs(Math.log(((cw - 70) / ch) / TARGET_RATIO));
+    if (n % cols !== 0) score += 0.35;            // 末行不满 → 稍微不优先（尽量选铺得满的列数）
+    if (cols > n) score += 0.5;                   // 列数超过张数没意义
     const totalH = rows * (ch + HEAD_H + CARD_BORDER) + (rows - 1) * GAP;
     cand.push({ cols, rows, ch, cw: Math.floor(cw), score, fits: chFit >= ch, totalH });
   }
@@ -200,7 +205,13 @@ function applyCols(view) {
   }));
 }
 
-/** 末行不满时把剩下的卡片横向拉宽填满整行 */
+/**
+ * 末行不满时的排布。
+ *
+ * ⚠ 历史行为：把末行卡片**拉宽**（span N）以填满整行 —— 结果 14 张 4 列时，
+ *   末行 2 张变成双倍宽（290px → 589px），与上面几行尺寸不一致，看起来「不协调」。
+ * 现在改为：**尺寸与其它卡片完全一致**，把末行整体**居中**摆放（左右各留等量空列）。
+ */
 function layoutSpans(view, cols) {
   const cards = [...view.grid.children];
   const n = cards.length;
@@ -208,11 +219,16 @@ function layoutSpans(view, cols) {
   for (const c of cards) c.style.gridColumn = '';
   if (!cols || !n) return;
   const rem = n % cols;
-  if (rem === 0 || cols % rem !== 0) return;
-  const span = cols / rem;
-  if (span < 2) return;
+  if (rem === 0) return;                       // 末行正好铺满，无需处理
+  if (rem === 1) {                             // 末行只有 1 张 → 铺满整行（单张大图看着自然）
+    const last = cards[n - 1];
+    if (!last.classList.contains('zoomed')) last.style.gridColumn = `1 / span ${cols}`;
+    return;
+  }
+  const pad = Math.floor((cols - rem) / 2);    // 否则：尺寸与其它卡片一致，末行整体居中
   for (let i = n - rem; i < n; i++) {
-    if (!cards[i].classList.contains('zoomed')) cards[i].style.gridColumn = `span ${span}`;
+    const pos = pad + (i - (n - rem)) + 1;     // grid-column 从 1 开始
+    if (!cards[i].classList.contains('zoomed')) cards[i].style.gridColumn = `${pos} / span 1`;
   }
 }
 
