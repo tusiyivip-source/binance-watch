@@ -145,6 +145,8 @@ export class Watcher {
       difPct: v.difPct ?? null,
       deaFalling: !!v.deaFalling,
       nearPct: this.cfg.nearPct,
+      group: '回调中 · MACD 均线靠零轴',     // 报警卡片显示用
+      score: 0,
       text: `【预警·回调中 MACD 均线靠零轴】${label(v.key)} MACD均线(DEA) ${Number(v.dea).toFixed(6)} > 0（未跌破零轴）、`
         + `离零轴 ${v.distPct.toFixed(3)}%（阈值 ${this.cfg.nearPct}%）、均线正在回落（回调中）；`
         + `${v.__live ? '现价' : '收盘'} ${v.close}（DIF ${Number(v.dif).toFixed(6)}）`

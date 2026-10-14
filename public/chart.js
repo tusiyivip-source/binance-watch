@@ -65,6 +65,7 @@ function fillLevelSel(id, pairs, allText) {
 }
 
 let chartSymbol = null;
+let chartSkip = 0;        // 连续跳到下一个币种的次数（防止空图表时无限跳）
 let chartList = [];
 let viewTimer = null;
 
@@ -183,7 +184,7 @@ function applyCols(view) {
   if (!grid) return;
   const n = grid.childElementCount || 14;
   const fixed = currentCols();
-  const isAlert = view.kind === 'alert';
+  const isAlert = view.kind === 'alert';   // 尺寸档位只认报警视图（五浪视图有自己的 #wave-size）
   const minH = isAlert && document.querySelector('#alert-size').value !== 'compact' ? alertMinH() : 0;
   const minW = isAlert && minH ? ALERT_MIN_W : MIN_CW;
   let cols, ch;
@@ -362,7 +363,8 @@ function paintCard(view, i, it) {
   const e = view.entries[i];
   if (!e) return;
   const card = e.card;
-  const isAlert = view.kind === 'alert';
+  // 五浪信号的卡片也用「信号卡片」头部（显示币种/级别/五浪序列/EMA7）
+  const isAlert = view.kind === 'alert' || view.kind === 'wave';
 
   // 不能覆盖 className，否则会抹掉用户的放大状态
   const cls = ['chartcard'];
@@ -383,22 +385,38 @@ function paintCard(view, i, it) {
 
   if (isAlert) {
     head.querySelector('.lv').innerHTML = `<span class="sym">${it.symbol}</span>`;
-    head.querySelector('.roles').innerHTML = `<span class="rb lvl">${it.label}</span>`;
+    head.querySelector('.roles').innerHTML = it.kind === 'wave'
+      ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span>` + (it.subLevelLabel ? `<span class="rb">← ${it.subLevelLabel}</span>` : '')
+      : `<span class="rb lvl">${it.label}</span>`;
     const st = head.querySelector('.st');
     st.textContent = it.mode === 'closed' ? '已确认' : '预警';
     st.className = 'st ' + (it.mode === 'closed' ? 's1' : 's3');
     // 形态提醒没有评分，用方向标签代替；共振信号仍显示组合与评分
     const isDual = it.kind === 'dual';
-    head.querySelector('.sp').innerHTML = isDual
-      ? `<span class="grp">${it.side === 'long' ? '双阴不破 · 看多' : '双阳不穿 · 看空'}</span>` + (divBadge ? ' ' + divBadge : '')
-      : `<span class="grp">${String(it.group).replace(/>/g, '→')}</span>`
-        + `<span class="sc">${it.score}分</span>` + divBadge;
+    if (it.kind === 'wave') {
+      // 五浪信号：显示五浪序列 + 金叉到上穿隔了几根 + 一笔下跨度
+      head.querySelector('.sp').innerHTML =
+        `<span class="grp">五浪 ${it.waveSeq ?? ''}</span>`
+        + `<span class="sc">金叉后${Math.max(1, it.waveLagBars ?? 1)}根</span>`
+        + `<span class="grp">一笔下${it.waveBars ?? '?'}根</span>` + (divBadge ? ' ' + divBadge : '');
+    } else {
+      const grp = it.group ?? it.levelLabel ?? '';
+      const sc = Number.isFinite(it.score) && it.score > 0 ? `<span class="sc">${it.score}分</span>` : '';
+      head.querySelector('.sp').innerHTML = isDual
+        ? `<span class="grp">${it.side === 'long' ? '双阴不破 · 看多' : '双阳不穿 · 看空'}</span>` + (divBadge ? ' ' + divBadge : '')
+        : `<span class="grp">${String(grp).replace(/>/g, '→')}</span>` + sc + divBadge;
+    }
     const t = new Date(it.at || Date.now());
     const p = n => String(n).padStart(2, '0');
     head.querySelector('.px').textContent =
-      `${fmtPrice(it.price)}　${p(t.getHours())}:${p(t.getMinutes())}`;
+      `${fmtPrice(it.price)}　${p(t.getHours())}:${p(t.getMinutes())}`
+      + (it.kind === 'wave' && Number.isFinite(it.ema7) ? `　EMA7 ${fmtPrice(it.ema7)}` : '');
   } else {
-    head.querySelector('.lv').textContent = it.label;
+    // K线图（多级别）：同一个币种的所有级别 —— 每张卡片也标出**币种名称**，
+    // 方便放大单张、截图或滚动时辨认。
+    const sym = it.symbol ?? chartSymbol ?? '';
+    head.querySelector('.lv').innerHTML =
+      (sym ? `<span class="sym">${sym}</span> ` : '') + (it.label ?? '');
     head.querySelector('.roles').innerHTML = (view.roles?.[it.key] ?? [])
       .map(r => `<span class="rb ${r}">${CHART_ROLE[r]}</span>`).join('');
     const st = head.querySelector('.st');
@@ -488,6 +506,13 @@ async function refreshMulti() {
     if (d.error) return;
     // 级别选择器（含报警级别）——只画选中的那一个级别
     const allLevels = Array.isArray(d.levels) ? d.levels : Object.values(d.levels ?? {});
+    // 冷启动时排行榜最前面的币种可能还没播种完 → 这一张会是空的。
+    // 自动跳到下一个有K线的币种，避免打开就是一片空白（最多连跳 8 次）。
+    if (!allLevels.length) {
+      if (chartSkip < 40) { chartSkip++; stepChart(1); }   // 冷启动可能连续多个币种未播种
+      return;
+    }
+    chartSkip = 0;
     const pairs = allLevels.map(v => ({ key: v.key, label: v.label ?? v.key }));
     const pick = fillLevelSel('#chart-level', pairs, '全部级别');
     view.items = pick === 'all' ? allLevels : allLevels.filter(v => v.key === pick);
