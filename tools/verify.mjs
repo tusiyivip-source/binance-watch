@@ -1431,6 +1431,20 @@ section('16. 三级别结构：主级别回调≥5根 + 次级别 下上下上�
         /三级别结构/.test(a.text) && /下上下上下/.test(a.text) && /底分型成立/.test(a.text) && /提前提醒/.test(a.text));
     }
   }
+  // ★ 回归：回调途中的底分型不能被当成"见底"（用户反馈过这个 bug）
+  {
+    const main2 = mkMain();
+    // 造：index 3 一个中途底分型（低点较高），真低点在 index 7
+    main2.h = [100, 96, 92, 90, 88, 86, 84, 79, 83, 85, 86, 87];
+    main2.l = [95, 92, 88, 86, 83, 84, 85, 78, 80, 82, 83, 84];
+    //            ↑ index 4 是中途底分型（l=83<l[3]=86、<l[5]=84；h=88<90、<86? 否 → 用标准口径改一下）
+    main2.h[4] = 85; main2.h[3] = 90; main2.h[5] = 88;
+    main2.l[4] = 83; main2.l[3] = 86; main2.l[5] = 84;
+    const hit2 = detectChain(main2, sub, inner, { mainMinBars: 5, innerMinBars: 5 });
+    ok('★ 只认「回调最低点处」的底分型：中途底分型不被采纳',
+      !hit2 || hit2.fractalLow === main2.l[7],
+      hit2 ? `fractalLow=${hit2.fractalLow} 最低点=${main2.l[7]}` : 'null（中途分型被正确拒绝）');
+  }
   // 间隔不足
   {
     const innerBad = mkInner(t0, span);

@@ -50,7 +50,9 @@ export function detectChain(main, sub, inner, opt = {}) {
   const mainMinBars = opt.mainMinBars ?? 5;       // 主级别回调最少根数
   const innerMinBars = opt.innerMinBars ?? 5;     // 内部相邻交叉最少间隔
   const lookback = opt.lookback ?? 20;
-  const fractalType = opt.fractalType ?? 'standard';
+  //    实测：真实 V 型底那一根往往是「中继/任意」分型（中间高点不是最低），
+  //    「标准」分型在回调最低点附近只占 3~18 次 → 默认 any（中间低点最低即算见底分型）
+  const fractalType = opt.fractalType ?? 'any';
   if (!main || !sub || !inner) return null;
 
   // ① 主级别回调：高点 → 之后最低点，跨度 ≥ mainMinBars
@@ -65,12 +67,20 @@ export function detectChain(main, sub, inner, opt = {}) {
   if (mainBars < mainMinBars) return null;
   const tHigh = main.t[hIdx] + main.ms;
 
-  // ④ 主级别底分型（高点之后第一个，从"够 mainMinBars 根"的位置开始找）
+  // ④ 主级别底分型：必须是**这段回调最低点处**的底分型（见底确认）
+  //    ⚠ 以前取的是"高点之后第一个底分型" —— 那是回调途中的中途反弹，
+  //      位置明显偏高（实测：回调低点 0.0061440，却报 0.0067160）✗
+  //    现在只在「回调最低点 -1 ~ +3 根」范围内找底分型，且其低点必须在极值附近（默认 1% 内）。
+  //    +3 根是因为底分型要三根K线才成立，见底确认天然滞后 1~3 根。
   let fIdx = -1;
-  for (let i = hIdx + mainMinBars - 1; i < mLen - 1; i++) {
-    if (isBottomFractal(main, i, fractalType)) { fIdx = i; break; }
+  const nearPct = opt.fractalNearPct ?? 1.0;
+  const afterBars = opt.fractalAfterBars ?? 3;
+  for (let m = Math.max(1, lIdx - 1); m <= Math.min(mLen - 2, lIdx + afterBars); m++) {
+    if (!isBottomFractal(main, m, fractalType)) continue;
+    const gap = Math.abs(main.l[m] - main.l[lIdx]) / main.l[lIdx] * 100;
+    if (gap <= nearPct) { fIdx = m; break; }
   }
-  if (fIdx < 0) return null;
+  if (fIdx < 0) return null;                     // 低点处还没走出底分型 → 还没见底确认
   const fractalT = main.t[fIdx], fractalLow = main.l[fIdx];
   const fractalClose = main.c[fIdx + 1];                    // 底分型第三根收盘 = 成立时刻
   const fractalAge = (mLen - 1) - (fIdx + 1);               // 成立后过了几根
@@ -156,7 +166,7 @@ export function makeChainAlert(symbol, hit, now, initial = false) {
     text: `【三级别结构】${M} 回调 ${hit.mainBars} 根（高 ${fmt(hit.highPrice)} → 低 ${fmt(hit.lowPrice)}）；`
       + `${S} 下上下上下 五笔（三底 ${hit.subLows.map(fmt).join(' → ')}${hit.lowsDesc ? ' 逐级走低' : ''}）；`
       + `${I} 五浪 ${seq}（相邻间隔 ${hit.innerGaps.join('/')} 根，均 ≥${5}）；`
-      + `${M} **底分型成立**（低点 ${fmt(hit.fractalLow)}，第三根收盘 ${fmt(hit.fractalClose)}）→ 提前提醒`,
+      + `${M} **回调最低点处底分型成立**（低点 ${fmt(hit.fractalLow)}，第三根收盘 ${fmt(hit.fractalClose)}）→ 提前提醒`,
   };
 }
 
@@ -172,7 +182,7 @@ export function scanChains(symbol, seriesMap, cfg, seen, now = Date.now(), initi
       mainMinBars: cfg.chainMainMinBars ?? 5,
       innerMinBars: cfg.chainInnerMinBars ?? 5,
       lookback: cfg.chainLookback ?? 20,
-      fractalType: cfg.chainFractalType ?? 'standard',
+      fractalType: cfg.chainFractalType ?? 'any',
     });
     if (!hit) continue;
     const key = `${symbol}|${t.main}|${t.sub}|${t.inner}|${hit.fractalT}`;

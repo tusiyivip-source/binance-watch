@@ -142,7 +142,7 @@ export const DEFAULT_SIGNAL = {
   chainMainMinBars: 5,      // 主级别回调最少几根K线（用户：不少于5根）
   chainInnerMinBars: 5,     // 内部相邻交叉之间最少几根K线（用户：每次内部不少于五根）
   chainLookback: 20,        // 主级别高点在最近几根里找
-  chainFractalType: 'standard',  // 主级别底分型口径：standard/relay/weakest/any
+  chainFractalType: 'any',       // 主级别见底分型口径：any=中间低点最低（默认，实测覆盖最好）| standard/relay/weakest
 
   // ============ 缠论笔 / 背驰（★ 引擎内部计算，界面完全不显示） ============
   // 按用户要求：这些判定照常算（供共振通道与内部结构分析使用），

@@ -174,10 +174,10 @@
         <label>主级别高点回看 <input id="c-chainLookback" type="number" min="5" max="100" step="1"></label>
         <label>主级别底分型
           <select id="c-chainFractalType">
-            <option value="standard">标准</option>
+            <option value="any" selected>任意（中间低点最低，推荐）</option>
             <option value="relay">中继</option>
             <option value="weakest">最弱</option>
-            <option value="any">任意</option>
+            <option value="standard">标准（要求最高，实测很少）</option>
           </select>
         </label>
       </div>
@@ -186,7 +186,7 @@
         ② <b>次级别</b>（1时/30分/15分/10分）：高低点连成 <b>下上下上下 五笔</b>（用缠论分型端点）。<br>
         ③ <b>内部级别</b>（10分/5分/3分/2分）：MACD <b>死→金→死→金→死</b>，且<b>相邻交叉之间 ≥5 根K线</b>；<br>
         　　取的是"这段窗口内<b>最近走完</b>的一个五浪"（实测内部级别历史深度只覆盖 11%~37%，不要求整段正好五个）。<br>
-        ④ 主级别出现<b>底分型</b>、第三根<b>收盘</b>成立 → <b>提前提醒</b>（不等上穿均线）。<br>
+        ④ 主级别在<b>回调最低点 ±1~3 根内</b>出现<b>底分型</b>、第三根<b>收盘</b>成立 → <b>提前提醒</b>（不等上穿均线）。<br>
         <span style="color:#f0b90b">提示</span>：内部级别（1分/3分/5分）历史已加深到 1000 根，
         重启后第一次播种会多花几分钟把历史拉齐。
       </div>
