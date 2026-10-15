@@ -6,6 +6,7 @@ import { LEVELS, LEVEL_KEYS, LEVEL_INDEX, VISIBLE_LEVELS, STATE, EVENT, APP } fr
 import { Watcher } from './watch.js';
 import { scanWaves } from './wave.js';
 import { scanBreakouts } from './breakout.js';
+import { scanFirstBottoms } from './firstbottom.js';
 
 
 const SWEEP_MS = 1000;
@@ -43,6 +44,8 @@ export class Engine extends Emitter {
     // 五浪反弹通道：同一 (币种, 主级别, 这笔下跌的最低点) 只报一次
     this.waveSeen = new Map();
     this.brkSeen = new Map();
+    this.fbSeen = new Map();
+    this.fbCount = 0;
     this.brkCount = 0;
     this.waveCount = 0;
     this.dualCount = { long: 0, short: 0 };
@@ -174,6 +177,25 @@ export class Engine extends Emitter {
         this.log.warn(`五浪判定 ${st.symbol} 失败：${e.message}`);
       }
     }
+    // —— 五浪首底预警（独立通道，最早的那一声）——
+    if (this.cfg.fbEnabled) {
+      try {
+        const fired = scanFirstBottoms(st.symbol, st.series, this.cfg, this.fbSeen, Date.now(),
+          !!this.initialPhase && !forceNew);
+        for (const a of fired) {
+          a.id = ++this.alertSeq;
+          a.initial = forceNew ? false : !!this.initialPhase;
+          this.fbCount++;
+          this.alerts.push(a);
+          this.signalCount++;
+          this.emit('alert', a);
+          this.log.signal('🔻 ' + a.symbol + ' ' + a.text);
+        }
+      } catch (e) {
+        this.log.warn(`首底判定 ${st.symbol} 失败：${e.message}`);
+      }
+    }
+
     // —— 均线压制后突破（独立通道）——
     if (this.cfg.brkEnabled) {
       try {
@@ -422,7 +444,10 @@ export class Engine extends Emitter {
     const skipped = [];
     for (let k = this.alerts.length - 1; k >= 0 && items.length < limit; k--) {
       const a = this.alerts[k];
-      if (kind && (a.kind ?? 'resonance') !== kind) continue;   // 视图可按通道过滤（例如只看五浪）
+      if (kind) {                                            // 视图可按通道过滤，支持逗号分隔多通道
+        const want = String(kind).split(',').map(x => x.trim()).filter(Boolean);
+        if (want.length && !want.includes(a.kind ?? 'resonance')) continue;
+      }
       const st = this.market.symbols.get(a.symbol);
       if (!st) { skipped.push({ symbol: a.symbol, why: 'no-symbol' }); continue; }
       // 取级别，三类报警分别处理：
@@ -458,6 +483,10 @@ export class Engine extends Emitter {
         waveLow: a.waveLow ?? null,
         distPct: a.distPct ?? null,
         // 均线压制突破：把压制明细带给卡片（显示「压制N根」）
+        // 五浪首底：把高点/底分型/跨度带给卡片
+        fbHigh: Number.isFinite(a.fbHigh) ? a.fbHigh : null,
+        fbBars: Number.isFinite(a.fbBars) ? a.fbBars : null,
+        fbAgeBars: Number.isFinite(a.fbAgeBars) ? a.fbAgeBars : null,
         streakBars: Number.isFinite(a.streakBars) ? a.streakBars : null,
         streakLow: Number.isFinite(a.streakLow) ? a.streakLow : null,
         abovePct: Number.isFinite(a.abovePct) ? a.abovePct : null,
@@ -473,7 +502,9 @@ export class Engine extends Emitter {
     return {
       generatedAt: Date.now(),
       // 按通道过滤时，total 给「该通道的条数」，否则状态栏会显示所有通道的总数，看着矛盾
-      total: kind ? this.alerts.filter(a => (a.kind ?? 'resonance') === kind).length : this.alerts.length,
+      total: kind
+        ? this.alerts.filter(a => String(kind).split(',').map(x => x.trim()).includes(a.kind ?? 'resonance')).length
+        : this.alerts.length,
       totalAll: this.alerts.length,
       shown: items.length,
       limit,

@@ -43,7 +43,7 @@
 <main>
   <div class="viewtabs">
     <button id="tab-alert" class="vt">🔔 报警级别K线</button>
-    <button id="tab-wave" class="vt on">🌊 五浪反弹</button>
+    <button id="tab-wave" class="vt on">🌊 五浪反弹 / 首底</button>
     <span class="vtsep"></span>
     <span id="wave-symbar" style="display:none">
       <span class="chartsym">每条五浪信号的<b style="color:#f0b90b">主级别</b>K线 · 按时间倒序</span>
@@ -83,7 +83,9 @@
     <select id="alert-kind" class="vtsel" style="display:none" title="按通道筛选">
       <option value="all" selected>全部通道</option>
       <option value="watch">回调靠零轴</option>
-      <option value="wave">五浪反弹</option>
+      <option value="wave,wavefirst">五浪反弹（含首底预警）</option>
+      <option value="wave">仅五浪完成</option>
+      <option value="wavefirst">仅五浪首底预警</option>
       <option value="breakout">均线压制突破</option>
       <option value="dual">双阴不破/双阳不穿</option>
     </select>

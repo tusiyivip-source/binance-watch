@@ -367,7 +367,9 @@ function paintCard(view, i, it) {
       const grp = it.group ?? it.levelLabel ?? '';
       const sc = Number.isFinite(it.score) && it.score > 0 ? `<span class="sc">${it.score}分</span>` : '';
       const brk = it.kind === 'breakout' && Number.isFinite(it.streakBars)
-        ? `<span class="sc">压制${it.streakBars}根</span>` : '';
+        ? `<span class="sc">压制${it.streakBars}根</span>`
+        : (it.kind === 'wavefirst' && Number.isFinite(it.fbBars)
+          ? `<span class="sc">跨度${it.fbBars}根 · 首底</span>` : '');
       head.querySelector('.sp').innerHTML = isDual
         ? `<span class="grp">${it.side === 'long' ? '双阴不破 · 看多' : '双阳不穿 · 看空'}</span>` + (divBadge ? ' ' + divBadge : '')
         : `<span class="grp">${String(grp).replace(/>/g, '→')}</span>` + sc + brk + divBadge;
@@ -467,7 +469,7 @@ async function refreshWaveView() {
   const bars = currentBars(view);
   const limit = +document.querySelector('#wave-limit').value || 24;
   try {
-    const d = await fetch(`/api/alertchart?kind=wave&bars=${bars}&limit=${limit}`).then(r => r.json());
+    const d = await fetch(`/api/alertchart?kind=wave,wavefirst&bars=${bars}&limit=${limit}`).then(r => r.json());
     const all = d.items ?? [];
     const pairs = [...new Map(all.map(it => [it.key, { key: it.key, label: it.label ?? it.key }])).values()];
     const pickW = fillLevelSel('#wave-level', pairs, '全部主级别');
@@ -477,7 +479,7 @@ async function refreshWaveView() {
     applyCols(view);
     document.querySelector('#wave-empty').style.display = view.items.length ? 'none' : '';
     document.querySelector('#wave-live').textContent = view.items.length
-      ? `共 ${all.length} 条五浪信号${pickW === 'all' ? '' : '（只看 ' + (pairs.find(p => p.key === pickW)?.label ?? pickW) + '）'} · ${bars} 根 · ` + new Date().toLocaleTimeString('zh-CN', { hour12: false })
+      ? `共 ${all.length} 条（五浪完成 ${all.filter(x => x.kind === 'wave').length} · 首底预警 ${all.filter(x => x.kind === 'wavefirst').length}）${pickW === 'all' ? '' : '（只看 ' + (pairs.find(p => p.key === pickW)?.label ?? pickW) + '）'} · ${bars} 根 · ` + new Date().toLocaleTimeString('zh-CN', { hour12: false })
       : '暂无五浪反弹信号';
   } catch (e) { console.warn('[wave] 刷新失败：' + (e && e.message)); }
 }
