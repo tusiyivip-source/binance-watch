@@ -122,6 +122,17 @@ export const DEFAULT_SIGNAL = {
   countRule: 'align',      // 共振计数：align=严格多头排列 c>MA7>MA25；above=站上MA7
   baseMinIdx: 2,           // auto 模式：允许作为"基准级别"的最小下标（2=3分钟）
   baseMaxIdx: 6,           // auto 模式：允许作为"基准级别"的最大下标（6=30分钟）
+
+  // ============ 缠论笔 / 背驰（★ 引擎内部计算，界面完全不显示） ============
+  // 按用户要求：这些判定照常算（供共振通道与内部结构分析使用），
+  // 但界面上不画笔线、不显示「底/顶背驰酝酿」徽标、参数面板也不再放出这几项。
+  filterBeichi: true,          // 总开关
+  beichiScope: 'mid',          // mid = 只查确认级别；mid+big = 连最大级别一起查
+  beichiMinBars: 5,            // 标准笔：顶底分型之间至少 5 根K线（含包含处理）
+  beichiRatio: 1.0,            // MACD 柱面积衰减阈值：当前面积 < 前一同向笔面积 × 该值
+  beichiMinProgress: 0.3,      // 当前笔至少走到前一同向笔幅度的 30% 才判定（避免刚起步误判）
+  requireStrokeChain: true,    // 基准 → 确认级别之间的所有级别，都必须被这波回调带动成笔
+  chainRequireAboveMa: false,  // 附加：链上各级别同时站上 MA7
   minScore: 0,             // 低于此评分的信号不推送
   // —— 回踩形态 ——
   //   touch      = 最低价触及 MA7、收盘站住，之后发生「上穿 MA7」事件才触发（旧行为）

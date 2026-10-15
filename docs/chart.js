@@ -391,7 +391,11 @@ function paintCard(view, i, it) {
   }
 
   // —— 数据 ——
-  const cs = it.candles;
+  // ⚠ 必须容错：报警列表里可能夹着「该币种/该级别还没有K线」的条目（candles 为 null），
+  //   以及指标线为 null 的情况。以前这里直接读 .length 会抛异常，
+  //   而 paintView 是一个 forEach 循环 —— 第二张卡片一抛，**后面所有卡片就都不画了**
+  //   （症状：五浪视图只有第一张图有内容，其余全空）。
+  const cs = Array.isArray(it.candles) ? it.candles : [];
   if (!cs.length) {
     e.candle.setData([]); e.ma7.setData([]); e.ema7.setData([]); e.ma25.setData([]);
     e.macdHist.setData([]); e.macdDif.setData([]); e.macdDea.setData([]); e.vol.setData([]);
@@ -399,7 +403,12 @@ function paintCard(view, i, it) {
   }
   const T = i2 => Math.floor(cs[i2][0] / 1000);      // ms → 秒
   e.candle.setData(cs.map((c, i2) => ({ time: T(i2), open: c[1], high: c[2], low: c[3], close: c[4] })));
-  const line = arr => { const o = []; for (let i2 = 0; i2 < arr.length; i2++) if (arr[i2] != null) o.push({ time: T(i2), value: arr[i2] }); return o; };
+  const line = arr => {
+    const o = [];
+    if (!Array.isArray(arr)) return o;               // 指标线缺失 → 空数组，不要抛
+    for (let i2 = 0; i2 < arr.length; i2++) if (arr[i2] != null) o.push({ time: T(i2), value: arr[i2] });
+    return o;
+  };
   const showMA = document.querySelector('#chart-ma').checked;
   e.ma7.setData(showMA ? line(it.ma7) : []);
   e.ema7.setData(showMA ? line(it.ema7) : []);
@@ -410,7 +419,7 @@ function paintCard(view, i, it) {
 
   // MACD 副图
   const showMacd = document.querySelector('#chart-macd').checked;
-  if (showMacd && it.macd) {
+  if (showMacd && it.macd && Array.isArray(it.macd.hist)) {
     const h = [];
     for (let i2 = 0; i2 < cs.length; i2++) {
       const v = it.macd.hist[i2];
@@ -441,7 +450,12 @@ function paintCard(view, i, it) {
 }
 
 function paintView(view) {
-  view.items.forEach((it, i) => paintCard(view, i, it));
+  // ⚠ 单张图纸出错必须隔离：以前一张抛异常会让 forEach 中断，
+  //   症状就是「只有第一张图有内容，其余全空」（五浪视图踩过这个坑）。
+  view.items.forEach((it, i) => {
+    try { paintCard(view, i, it); }
+    catch (e) { console.warn('[chart] 第 ' + (i + 1) + ' 张绘制失败：' + (e && e.message)); }
+  });
 }
 
 async function refreshWaveView() {
