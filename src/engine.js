@@ -494,6 +494,9 @@ export class Engine extends Emitter {
         dea: Number.isFinite(a.dea) ? a.dea : null,
         base: a.base, mid: a.mid, big: a.big,
         at: a.ts ?? a.candleT,
+        // 信号所在的**那根K线**时间（五浪/首底/压制突破都是"某根K线成立"，
+        // 前端要对回K线做复核/标记，就必须有这个字段）
+        signalT: a.candleT ?? null,
         alertPrice: a.price ?? null,
         text: a.text ?? '',
         initial: !!a.initial,
