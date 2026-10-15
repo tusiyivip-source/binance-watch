@@ -169,7 +169,9 @@ async function handleRequest(req, res) {
   if (url.pathname === '/api/alertchart') {
     const bars = Math.max(40, Math.min(400, Number(url.searchParams.get('bars')) || 150));
     const limit = Math.max(1, Math.min(60, Number(url.searchParams.get('limit')) || 24));
-    return json(res, engine.alertCharts(bars, limit));
+    // kind：按通道过滤（watch / wave / breakout / dual / resonance），视图的「通道筛选」用
+    const kind = url.searchParams.get('kind') || null;
+    return json(res, engine.alertCharts(bars, limit, kind));
   }
   if (url.pathname === '/api/config') {
     if (req.method === 'POST') {
