@@ -20,8 +20,8 @@
   <div class="brand">
     <span class="logo">📡</span>
     <div>
-      <h1>币安盯盘 · 回调靠零轴 + 五浪反弹</h1>
-      <p>涨幅榜 Top200 · 两条独立通道：① 回调中 MACD 均线(DEA) 贴近零轴不跌破 ② 五浪反弹（次级别 死金死金死 + 主级别上穿 EMA7）</p>
+      <h1>币安盯盘（策略待重新定义）</h1>
+      <p>涨幅榜 Top200 · 行情与K线框架正常运行中 · <b style="color:#f0b90b">当前所有策略已关闭，等待重新定义</b></p>
     </div>
   </div>
   <div class="pills">
@@ -161,50 +161,8 @@
 
     
 
-    <div class="groupbox">
-      <div class="gtitle">
-        <b>五浪首底预警（提前那一声）</b>
-        <span class="gsub">主级别：高点→低点 ≥5 根 → 高点之后第一个缠论底分型确认即报</span>
-        <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-fbEnabled"> 启用</label>
-      </div>
-      <div class="prow">
-        <label>跨度最少根数 <input id="c-fbMinBars" type="number" min="2" max="30" step="1"></label>
-        <label>高点回看根数 <input id="c-fbLookback" type="number" min="5" max="100" step="1"></label>
-        <label>确认后几根内还报 <input id="c-fbFreshBars" type="number" min="1" max="10" step="1"></label>
-        <label>跌幅下限% <input id="c-fbMinDropPct" type="number" min="0" max="50" step="0.5"></label>
-        <label>底分型类型
-          <select id="c-fbType">
-            <option value="standard">标准（中间高低点都最低）</option>
-            <option value="relay">中继（只低点最低）</option>
-            <option value="weakest">最弱</option>
-            <option value="any">任意底分型</option>
-          </select>
-        </label>
-      </div>
-      <div class="gnote">
-        级别：<b>15分 / 30分 / 1时 / 2时</b>。<b>底分型类型</b>按缠论分类图：<b>标准</b>=中间那根高点与低点都是三根里最低（默认，图中那个）；
-<b>中继</b>=只要求低点最低；<b>最弱</b>=中继且第三根高点低于第一根；<b>任意</b>=只要低点最低。
-这是<b>最早</b>的预警：只要高点之后的<b>第一个底分型成立</b>就报，
-        <b>不等五浪走完、也不等上穿 EMA7</b>。<br>
-        <b>跌幅下限</b>是关键松紧：<b>0%</b> 会满屏（任何小波动的底分型都算，实测缓存同一时刻 74 条）、
-        <b>5%</b> 约 58 条、<b>8%</b> 约 26 条。<b>确认后几根内还报</b>建议 1~2（越小越"当场"）。
-      </div>
-    </div>
-    <div class="groupbox">
-      <div class="gtitle">
-        <b>均线压制后突破（独立通道）</b>
-        <span class="gsub">连续 N 根收盘在 EMA7 下方 → 一根收盘由下向上穿越 EMA7</span>
-        <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-brkEnabled"> 启用</label>
-      </div>
-      <div class="prow">
-        <label>压制最少根数 <input id="c-brkMinBars" type="number" min="3" max="60" step="1"></label>
-        <label style="flex:1 1 100%">级别：<code>15分</code> <code>30分</code> <code>1时</code> <code>2时</code></label>
-      </div>
-      <div class="gnote">
-        你发的红圈那张图就是这个结构：价格贴着均线阴跌很久 → <b>一根收盘站上 EMA7</b> 才算（未收盘那根不算）。
-        <b>压制最少根数</b>越大越严（默认 12）。
-      </div>
-    </div>
+    
+    
     <div class="groupbox">
       <div class="gtitle">
         <b>📱 钉钉推送</b>
@@ -228,79 +186,9 @@
       <div class="gnote">信号会先在聚合窗口内合并成一条再发 —— 钉钉机器人硬限 <b>20 条/分钟</b>（超限报 660026），
         逐条推送必然刷屏并撞限流。想临时静音，取消勾选顶部的「启用推送」即可。</div>
     </div>
-    <div class="groupbox">
-      <div class="gtitle">
-        <b>形态提醒（独立，默认关）</b>
-        <span class="gsub">双阴不破均线 / 双阳不穿破均线</span>
-        <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-dualEnabled"> 启用</label>
-      </div>
-      <div class="prow">
-        <label>连续K线根数 <input id="c-dualBars" type="number" min="1" max="5" step="1"></label>
-        <label>24H成交额下限 (USDT) <input id="c-dualMinQuoteVolume" type="number" min="0" step="100000"></label>
-      </div>
-      <div class="gnote">
-        级别：<b>15分 / 30分 / 1时 / 2时 / 3时</b>，第二根K线<b>一收盘立刻提醒</b>，不等其他条件。<br>
-        <b style="color:#f6465d">双阴不破（多）</b>：连续两根<b>阴</b>K，收盘都没跌破 MA7 与 EMA7（影线可插破）—— 上涨途中浅回调、抛压枯竭。<br>
-        <b style="color:#0ecb81">双阳不穿（空）</b>：连续两根<b>阳</b>K，收盘都没涨破 MA7 与 EMA7（影线可刺破）—— 下跌途中浅反弹、买盘枯竭。<br>
-        这一组提醒<b>不依赖</b>共振组合，也<b>不依赖</b>上面的主级别回踩结构盯盘，是独立的形态信号。<br>
-        <b>成交额下限</b>：24H 成交额低于此值<b>不提醒</b>（默认 400 万 USDT）——
-        小成交额的币容易凑出假形态，且滑点大不好成交。填 0 表示不限制。
-      </div>
-    </div>
-    <div class="groupbox">
-      <div class="gtitle">
-        <b>五浪反弹（独立通道）</b>
-        <span class="gsub">主级别一笔下 ≥5 根 → 次级别 死金死金死 五浪 → 再次金叉 → 主级别 2 根内上穿 EMA7</span>
-        <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-waveEnabled"> 启用</label>
-      </div>
-      <div class="prow">
-        <label style="flex:1 1 100%">级别对：<code>15分←3分</code>　<code>30分←5分</code>　<code>1时←10分</code>　<code>2时←15分</code></label>
-      </div>
-      <div class="prow">
-        <label>一笔下最少根数 <input id="c-waveMinBars" type="number" min="2" max="30" step="1"></label>
-        <label>高点回看根数 <input id="c-waveHighLookback" type="number" min="5" max="100" step="1"></label>
-        <label>金叉后几根内上穿EMA7 <input id="c-waveCrossWindow" type="number" min="1" max="10" step="1"></label>
-      </div>
-      <div class="gnote">
-        <b>① 主级别一笔下</b>：<b>不靠缠论</b> —— 最近「高点回看根数」内取「高点 → 之后的最低点」，跨度 ≥ 「一笔下最少根数」（默认 5 根）即可，<b>高点不要求是顶分型</b>。<br>
-        <b>② 次级别五浪</b>：这笔下跌的<b>时间窗内</b>，次级别 MACD 交叉<b>末尾五个必须是 死→金→死→金→死</b>（最后一个必须是死叉）。<br>
-        <b>③ 先见低点</b>：必须<b>先出现这笔下跌的最低点</b>，之后才出现<b>再次金叉</b>（DIF 上穿 DEA）。<br>
-        <b>④ 主级别确认</b>：该金叉之后 <b>2 根收盘K线内</b>（可调），主级别出现<b>由下向上穿越 EMA7</b>（前一根收盘 ≤ EMA7、这一根 &gt; EMA7）→ ★ 报警。<br>
-        右侧「🌊 五浪反弹」按钮里按时间倒序显示每条信号的主级别K线；同一「币种+主级别+这笔下跌的最低点」只报一次。
-      </div>
-    </div>
-    <div class="groupbox">
-      <div class="gtitle">
-        <b>回调中 · MACD 均线靠零轴</b>
-        <span class="gsub">15分/30分/1时/2时/3时/4时 里谁在回调中贴近零轴（未跌破）就报谁；无次级别/确认段</span>
-        <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-watchEnabled"> 启用</label>
-      </div>
-      <div class="prow">
-        <label style="flex:1 1 100%">扫描级别：<code>15分</code> <code>30分</code> <code>1时</code> <code>2时</code> <code>3时</code> <code>4时</code>（10分已去除；只看回调，不看上涨途中贴近零轴的）</label>
-      </div>
-      <div class="prow">
-        <label>「贴近零轴」阈值 (%) <input id="c-watchNearPct" type="number" min="0.01" max="5" step="0.01"></label>
-        <label>并列容差（倍数） <input id="c-watchTieRatio" type="number" min="1" max="5" step="0.05"></label>
-        <label class="toggle"><input type="checkbox" id="c-watchNeedFalling"> 只看回调中（MACD 均线正在回落）</label>
-        <label class="toggle"><input type="checkbox" id="c-watchUseLiveCandle"> 未收盘也先报</label>
-      </div>
-      <div class="prow">
-        <label>MACD 快线 <input id="c-macdFast" type="number" min="2" max="60" step="1"></label>
-        <label>慢线 <input id="c-macdSlow" type="number" min="3" max="120" step="1"></label>
-        <label>信号线 <input id="c-macdSignal" type="number" min="2" max="60" step="1"></label>
-      </div>
-      <div class="gnote">
-        <b>唯一的一条提醒</b>：这 6 个级别里<b>任意一个</b>满足下面三条 → 报警。<br>
-        <b style="color:#f0b90b">① 贴近零轴</b>：<b>|MACD均线(DEA)| ÷ 收盘价 ≤ 阈值</b>（默认 0.3%）—— 看的是
-        <b>MACD 的均线（信号线 DEA）</b>，不是快线 DIF。<br>
-        <b style="color:#f0b90b">② 没有跌破</b>：<b>DEA &gt; 0</b>。<br>
-        <b style="color:#f0b90b">③ 回调中</b>：<b>DEA 正在回落</b>（本根 &lt; 上一根）—— <b>上涨途中贴近零轴的直接不报</b>。<br>
-        多个级别同时满足 → <b>只报一条</b>：先看谁<b>更贴近零轴</b>，接近程度在<b>并列容差</b>倍数以内的候选里
-        再<b>优先小级别</b>（例：15分 0.258% 与 30分 0.220% 同时满足 → 报 <b>15分</b>）。<br>
-        一段一次：该级别离开近零区间、跌破零轴、或均线转为上行后，这一段结束。<br>
-        <span style="color:#5b6f8c">报警文案示例：<code>【预警·回调中 MACD 均线靠零轴】15分 MACD均线(DEA) 0.000021 &gt; 0（未跌破零轴）、离零轴 0.118%（阈值 0.3%）、均线正在回落（回调中）；收盘 0.0181（DIF -0.000022）</code></span>
-      </div>
-    </div>
+    
+    
+    
     <label class="row"><span>多头排列最少级别数</span><input id="c-minBullLevels" type="number" min="2" max="14" step="1"></label>
 
     

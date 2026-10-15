@@ -101,6 +101,12 @@ export function watchInnerLevels(group) {
 }
 
 export const DEFAULT_SIGNAL = {
+  // ============================================================
+  // ⚠ 2026-10-15：用户要求「策略全部清除，将重新定义」→ 下面所有策略开关已置 false。
+  //   行情引擎、K线、图表视图、报警列表、明细、钉钉推送等基础设施保持不动；
+  //   各策略的实现代码也都留着（src/watch.js / wave.js / firstbottom.js /
+  //   breakout.js / dual / resonance），定义好新规则后把对应开关打开并改判定即可。
+  // ============================================================
   // ============ 三条通道总开关 ============
   // signalEnabled：共振信号引擎（固定级别组合 + 回踩突破 MA7/EMA7 + 背驰/成笔链过滤）
   // watchEnabled ：两阶段盯盘（大级别预备 → 最小级别首次站上）
@@ -153,7 +159,7 @@ export const DEFAULT_SIGNAL = {
   //      · 次级别 **收盘突破 EMA7** 且 **DIF > 0**（不跌破零轴）
   //
   //   MACD 统一 12/26/9、以收盘为准。预警按「一段」去重：该级别离开近零区间或跌破零轴后才允许下一次。
-  watchEnabled: true,
+  watchEnabled: false,
   watchLevels: ['15m', '30m', '1h', '2h', '3h', '4h'],   // 6 个级别（10分已去除，新增 2时/3时/4时）
   // （次级别与确认段已按用户要求整体去掉，不再需要对应表）
   watchNearPct: 0.3,             // 「贴近零轴」：|MACD均线(DEA)| / 收盘价 ≤ 0.3%
@@ -167,7 +173,7 @@ export const DEFAULT_SIGNAL = {
   //   这笔下跌的**次级别** MACD 交叉末尾五个必须是 死→金→死→金→死（五浪）；
   //   先见最低点、之后才出现「再次金叉」；
   //   该金叉后 waveCrossWindow 根主级别收盘K线内，主级别**由下向上穿越 EMA7** → 报警。
-  waveEnabled: true,
+  waveEnabled: false,
   wavePairs: [
     { main: '15m', sub: '3m' },
     { main: '30m', sub: '5m' },
@@ -181,7 +187,7 @@ export const DEFAULT_SIGNAL = {
   // —— 五浪首底预警（最早的那一声）——
   //   主级别上：高点 → 低点 跨度 ≥ fbMinBars 根，然后在**高点之后第一个缠论底分型确认时**立刻报警。
   //   不等五浪走完、不等上穿 EMA7 —— 这是"五浪可能正在成型"的提前预警。
-  fbEnabled: true,
+  fbEnabled: false,
   fbLevels: ['15m', '30m', '1h', '2h'],
   fbMinBars: 5,        // 高点到低点至少几根K线（用户口径：不低于 5 根）
   fbLookback: 20,      // 高点在最近几根里找
@@ -192,7 +198,7 @@ export const DEFAULT_SIGNAL = {
   // —— 均线压制后突破（独立通道，与五浪并列）——
   //   用户口径：连续 ≥brkMinBars 根收盘在 EMA7 下方（长期压制/贴着均线阴跌），
   //   紧接着一根收盘**由下向上穿越 EMA7** → 报警。
-  brkEnabled: true,
+  brkEnabled: false,
   brkLevels: ['15m', '30m', '1h', '2h'],
   brkMinBars: 12,          // 连续多少根收盘在 EMA7 下方才算「长期压制」
 

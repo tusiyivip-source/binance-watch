@@ -1206,6 +1206,10 @@ section('14. 五浪反弹（一笔下 → 次级别**正好五个**交叉 死金
     ok('★ 同一笔下跌只报一次', first.length === 1 && second.length === 0, first.length + '/' + second.length);
   }
 
+  ok('★ 用户要求「策略全部清除」：所有策略开关默认关闭',
+    DEFAULT_SIGNAL.signalEnabled === false && DEFAULT_SIGNAL.watchEnabled === false
+    && DEFAULT_SIGNAL.waveEnabled === false && DEFAULT_SIGNAL.dualEnabled === false
+    && DEFAULT_SIGNAL.fbEnabled === false && DEFAULT_SIGNAL.brkEnabled === false);
   ok('配置默认：4 组级别对（15分←3分 / 30分←5分 / 1时←10分 / 2时←15分）',
     JSON.stringify(DEFAULT_SIGNAL.wavePairs) === JSON.stringify([
       { main: '15m', sub: '3m' }, { main: '30m', sub: '5m' },
@@ -1272,8 +1276,8 @@ section('14b. 均线压制后突破（连续 ≥12 根收盘在 EMA7 下方 → 
     v.closed = 13;
     ok('★ 同一根收盘后 → 命中', !!detectBreakout(v, { minBars: 12 }));
   }
-  ok('配置默认：独立通道开启、级别 15分/30分/1时/2时、门槛 12 根',
-    DEFAULT_SIGNAL.brkEnabled === true && DEFAULT_SIGNAL.brkMinBars === 12
+  ok('配置默认：通道开关已关闭（用户要求策略全部清除）、级别与门槛仍保留',
+    DEFAULT_SIGNAL.brkEnabled === false && DEFAULT_SIGNAL.brkMinBars === 12
     && JSON.stringify(DEFAULT_SIGNAL.brkLevels) === JSON.stringify(['15m', '30m', '1h', '2h']),
     JSON.stringify(DEFAULT_SIGNAL.brkLevels));
 }
@@ -1334,8 +1338,8 @@ section('14c. 五浪首底预警（主级别：高点→低点 ≥5 根 → 高�
     const second = scanFirstBottoms('ZUSDT', fake, cfg, seen, Date.now(), true);
     ok('★ 同一个底分型只报一次', first.length === 1 && second.length === 0, first.length + '/' + second.length);
   }
-  ok('配置默认：首底通道开启、级别 15分/30分/1时/2时、跨度 5 根、类型 standard',
-    DEFAULT_SIGNAL.fbEnabled === true && DEFAULT_SIGNAL.fbMinBars === 5 && DEFAULT_SIGNAL.fbType === 'standard'
+  ok('配置默认：首底开关已关闭、级别与参数仍保留（跨度 5 根、类型 standard）',
+    DEFAULT_SIGNAL.fbEnabled === false && DEFAULT_SIGNAL.fbMinBars === 5 && DEFAULT_SIGNAL.fbType === 'standard'
     && JSON.stringify(DEFAULT_SIGNAL.fbLevels) === JSON.stringify(['15m','30m','1h','2h']),
     DEFAULT_SIGNAL.fbType);
 }
