@@ -468,7 +468,9 @@ export class Engine extends Emitter {
     }
     return {
       generatedAt: Date.now(),
-      total: this.alerts.length,
+      // 按通道过滤时，total 给「该通道的条数」，否则状态栏会显示所有通道的总数，看着矛盾
+      total: kind ? this.alerts.filter(a => (a.kind ?? 'resonance') === kind).length : this.alerts.length,
+      totalAll: this.alerts.length,
       shown: items.length,
       limit,
       skipped: skipped.length,
