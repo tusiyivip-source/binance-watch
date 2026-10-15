@@ -457,6 +457,10 @@ export class Engine extends Emitter {
         waveHigh: a.waveHigh ?? null,
         waveLow: a.waveLow ?? null,
         distPct: a.distPct ?? null,
+        // 均线压制突破：把压制明细带给卡片（显示「压制N根」）
+        streakBars: Number.isFinite(a.streakBars) ? a.streakBars : null,
+        streakLow: Number.isFinite(a.streakLow) ? a.streakLow : null,
+        abovePct: Number.isFinite(a.abovePct) ? a.abovePct : null,
         ema7: Number.isFinite(a.ema7) ? a.ema7 : null,
         dea: Number.isFinite(a.dea) ? a.dea : null,
         base: a.base, mid: a.mid, big: a.big,

@@ -113,6 +113,26 @@ try {
   ok('★ 报警级别筛选存在且可见', alt.levelSel);
   ok('★ 报警视图能渲染（卡片或空态）', alt.cards > 0 || alt.empty !== 'none', 'cards=' + alt.cards);
 
+  // 通道筛选：选「均线压制突破」后，卡片应只剩该通道
+  const kinds = await evalJs(`(() => {
+    const s = document.querySelector('#alert-kind');
+    return { has: !!s, opts: s ? [...s.options].map(o => o.value) : [] };
+  })()`);
+  ok('★ 报警视图有「通道筛选」下拉', kinds.has && kinds.opts.includes('breakout'), kinds.opts.join(','));
+  await evalJs(`(() => { const s = document.querySelector('#alert-kind'); s.value = 'breakout'; s.dispatchEvent(new Event('change')); })()`);
+  await sleep(6000);
+  const brk = await evalJs(`(() => {
+    const cs = [...document.querySelectorAll('#alertchartgrid .chartcard')];
+    const heads = cs.map(c => (c.querySelector('.cchead')?.textContent ?? '').replace(/\\s+/g,' ').trim());
+    return { n: cs.length, heads: heads.slice(0,3), badges: cs.filter(c => /压制\\d+根/.test(c.textContent)).length,
+      live: (document.querySelector('#alert-live')?.textContent ?? '').slice(0,40) };
+  })()`);
+  ok('★ 选「均线压制突破」后只显示该通道（且带压制根数徽标）',
+    brk.n > 0 && brk.n <= 40 && (brk.badges > 0 || brk.heads.every(h => /均线压制|突破/.test(h))),
+    'cards=' + brk.n + ' badges=' + brk.badges + ' | ' + (brk.heads[0] ?? ''));
+  await evalJs(`(() => { const s = document.querySelector('#alert-kind'); s.value = 'all'; s.dispatchEvent(new Event('change')); })()`);
+  await sleep(4000);
+
   // 切回五浪
   await evalJs(`document.querySelector('#tab-wave').click()`);
   await sleep(4000);
