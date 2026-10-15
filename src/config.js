@@ -186,6 +186,7 @@ export const DEFAULT_SIGNAL = {
   fbMinBars: 5,        // 高点到低点至少几根K线（用户口径：不低于 5 根）
   fbLookback: 20,      // 高点在最近几根里找
   fbFreshBars: 2,      // 底分型**确认**后最多几根内还报（早了才有意义）
+  fbType: 'standard',  // 底分型类型：standard=标准（中间高、低点都最低，图里那个）| relay=中继 | weakest=最弱 | any
   fbMinDropPct: 5,     // 高点→底分型至少要跌多少 %（0=不限；实测 0%→74条 / 3%→68 / 5%→58 / 8%→26）
 
   // —— 均线压制后突破（独立通道，与五浪并列）——

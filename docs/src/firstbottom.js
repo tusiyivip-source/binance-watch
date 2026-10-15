@@ -12,6 +12,7 @@
  * 与五浪反弹（kind=wave）并列，kind=wavefirst；同一（币种+级别+底分型时间）只报一次。
  */
 import { LEVELS, LEVEL_INDEX } from './config.js';
+import { findFirstBottomFractal, isBottomFractal } from './fractal.js';
 
 const label = k => (LEVELS[LEVEL_INDEX[k]]?.label ?? k);
 const fmt = v => (Number.isFinite(v) ? (Math.abs(v) >= 100 ? v.toFixed(4) : v.toPrecision(6)) : '—');
@@ -19,8 +20,7 @@ const fmt = v => (Number.isFinite(v) ? (Math.abs(v) >= 100 ? v.toFixed(4) : v.to
 /** 视图：K线 + 已收盘根数 + 缠论分型（ensureChan 在 engine 里本来就因背驰过滤算过，取缓存不额外花销） */
 export function fbView(series, key, chanMinBars = 5) {
   if (!series || !series.t || series.t.length < 6) return null;
-  let pts = null;
-  try { pts = series.ensureChan(chanMinBars)?.pts ?? null; } catch { pts = null; }
+  const pts = null;   // 现在直接用 K 线底分型，不再依赖缠论笔端点
   return {
     key, ms: series.ms, t: series.t, h: series.h, l: series.l, c: series.c,
     closed: series.closedCount, pts,
@@ -33,7 +33,7 @@ export function detectFirstBottom(v, opt = {}) {
   const lookback = opt.lookback ?? 20;
   const freshBars = opt.freshBars ?? 2;
   const minDropPct = opt.minDropPct ?? 0;      // 高点到该底分型至少要跌多少 %（0=不限）
-  if (!v || !Array.isArray(v.pts) || !v.pts.length) return null;
+  if (!v) return null;
   const last = Number.isFinite(v.closed) ? Math.min(v.closed, v.t.length) : v.t.length;
   if (last < minBars + 1) return null;
 
@@ -44,26 +44,24 @@ export function detectFirstBottom(v, opt = {}) {
   const tHigh = v.t[hIdx] + v.ms;                     // 高点收盘时刻
   const highPrice = v.h[hIdx];
 
-  // ② 高点之后、且**已经确认**的第一个底分型
-  //    ⚠ chan.pts 的元素形如 { mi, type, price, origIdx, confirmIdx }，**没有 t**：
-  //      origIdx = 该分型所在的原始K线下标，confirmIdx = 它被确认（成笔）的那根K线。
-  const isBottom = p => p.type === 'bottom' || p.type === '底' || p.type === 'B';
-  const bottoms = v.pts.filter(p => {
-    const idx = p.origIdx ?? p.mi;
-    const cIdx = p.confirmIdx ?? idx;
-    return isBottom(p) && idx > hIdx && cIdx <= last - 1;      // 只用已确认的
-  });
-  if (!bottoms.length) return null;
-  const first = bottoms[0];
-  const idx = first.origIdx ?? first.mi;
-  const cIdx = first.confirmIdx ?? idx;
+  // ② 高点之后的**第一个底分型**（按用户给的分类图：默认"标准底分型"——
+  //    中间那根的高点与低点都是三根中最低的）。
+  //    ⚠ 底分型由三根K线组成，第三根一收盘就成立 —— 比"缠论成笔"确认更早，
+  //      这正是"提醒要早"的关键。
+  const type = opt.type ?? 'standard';
+  //    从「高点数够 minBars 根」的位置开始找 —— 第一个满足**跨度要求**的底分型，
+  //    而不是"最早那个底分型，跨度不够就放弃"（那会把很多正常信号误杀）。
+  const cIdx = findFirstBottomFractal(v, hIdx + minBars - 1, type, last - 1);
+  if (cIdx < 0) return null;
+  const idx = cIdx;                                  // 底分型的中间那根
+  const first = { price: v.l[idx] };
 
   // ③ 高点到该底分型的跨度（按主级别K线根数）≥ fbMinBars
   const bars = idx - hIdx + 1;
   if (bars < minBars) return null;
 
   // ④ 只报“刚刚确认”的：确认时间距最后一根收盘不超过 freshBars 根
-  const ageBars = (last - 1) - cIdx;
+  const ageBars = (last - 1) - (cIdx + 1);      // 底分型第三根收盘距现在几根
   if (ageBars > freshBars) return null;
 
   // ⑤ 跌幅门槛：高点到这个底分型必须真的跌下来（否则满屏都是「跌 0.3% 后的底分型」）
@@ -74,9 +72,10 @@ export function detectFirstBottom(v, opt = {}) {
   for (let k = hIdx; k < last; k++) if (v.l[k] < lowSince) lowSince = v.l[k];
   return {
     level: v.key, highT: v.t[hIdx], highPrice,
-    pivotT: v.t[idx], pivotPrice: first.price,
-    confirmT: v.t[Math.min(cIdx, v.t.length - 1)] + v.ms,
-    bars, ageBars, dropPct, lowSince: Number.isFinite(lowSince) ? lowSince : null,
+    pivotT: v.t[idx], pivotPrice: v.l[idx],
+    confirmT: v.t[Math.min(cIdx + 1, v.t.length - 1)] + v.ms,   // 第三根收盘 = 成立时刻
+    bars, ageBars, dropPct, type, fractalType: type,
+    lowSince: Number.isFinite(lowSince) ? lowSince : null,
   };
 }
 
@@ -103,10 +102,11 @@ export function makeFirstBottomAlert(symbol, hit, now, initial = false) {
     fbHigh: hit.highPrice,
     fbHighT: hit.highT,
     fbBars: hit.bars,
+    fbFractalType: hit.fractalType,
     fbDropPct: hit.dropPct,
     fbAgeBars: hit.ageBars,
     text: `【五浪首底预警】${L} 高点 ${fmt(hit.highPrice)} → **第一个底分型 ${fmt(hit.pivotPrice)}**`
-      + `（跨度 ${hit.bars} 根 ≥5，自高点跌 ${Number(hit.dropPct).toFixed(2)}%，分型确认于 ${hit.ageBars} 根前）；`
+      + `（${hit.fractalType === 'standard' ? '标准底分型' : hit.fractalType === 'relay' ? '中继底分型' : hit.fractalType === 'weakest' ? '最弱底分型' : '底分型'}，跨度 ${hit.bars} 根 ≥5，自高点跌 ${Number(hit.dropPct).toFixed(2)}%，成立后 ${hit.ageBars} 根内）；`
       + `这可能是五浪下跌的第 1 浪结束 —— **提前预警，不等五浪走完**`,
   };
 }
@@ -122,6 +122,7 @@ export function scanFirstBottoms(symbol, seriesMap, cfg, seen, now = Date.now(),
       lookback: cfg.fbLookback ?? 20,
       freshBars: cfg.fbFreshBars ?? 2,
       minDropPct: cfg.fbMinDropPct ?? 0,
+      type: cfg.fbType ?? 'standard',
     });
     if (!hit) continue;
     const k = `${symbol}|${key}|${hit.pivotT}`;

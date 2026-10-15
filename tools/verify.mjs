@@ -17,6 +17,7 @@ import { Watcher, pickNear, nearOk } from '../src/watch.js';
 import { detectWave, makeAlert, macdCrosses, waveView, scanWaves } from '../src/wave.js';
 import { detectBreakout, makeBreakoutAlert, scanBreakouts, brkView } from '../src/breakout.js';
 import { detectFirstBottom, makeFirstBottomAlert, scanFirstBottoms } from '../src/firstbottom.js';
+import { isBottomFractal, findFirstBottomFractal } from '../src/fractal.js';
 
 // 验证脚本自己控制序列保留上限，避免受实盘 maxCandlesKept 影响导致对比样本数漂移
 APP.maxCandlesKept = 3000;
@@ -1277,57 +1278,66 @@ section('14b. 均线压制后突破（连续 ≥12 根收盘在 EMA7 下方 → 
     JSON.stringify(DEFAULT_SIGNAL.brkLevels));
 }
 
-/* ============ 14c. 五浪首底预警 ============ */
-section('14c. 五浪首底预警（主级别：高点→低点 ≥5 根 → 高点之后第一个缠论底分型确认即报）');
+/* ============ 14c. 五浪首底预警（K线底分型） ============ */
+section('14c. 五浪首底预警（主级别：高点→低点 ≥5 根 → 高点之后第一个**标准底分型**成立即报）');
 {
   const M = 900_000;
-  const mk = (bars, pivotAgeBars, opts = {}) => {
-    const n = bars + opts.tailBars ?? bars + 1;
-    const total = bars + (opts.tailBars ?? 1);
+  /** 造K线：前 lead 根下行，第 mid 根做出底分型（高、低点都最低），后 tail 根抬高 */
+  const mk = (lead, tail, opt = {}) => {
     const t = [], h = [], l = [], c = [];
-    for (let i = 0; i < total; i++) { t.push(i * M); h.push(100 - i * 0.5); l.push(99 - i * 0.5); c.push(99.5 - i * 0.5); }
-    // 高点在第 0 根；底分型在第 bars-1 根，确认于 (bars-1 + pivotAgeBars) 根
-    const idx = opts.pivotIdx ?? (bars - 1);
-    const cIdx = opts.confirmIdx ?? (idx + pivotAgeBars);
-    return { key: '15m', ms: M, t, h, l, c, closed: total,
-      pts: [{ mi: idx, origIdx: idx, confirmIdx: cIdx, price: 99 - idx * 0.5, type: 'bottom' }] };
+    let i = 0;
+    for (; i < lead; i++) { t.push(i * M); h.push(100 - i); l.push(99 - i); c.push(99.5 - i); }
+    // 底分型中间那根：高点=100-lead-1、低点=99-lead-2（都最低）
+    const base = 100 - lead, baseL = 99 - lead;
+    t.push(i * M); h.push(opt.midHigh ?? (base - 3)); l.push(opt.midLow ?? (baseL - 3)); c.push(base - 2.5); i++;
+    for (let k = 0; k < tail; k++, i++) {
+      t.push(i * M);
+      if (opt.tailDrop) { h.push(base - 4 - k); l.push(baseL - 2 + k); c.push(base - 3 - k); }   // 小实体：高点更低、低点更高（中继）
+      else { h.push(base - 1 + k); l.push(baseL - 2 + k); c.push(base - 1.5 + k); }
+    }
+    return { key: '15m', ms: M, t, h, l, c, closed: t.length, pts: null };
   };
   {
-    const hit = detectFirstBottom(mk(5, 1), { minBars: 5, lookback: 20, freshBars: 5 });
-    ok('★ 高点→低点 5 根 + 第一个底分型刚确认 → 命中', !!hit,
-      hit ? `bars=${hit.bars} age=${hit.ageBars}` : 'null');
+    const v = mk(4, 1);
+    const hit = detectFirstBottom(v, { minBars: 5, lookback: 20, freshBars: 2, minDropPct: 0, type: 'standard' });
+    ok('★ 高点→低点 ≥5 根 + 标准底分型刚成立 → 命中', !!hit,
+      hit ? `bars=${hit.bars} age=${hit.ageBars} type=${hit.fractalType}` : 'null');
     if (hit) {
-      ok('★ 跨度统计 ≥5', hit.bars >= 5, 'bars=' + hit.bars);
-      const a = makeFirstBottomAlert('ZUSDT', hit, Date.now(), false);
-      ok('★ 报警对象 kind=wavefirst', a.kind === 'wavefirst' && a.level === '15m', a.kind);
-      ok('★ 文案含「五浪首底预警 / 第一个底分型 / 提前预警」',
-        /五浪首底预警/.test(a.text) && /第一个底分型/.test(a.text) && /提前预警/.test(a.text), a.text.slice(0, 70));
+      ok('★ 识别为标准底分型', hit.fractalType === 'standard');
+      ok('★ 跨度 ≥5', hit.bars >= 5, 'bars=' + hit.bars);
+      const a2 = makeFirstBottomAlert('ZUSDT', hit, Date.now(), false);
+      ok('★ 报警 kind=wavefirst + 文案含「标准底分型 / 提前预警」',
+        a2.kind === 'wavefirst' && /标准底分型/.test(a2.text) && /提前预警/.test(a2.text), a2.text.slice(0, 78));
     }
   }
-  ok('★ 跨度只有 3 根（不足 5）→ 不命中', detectFirstBottom(mk(3, 1), { minBars: 5, freshBars: 5 }) === null);
-  ok('★ 底分型确认已过 20 根 → 不命中（避免刷历史）',
-    detectFirstBottom(mk(5, 20), { minBars: 5, freshBars: 5 }) === null);
+  ok('★ 跨度只有 3 根 → 不命中', detectFirstBottom(mk(2, 1), { minBars: 5, freshBars: 2, minDropPct: 0 }) === null);
+  ok('★ 成立已过 20 根 → 不命中（避免刷历史）',
+    detectFirstBottom(mk(4, 25), { minBars: 5, freshBars: 2, minDropPct: 0 }) === null);
   {
-    // 跌幅门槛：高点 100 → 底分型 99.5 只跌 0.5%，门槛 5% 时不该报
-    const v = mk(5, 1);
-    ok('★ 跌幅不够（0.5% < 5%）→ 不命中', detectFirstBottom(v, { minBars: 5, freshBars: 2, minDropPct: 5 }) === null);
-    ok('★ 同一条把门槛设为 0 → 命中', !!detectFirstBottom(v, { minBars: 5, freshBars: 2, minDropPct: 0 }));
+    // 第三根继续走低 → 中间高点不是最低 → 只算"中继"，标准口径不命中；relay 口径命中
+    const v = mk(4, 1, { tailDrop: true });
+    ok('★ 中间高点不是最低（只满足低点最低）→ 标准口径不命中',
+      detectFirstBottom(v, { minBars: 5, freshBars: 2, minDropPct: 0, type: 'standard' }) === null);
+    ok('★ 同一根换 relay（中继）口径 → 命中',
+      !!detectFirstBottom(v, { minBars: 5, freshBars: 2, minDropPct: 0, type: 'relay' }));
   }
-  ok('★ 没有底分型 → 不命中', detectFirstBottom({ key: '15m', ms: M, t: [0, M, 2 * M, 3 * M, 4 * M, 5 * M], h: [1,2,3,4,5,6], l: [1,2,3,4,5,6], c: [1,2,3,4,5,6], closed: 6, pts: [] }, { minBars: 5 }) === null);
   {
-    const v = mk(5, 1, { tailBars: 3 });
-    const cfg = { fbLevels: ['15m'], fbMinBars: 5, fbLookback: 20, fbFreshBars: 5, beichiMinBars: 5 };
-    const fake = { '15m': { t: v.t, h: v.h, l: v.l, c: v.c, ms: M, closedCount: v.closed,
-      ensureChan: () => ({ pts: v.pts }), ensure: () => ({ ema7: v.c }) } };
+    const v = mk(4, 1);
+    ok('★ 跌幅不够（门槛 99%）→ 不命中', detectFirstBottom(v, { minBars: 5, freshBars: 2, minDropPct: 99 }) === null);
+  }
+  {
+    const v = mk(4, 2);
+    const cfg = { fbLevels: ['15m'], fbMinBars: 5, fbLookback: 20, fbFreshBars: 2, fbMinDropPct: 0, fbType: 'standard', beichiMinBars: 5 };
+    const fake = { '15m': { t: v.t, h: v.h, l: v.l, c: v.c, ms: M, closedCount: v.closed, ensureChan: () => ({ pts: null }), ensure: () => ({ ema7: v.c }) } };
     const seen = new Map();
     const first = scanFirstBottoms('ZUSDT', fake, cfg, seen, Date.now(), false);
     const second = scanFirstBottoms('ZUSDT', fake, cfg, seen, Date.now(), true);
     ok('★ 同一个底分型只报一次', first.length === 1 && second.length === 0, first.length + '/' + second.length);
   }
-  ok('配置默认：首底通道开启、级别 15分/30分/1时/2时、跨度门槛 5 根',
-    DEFAULT_SIGNAL.fbEnabled === true && DEFAULT_SIGNAL.fbMinBars === 5
+  ok('配置默认：首底通道开启、级别 15分/30分/1时/2时、跨度 5 根、类型 standard',
+    DEFAULT_SIGNAL.fbEnabled === true && DEFAULT_SIGNAL.fbMinBars === 5 && DEFAULT_SIGNAL.fbType === 'standard'
     && JSON.stringify(DEFAULT_SIGNAL.fbLevels) === JSON.stringify(['15m','30m','1h','2h']),
-    JSON.stringify(DEFAULT_SIGNAL.fbLevels));
+    DEFAULT_SIGNAL.fbType);
 }
 
 /* ============ 15. 双阴/双阳判定修正：窗口右移 + 两条前置条件 ============ */

@@ -172,9 +172,19 @@
         <label>高点回看根数 <input id="c-fbLookback" type="number" min="5" max="100" step="1"></label>
         <label>确认后几根内还报 <input id="c-fbFreshBars" type="number" min="1" max="10" step="1"></label>
         <label>跌幅下限% <input id="c-fbMinDropPct" type="number" min="0" max="50" step="0.5"></label>
+        <label>底分型类型
+          <select id="c-fbType">
+            <option value="standard">标准（中间高低点都最低）</option>
+            <option value="relay">中继（只低点最低）</option>
+            <option value="weakest">最弱</option>
+            <option value="any">任意底分型</option>
+          </select>
+        </label>
       </div>
       <div class="gnote">
-        级别：<b>15分 / 30分 / 1时 / 2时</b>。这是<b>最早</b>的预警：只要高点之后的<b>第一个底分型被确认</b>就报，
+        级别：<b>15分 / 30分 / 1时 / 2时</b>。<b>底分型类型</b>按缠论分类图：<b>标准</b>=中间那根高点与低点都是三根里最低（默认，图中那个）；
+<b>中继</b>=只要求低点最低；<b>最弱</b>=中继且第三根高点低于第一根；<b>任意</b>=只要低点最低。
+这是<b>最早</b>的预警：只要高点之后的<b>第一个底分型成立</b>就报，
         <b>不等五浪走完、也不等上穿 EMA7</b>。<br>
         <b>跌幅下限</b>是关键松紧：<b>0%</b> 会满屏（任何小波动的底分型都算，实测缓存同一时刻 74 条）、
         <b>5%</b> 约 58 条、<b>8%</b> 约 26 条。<b>确认后几根内还报</b>建议 1~2（越小越"当场"）。
