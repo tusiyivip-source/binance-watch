@@ -15,6 +15,7 @@ import { evaluateSymbol, analyzeLevel, findResonance, triplesFor, strokeChain, c
 import { LEVELS, VISIBLE_LEVELS, DEFAULT_SIGNAL, DEFAULT_GROUPS, LEVEL_INDEX, APP, DEFAULT_WATCH_GROUPS, watchInnerLevels } from '../src/config.js';
 import { Watcher, pickNear, nearOk } from '../src/watch.js';
 import { detectWave, makeAlert, macdCrosses, waveView, scanWaves } from '../src/wave.js';
+import { detectBreakout, makeBreakoutAlert, scanBreakouts, brkView } from '../src/breakout.js';
 
 // 验证脚本自己控制序列保留上限，避免受实盘 maxCandlesKept 影响导致对比样本数漂移
 APP.maxCandlesKept = 3000;
@@ -1209,6 +1210,62 @@ section('14. 五浪反弹（一笔下 → 次级别**正好五个**交叉 死金
       { main: '1h', sub: '10m' }, { main: '2h', sub: '15m' },
     ]) && DEFAULT_SIGNAL.waveMinBars === 5 && DEFAULT_SIGNAL.waveCrossWindow === 2,
     JSON.stringify(DEFAULT_SIGNAL.wavePairs));
+}
+
+/* ============ 14b. 均线压制后突破（独立通道） ============ */
+section('14b. 均线压制后突破（连续 ≥12 根收盘在 EMA7 下方 → 一根收盘上穿 EMA7）');
+{
+  const M = 900_000;   // 15 分钟
+  /** 造序列：前 below 根收盘都在 EMA7 下方，最后一根收盘上穿 */
+  const mk = (below, { cross = true, ema = 100 } = {}) => {
+    const n = below + 1;                       // below 根在均线下方 + 1 根突破
+    const t = [], h = [], l = [], c = [], ema7 = [];
+    for (let i = 0; i < n; i++) {
+      t.push(i * M);
+      ema7.push(ema);
+      if (i < below) { h.push(ema - 0.5); l.push(ema - 2); c.push(ema - 1); }        // 收盘在 EMA7 下方
+      else { h.push(ema + 2); l.push(ema - 1); c.push(cross ? ema + 1 : ema - 1); }  // 突破那根
+    }
+    return { key: '15m', ms: M, t, h, l, c, ema7 };
+  };
+
+  {
+    const v = mk(12);
+    const hit = detectBreakout(v, { minBars: 12 });
+    ok('★ 连续 12 根在 EMA7 下方 + 本根收盘上穿 → 命中', !!hit,
+      hit ? `streak=${hit.streak} 收${hit.close} EMA7=${hit.ema7}` : 'null');
+    if (hit) {
+      ok('★ 压制根数统计正确', hit.streak === 12, 'streak=' + hit.streak);
+      ok('★ 记录压制段最低点', Number.isFinite(hit.low), 'low=' + hit.low);
+    }
+  }
+  ok('★ 只有 11 根在下方 → 不命中', detectBreakout(mk(11), { minBars: 12 }) === null);
+  ok('★ 最后一根没有上穿（收在均线下方）→ 不命中',
+    detectBreakout(mk(13, { cross: false }), { minBars: 12 }) === null);
+  ok('★ 门槛可调：minBars=10 时 11 根就命中',
+    !!detectBreakout(mk(11), { minBars: 10 }));
+
+  {
+    const hit = detectBreakout(mk(13), { minBars: 12 });
+    const a = makeBreakoutAlert('ZUSDT', hit, Date.now(), false);
+    ok('★ 报警对象：kind=breakout、级别正确、带压制根数',
+      a.kind === 'breakout' && a.level === '15m' && a.streakBars === 13, `kind=${a.kind} streak=${a.streakBars}`);
+    ok('★ 文案含「均线压制后突破 / 连续 / 上穿 EMA7」',
+      /均线压制后突破/.test(a.text) && /连续 \d+ 根/.test(a.text) && /上穿 EMA7/.test(a.text), a.text.slice(0, 72));
+  }
+  {
+    const cfg = { brkLevels: ['15m'], brkMinBars: 12 };
+    const v = mk(12);
+    const fake = { '15m': { t: v.t, h: v.h, l: v.l, c: v.c, ms: M, ensure: () => ({ ema7: v.ema7 }) } };
+    const seen = new Map();
+    const first = scanBreakouts('ZUSDT', fake, cfg, seen, Date.now(), false);
+    const second = scanBreakouts('ZUSDT', fake, cfg, seen, Date.now(), true);
+    ok('★ 同一根突破K线只报一次', first.length === 1 && second.length === 0, first.length + '/' + second.length);
+  }
+  ok('配置默认：独立通道开启、级别 15分/30分/1时/2时、门槛 12 根',
+    DEFAULT_SIGNAL.brkEnabled === true && DEFAULT_SIGNAL.brkMinBars === 12
+    && JSON.stringify(DEFAULT_SIGNAL.brkLevels) === JSON.stringify(['15m', '30m', '1h', '2h']),
+    JSON.stringify(DEFAULT_SIGNAL.brkLevels));
 }
 
 /* ============ 15. 双阴/双阳判定修正：窗口右移 + 两条前置条件 ============ */

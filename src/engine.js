@@ -5,6 +5,7 @@ import { Emitter } from './emitter.js';
 import { LEVELS, LEVEL_KEYS, LEVEL_INDEX, VISIBLE_LEVELS, STATE, EVENT, APP } from './config.js';import { evaluateSymbol, describe, defaultSignalConfig } from './signals.js';
 import { Watcher } from './watch.js';
 import { scanWaves } from './wave.js';
+import { scanBreakouts } from './breakout.js';
 
 
 const SWEEP_MS = 1000;
@@ -41,6 +42,8 @@ export class Engine extends Emitter {
     this.dualSeen = new Map();
     // 五浪反弹通道：同一 (币种, 主级别, 这笔下跌的最低点) 只报一次
     this.waveSeen = new Map();
+    this.brkSeen = new Map();
+    this.brkCount = 0;
     this.waveCount = 0;
     this.dualCount = { long: 0, short: 0 };
     this.strokeBlocked = 0;        // 因「回踩不够成笔」被拦下的次数
@@ -171,6 +174,25 @@ export class Engine extends Emitter {
         this.log.warn(`五浪判定 ${st.symbol} 失败：${e.message}`);
       }
     }
+    // —— 均线压制后突破（独立通道）——
+    if (this.cfg.brkEnabled) {
+      try {
+        const fired = scanBreakouts(st.symbol, st.series, this.cfg, this.brkSeen, Date.now(),
+          !!this.initialPhase && !forceNew);
+        for (const a of fired) {
+          a.id = ++this.alertSeq;
+          a.initial = forceNew ? false : !!this.initialPhase;
+          this.brkCount++;
+          this.alerts.push(a);
+          this.signalCount++;
+          this.emit('alert', a);
+          this.log.signal('📈 ' + a.symbol + ' ' + a.text);
+        }
+      } catch (e) {
+        this.log.warn(`压制突破判定 ${st.symbol} 失败：${e.message}`);
+      }
+    }
+
     // —— 独立形态提醒：双阴不破均线（多） / 双阳不穿破均线（空）——
     //    只看**已收盘**的那根K线（analyzeLevel 的 closed 模式），第二根一收盘立刻提醒。
     if (this.cfg.dualEnabled && res.dual) {

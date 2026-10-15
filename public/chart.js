@@ -86,6 +86,8 @@ function setView(mode) {
   document.querySelector('#alertchartwrap').style.display = mode === 'alert' ? '' : 'none';
   const al = document.querySelector('#alert-level');
   if (al) al.style.display = mode === 'alert' ? '' : 'none';
+  const ak = document.querySelector('#alert-kind');
+  if (ak) ak.style.display = mode === 'alert' ? '' : 'none';
   startLoop();
 }
 
@@ -364,9 +366,11 @@ function paintCard(view, i, it) {
     } else {
       const grp = it.group ?? it.levelLabel ?? '';
       const sc = Number.isFinite(it.score) && it.score > 0 ? `<span class="sc">${it.score}分</span>` : '';
+      const brk = it.kind === 'breakout' && Number.isFinite(it.streakBars)
+        ? `<span class="sc">压制${it.streakBars}根</span>` : '';
       head.querySelector('.sp').innerHTML = isDual
         ? `<span class="grp">${it.side === 'long' ? '双阴不破 · 看多' : '双阳不穿 · 看空'}</span>` + (divBadge ? ' ' + divBadge : '')
-        : `<span class="grp">${String(grp).replace(/>/g, '→')}</span>` + sc + divBadge;
+        : `<span class="grp">${String(grp).replace(/>/g, '→')}</span>` + sc + brk + divBadge;
     }
     const t = new Date(it.at || Date.now());
     const p = n => String(n).padStart(2, '0');
@@ -485,7 +489,9 @@ async function refreshAlertView() {
   const bars = currentBars(view);
   const limit = +document.querySelector('#alert-limit').value || 24;
   try {
-    const d = await fetch(`/api/alertchart?bars=${bars}&limit=${limit}`).then(r => r.json());
+    const kindSel = document.querySelector('#alert-kind');
+    const kind = kindSel && kindSel.value !== 'all' ? '&kind=' + encodeURIComponent(kindSel.value) : '';
+    const d = await fetch(`/api/alertchart?bars=${bars}&limit=${limit}${kind}`).then(r => r.json());
     const all = d.items ?? [];
     const pairs = [...new Map(all.map(it => [it.key, { key: it.key, label: it.label ?? it.key }])).values()];
     const pickA = fillLevelSel('#alert-level', pairs, '全部报警级别');
@@ -556,6 +562,7 @@ function initCharts() {
   document.querySelector('#chart-cols').addEventListener('change', () => { applyCols(VIEWS.alert); applyCols(VIEWS.wave); refreshActive(); });
   document.querySelector('#chart-bars').addEventListener('change', () => refreshActive());
   document.querySelector('#alert-level').addEventListener('change', e => { e.target.dataset.__v = e.target.value; refreshAlertView(); });
+  document.querySelector('#alert-kind').addEventListener('change', () => refreshAlertView());
   document.querySelector('#alert-limit').addEventListener('change', () => refreshAlertView());
   document.querySelector('#alert-size').addEventListener('change', () => { applyCols(VIEWS.alert); refreshAlertView(); });
   ['#chart-ma', '#chart-mark', '#chart-macd'].forEach(s =>
