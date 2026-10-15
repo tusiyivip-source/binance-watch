@@ -7,6 +7,7 @@ import { Watcher } from './watch.js';
 import { scanWaves } from './wave.js';
 import { scanBreakouts } from './breakout.js';
 import { scanFirstBottoms } from './firstbottom.js';
+import { scanChains } from './chain.js';
 
 
 const SWEEP_MS = 1000;
@@ -45,6 +46,8 @@ export class Engine extends Emitter {
     this.waveSeen = new Map();
     this.brkSeen = new Map();
     this.fbSeen = new Map();
+    this.chainSeen = new Map();
+    this.chainCount = 0;
     this.fbCount = 0;
     this.brkCount = 0;
     this.waveCount = 0;
@@ -177,6 +180,25 @@ export class Engine extends Emitter {
         this.log.warn(`五浪判定 ${st.symbol} 失败：${e.message}`);
       }
     }
+    // —— 三级别嵌套结构（用户新定义，唯一开启的策略）——
+    if (this.cfg.chainEnabled) {
+      try {
+        const fired = scanChains(st.symbol, st.series, this.cfg, this.chainSeen, Date.now(),
+          !!this.initialPhase && !forceNew);
+        for (const a of fired) {
+          a.id = ++this.alertSeq;
+          a.initial = forceNew ? false : !!this.initialPhase;
+          this.chainCount++;
+          this.alerts.push(a);
+          this.signalCount++;
+          this.emit('alert', a);
+          this.log.signal('🧩 ' + a.symbol + ' ' + a.text);
+        }
+      } catch (e) {
+        this.log.warn(`结构判定 ${st.symbol} 失败：${e.message}`);
+      }
+    }
+
     // —— 五浪首底预警（独立通道，最早的那一声）——
     if (this.cfg.fbEnabled) {
       try {
@@ -497,6 +519,13 @@ export class Engine extends Emitter {
         // 信号所在的**那根K线**时间（五浪/首底/压制突破都是"某根K线成立"，
         // 前端要对回K线做复核/标记，就必须有这个字段）
         signalT: a.candleT ?? null,
+        // 三级别结构：把级别组合/五浪序列/间隔带给卡片
+        innerLevel: a.innerLevel ?? null,
+        innerLevelLabel: a.innerLevelLabel ?? null,
+        chainBars: Number.isFinite(a.chainBars) ? a.chainBars : null,
+        chainSeq: a.chainSeq ?? null,
+        chainGaps: Array.isArray(a.chainGaps) ? a.chainGaps : null,
+        chainLow: Number.isFinite(a.chainLow) ? a.chainLow : null,
         alertPrice: a.price ?? null,
         text: a.text ?? '',
         initial: !!a.initial,

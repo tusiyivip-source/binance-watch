@@ -18,6 +18,7 @@ import { detectWave, makeAlert, macdCrosses, waveView, scanWaves } from '../src/
 import { detectBreakout, makeBreakoutAlert, scanBreakouts, brkView } from '../src/breakout.js';
 import { detectFirstBottom, makeFirstBottomAlert, scanFirstBottoms } from '../src/firstbottom.js';
 import { isBottomFractal, findFirstBottomFractal } from '../src/fractal.js';
+import { detectChain, makeChainAlert, scanChains, chainView } from '../src/chain.js';
 
 // 验证脚本自己控制序列保留上限，避免受实盘 maxCandlesKept 影响导致对比样本数漂移
 APP.maxCandlesKept = 3000;
@@ -1365,6 +1366,121 @@ section('14d. 底分型分类：标准/中继/最弱（按用户提供的分类�
     isBottomFractal(seq([80, 70], [100, 92], [85, 75]), 1, 'any') === false);
   ok('★ 中间低点不是最低 → 任何口径都不是底分型',
     isBottomFractal(seq([100, 80], [90, 85], [95, 82]), 1, 'any') === false);
+}
+
+/* ============ 16. 三级别嵌套结构（用户新定义） ============ */
+section('16. 三级别结构：主级别回调≥5根 + 次级别 下上下上下 五笔 + 内部 死金死金死(间隔≥5) + 主级别底分型');
+{
+  const M = 21_600_000, S = 3_600_000, I = 600_000;   // 6时 / 1时 / 10分
+  const mkMain = () => {
+    // 12根：高点 index 0(100)，低点 index 6(80)，底分型在 index 7（高低点都最低）
+    const h = [100, 96, 92, 90, 88, 86, 84, 79, 83, 85, 86, 87];
+    const l = [95, 92, 88, 86, 84, 82, 80, 78, 80, 82, 83, 84];
+    const c = [97, 94, 90, 88, 86, 84, 82, 78.5, 81, 83, 84, 85];
+    const t = c.map((_, i) => i * M);
+    const ema7 = c.map(() => 0);
+    return { key: '6h', ms: M, t, h, l, c, ema7, dif: c.map(() => 0), dea: c.map(() => 0), closed: t.length, pts: null };
+  };
+  /** 次级别：t0..t5 六个端点 T,B,T,B,T,B（= 下上下上下 五笔） */
+  const mkSub = (t0) => {
+    const n = 60, t = [], h = [], l = [], c = [];
+    for (let i = 0; i < n; i++) { t.push(t0 + i * S); h.push(100 - i * 0.1); l.push(99 - i * 0.1); c.push(99.5); }
+    const pts = [];
+    const lows = [96, 92, 88];
+    for (let k = 0; k < 3; k++) {
+      pts.push({ mi: 5 + k * 16, origIdx: 5 + k * 16, type: 'top', price: 99 });
+      pts.push({ mi: 12 + k * 16, origIdx: 12 + k * 16, type: 'bottom', price: lows[k] });
+    }
+    return { key: '1h', ms: S, t, h, l, c, ema7: c.map(() => 0), dif: c.map(() => 0), dea: c.map(() => 0), closed: t.length, pts };
+  };
+  /** 内部级别：dif 在指定下标翻转 → 交叉；造 死金死金死 且相邻≥5根 */
+  const mkInner = (t0, span) => {
+    const n = Math.ceil(span / I) + 4;
+    const dif = new Array(n).fill(-1);
+    const flips = [40, 46, 53, 59, 66];      // 5 次翻转 → 5 个交叉，间隔 6/7/6/7（且都落在窗口内）
+    let s = -1;
+    for (let i = 0; i < n; i++) { if (flips.includes(i)) s = -s; dif[i] = s; }
+    // 第一个交叉出现在 i=8：-1 → +1 = 金叉 —— 需要首个是死叉，所以从 +1 起步
+    const dif2 = new Array(n).fill(1);
+    s = 1;
+    for (let i = 0; i < n; i++) { if (flips.includes(i)) s = -s; dif2[i] = s; }
+    const t = [], h = [], l = [], c = [];
+    for (let i = 0; i < n; i++) { t.push(t0 + i * I); h.push(100 - i * 0.05); l.push(99 - i * 0.05); c.push(99.5 - i * 0.05); }
+    return { key: '10m', ms: I, t, h, l, c, ema7: c.map(() => 0), dif: dif2, dea: dif2.map(() => 0), closed: t.length, pts: null };
+  };
+
+  const main = mkMain();
+  const t0 = main.t[1];                       // 主级别高点之后
+  const sub = mkSub(t0);
+  const span = 60 * S;
+  const inner = mkInner(t0, span);
+
+  {
+    const hit = detectChain(main, sub, inner, { mainMinBars: 5, innerMinBars: 5, lookback: 20 });
+    ok('★ 主级别回调≥5根 + 次级别五笔 + 内部死金死金死(间隔≥5) + 主级别底分型 → 命中', !!hit,
+      hit ? `主${hit.mainBars}根 内部${hit.innerSeq} 间隔${hit.innerGaps.join('/')}` : 'null');
+    if (hit) {
+      ok('★ 主级别回调根数 ≥5', hit.mainBars >= 5, 'bars=' + hit.mainBars);
+      ok('★ 内部序列 = 死→金→死→金→死', hit.innerSeq === 'DGDGD', hit.innerSeq);
+      ok('★ 相邻交叉间隔都 ≥5 根', hit.innerGaps.every(g => g >= 5), hit.innerGaps.join('/'));
+      const a = makeChainAlert('ZUSDT', hit, Date.now(), false);
+      ok('★ 报警 kind=chain，级别组合 6时→1时→10分',
+        a.kind === 'chain' && a.level === '6h' && a.subLevel === '1h' && a.innerLevel === '10m',
+        `${a.level}/${a.subLevel}/${a.innerLevel}`);
+      ok('★ 文案含「三级别结构 / 下上下上下 / 底分型 / 提前提醒」',
+        /三级别结构/.test(a.text) && /下上下上下/.test(a.text) && /底分型成立/.test(a.text) && /提前提醒/.test(a.text));
+    }
+  }
+  // 间隔不足
+  {
+    const innerBad = mkInner(t0, span);
+    // 把第二个交叉提前到间隔 3 根
+    const dif = new Array(innerBad.t.length).fill(1);
+    const flips = [40, 43, 53, 59, 66];
+    let s = 1;
+    for (let i = 0; i < dif.length; i++) { if (flips.includes(i)) s = -s; dif[i] = s; }
+    innerBad.dif = dif;
+    ok('★ 相邻交叉间隔只有 3 根 → 不命中',
+      detectChain(main, sub, innerBad, { mainMinBars: 5, innerMinBars: 5 }) === null);
+  }
+  // 主级别回调不足 5 根
+  {
+    const short = mkMain();
+    short.h = short.h.map((x, i) => (i === 0 ? x : x + 0));   // 不改高点
+    // 直接把低点抬高，使 高→低 跨度只有 3 根
+    short.l = [95, 92, 88, 86, 84, 82, 80, 80.5, 81, 82, 83, 84];
+    short.l[2] = 79;                                          // 低点提前到 index 2 → 跨度 3 根
+    ok('★ 主级别高→低只有 3 根 → 不命中',
+      detectChain(short, sub, inner, { mainMinBars: 5 }) === null);
+  }
+  // 次级别不是 下上下上下
+  {
+    const sub2 = mkSub(t0);
+    sub2.pts = sub2.pts.slice(0, 5).concat([{ mi: 58, origIdx: 58, type: 'top', price: 99 }]);
+    ok('★ 次级别不是"下上下上下"五笔（末笔是顶）→ 不命中',
+      detectChain(main, sub2, inner, { mainMinBars: 5, innerMinBars: 5 }) === null);
+  }
+  // 去重
+  {
+    const cfg = { chainTriples: [{ main: '6h', sub: '1h', inner: '10m' }], chainMainMinBars: 5, chainInnerMinBars: 5, chainLookback: 20, beichiMinBars: 5 };
+    const fake = {
+      '6h': { t: main.t, h: main.h, l: main.l, c: main.c, ms: M, closedCount: main.closed, ensure: () => ({ ema7: main.ema7 }), macd: () => ({ dif: main.dif, dea: main.dea }), ensureChan: () => ({ pts: null }) },
+      '1h': { t: sub.t, h: sub.h, l: sub.l, c: sub.c, ms: S, closedCount: sub.closed, ensure: () => ({ ema7: sub.ema7 }), macd: () => ({ dif: sub.dif, dea: sub.dea }), ensureChan: () => ({ pts: sub.pts }) },
+      '10m': { t: inner.t, h: inner.h, l: inner.l, c: inner.c, ms: I, closedCount: inner.closed, ensure: () => ({ ema7: inner.ema7 }), macd: () => ({ dif: inner.dif, dea: inner.dea }), ensureChan: () => ({ pts: null }) },
+    };
+    const seen = new Map();
+    const first = scanChains('ZUSDT', fake, cfg, seen, Date.now(), false);
+    const second = scanChains('ZUSDT', fake, cfg, seen, Date.now(), true);
+    ok('★ 同一个结构只报一次', first.length === 1 && second.length === 0, first.length + '/' + second.length);
+  }
+  ok('配置默认：结构通道开启、四组级别对 6-1-10 / 3-30-5 / 2-15-3 / 1-10-2',
+    DEFAULT_SIGNAL.chainEnabled === true
+    && JSON.stringify(DEFAULT_SIGNAL.chainTriples) === JSON.stringify([
+      { main: '6h', sub: '1h', inner: '10m' }, { main: '3h', sub: '30m', inner: '5m' },
+      { main: '2h', sub: '15m', inner: '3m' }, { main: '1h', sub: '10m', inner: '2m' },
+    ])
+    && DEFAULT_SIGNAL.chainMainMinBars === 5 && DEFAULT_SIGNAL.chainInnerMinBars === 5,
+    JSON.stringify(DEFAULT_SIGNAL.chainTriples));
 }
 
 /* ============ 15. 双阴/双阳判定修正：窗口右移 + 两条前置条件 ============ */

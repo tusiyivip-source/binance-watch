@@ -10,8 +10,8 @@
 export const LEVELS = [
   { key: '1m', label: '1分', minutes: 1, native: true, hidden: true, limit: 200, backfill: 400 },
   { key: '2m', label: '2分', minutes: 2, native: false, from: '1m', ratio: 2 },
-  { key: '3m', label: '3分', minutes: 3, native: true, limit: 99, backfill: 300 },
-  { key: '5m', label: '5分', minutes: 5, native: true, limit: 150, backfill: 300 },
+  { key: '3m', label: '3分', minutes: 3, native: true, limit: 99, backfill: 1000 },
+  { key: '5m', label: '5分', minutes: 5, native: true, limit: 150, backfill: 1000 },
   { key: '10m', label: '10分', minutes: 10, native: false, from: '5m', ratio: 2 },
   { key: '15m', label: '15分', minutes: 15, native: true, limit: 99, backfill: 300 },
   { key: '30m', label: '30分', minutes: 30, native: true, limit: 99, backfill: 300 },
@@ -128,6 +128,21 @@ export const DEFAULT_SIGNAL = {
   countRule: 'align',      // 共振计数：align=严格多头排列 c>MA7>MA25；above=站上MA7
   baseMinIdx: 2,           // auto 模式：允许作为"基准级别"的最小下标（2=3分钟）
   baseMaxIdx: 6,           // auto 模式：允许作为"基准级别"的最大下标（6=30分钟）
+
+  // ============ 三级别嵌套结构（★ 用户 2026-10-15 新定义，唯一开启的策略） ============
+  //   主级别回调(高点→低点 ≥5 根) + 次级别 下上下上下 五笔 + 内部级别 MACD 死金死金死
+  //   （相邻交叉 ≥5 根、且与五笔高低相连）+ 主级别出现底分型 + 收盘成立 → 提前提醒
+  chainEnabled: true,
+  chainTriples: [
+    { main: '6h', sub: '1h', inner: '10m' },     // 6-1-10
+    { main: '3h', sub: '30m', inner: '5m' },     // 3-30-5
+    { main: '2h', sub: '15m', inner: '3m' },     // 2-15-3
+    { main: '1h', sub: '10m', inner: '2m' },     // 1-10-2
+  ],
+  chainMainMinBars: 5,      // 主级别回调最少几根K线（用户：不少于5根）
+  chainInnerMinBars: 5,     // 内部相邻交叉之间最少几根K线（用户：每次内部不少于五根）
+  chainLookback: 20,        // 主级别高点在最近几根里找
+  chainFractalType: 'standard',  // 主级别底分型口径：standard/relay/weakest/any
 
   // ============ 缠论笔 / 背驰（★ 引擎内部计算，界面完全不显示） ============
   // 按用户要求：这些判定照常算（供共振通道与内部结构分析使用），

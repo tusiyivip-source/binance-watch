@@ -487,6 +487,7 @@ const CFG_FIELDS = [
   ['requireBaseBull', 'bool'], ['useLiveCandle', 'bool'], ['countRule', 'str'],
   ['baseMinIdx', 'int'], ['baseMaxIdx', 'int'], ['minScore', 'int'],
   ['pullbackPattern', 'str'], ['pullbackBars', 'int'],
+  ['chainEnabled', 'bool'], ['chainMainMinBars', 'int'], ['chainInnerMinBars', 'int'], ['chainLookback', 'int'], ['chainFractalType', 'str'],
   ['waveEnabled', 'bool'], ['waveMinBars', 'int'], ['waveHighLookback', 'int'], ['waveCrossWindow', 'int'],
   ['fbEnabled', 'bool'], ['fbMinBars', 'int'], ['fbLookback', 'int'], ['fbFreshBars', 'int'], ['fbMinDropPct', 'num'], ['fbType', 'str'],
   ['brkEnabled', 'bool'], ['brkMinBars', 'int'],

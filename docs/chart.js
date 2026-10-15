@@ -349,7 +349,11 @@ function paintCard(view, i, it) {
 
   if (isAlert) {
     head.querySelector('.lv').innerHTML = `<span class="sym">${it.symbol}</span>`;
-    head.querySelector('.roles').innerHTML = it.kind === 'wave'
+    head.querySelector('.roles').innerHTML = it.kind === 'chain'
+      ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span>`
+        + (it.subLevelLabel ? `<span class="rb">→${it.subLevelLabel}</span>` : '')
+        + (it.innerLevelLabel ? `<span class="rb">→${it.innerLevelLabel}</span>` : '')
+      : it.kind === 'wave'
       ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span>` + (it.subLevelLabel ? `<span class="rb">← ${it.subLevelLabel}</span>` : '')
       : `<span class="rb lvl">${it.label}</span>`;
     const st = head.querySelector('.st');
@@ -357,7 +361,12 @@ function paintCard(view, i, it) {
     st.className = 'st ' + (it.mode === 'closed' ? 's1' : 's3');
     // 形态提醒没有评分，用方向标签代替；共振信号仍显示组合与评分
     const isDual = it.kind === 'dual';
-    if (it.kind === 'wave') {
+    if (it.kind === 'chain') {
+      head.querySelector('.sp').innerHTML =
+        `<span class="grp">回调${it.chainBars ?? '?'}根 · 五浪 ${it.chainSeq ?? ''}</span>`
+        + (Array.isArray(it.chainGaps) ? `<span class="sc">间隔 ${it.chainGaps.join('/')}</span>` : '')
+        + divBadge;
+    } else if (it.kind === 'wave') {
       // 五浪信号：显示五浪序列 + 金叉到上穿隔了几根 + 一笔下跨度
       head.querySelector('.sp').innerHTML =
         `<span class="grp">五浪 ${it.waveSeq ?? ''}</span>`
@@ -469,7 +478,7 @@ async function refreshWaveView() {
   const bars = currentBars(view);
   const limit = +document.querySelector('#wave-limit').value || 24;
   try {
-    const d = await fetch(`/api/alertchart?kind=wave,wavefirst&bars=${bars}&limit=${limit}`).then(r => r.json());
+    const d = await fetch(`/api/alertchart?kind=chain&bars=${bars}&limit=${limit}`).then(r => r.json());
     const all = d.items ?? [];
     const pairs = [...new Map(all.map(it => [it.key, { key: it.key, label: it.label ?? it.key }])).values()];
     const pickW = fillLevelSel('#wave-level', pairs, '全部主级别');
@@ -479,8 +488,8 @@ async function refreshWaveView() {
     applyCols(view);
     document.querySelector('#wave-empty').style.display = view.items.length ? 'none' : '';
     document.querySelector('#wave-live').textContent = view.items.length
-      ? `共 ${all.length} 条（五浪完成 ${all.filter(x => x.kind === 'wave').length} · 首底预警 ${all.filter(x => x.kind === 'wavefirst').length}）${pickW === 'all' ? '' : '（只看 ' + (pairs.find(p => p.key === pickW)?.label ?? pickW) + '）'} · ${bars} 根 · ` + new Date().toLocaleTimeString('zh-CN', { hour12: false })
-      : '暂无五浪反弹信号';
+      ? `共 ${all.length} 条三级别结构（6-1-10 / 3-30-5 / 2-15-3 / 1-10-2）${pickW === 'all' ? '' : '（只看 ' + (pairs.find(p => p.key === pickW)?.label ?? pickW) + '）'} · ${bars} 根 · ` + new Date().toLocaleTimeString('zh-CN', { hour12: false })
+      : '暂无三级别结构信号';
   } catch (e) { console.warn('[wave] 刷新失败：' + (e && e.message)); }
 }
 
