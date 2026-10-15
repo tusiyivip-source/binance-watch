@@ -17,7 +17,9 @@ const fmt = v => (Number.isFinite(v) ? (Math.abs(v) >= 100 ? v.toFixed(4) : v.to
 export function brkView(series, key) {
   if (!series || !series.t || series.t.length < 4) return null;
   const ind = series.ensure();
-  return { key, ms: series.ms, t: series.t, h: series.h, l: series.l, c: series.c, ema7: ind.ema7 };
+  // ⚠ closed：已收盘K线根数（series 里可能带一根未收盘的形成中K线）
+  return { key, ms: series.ms, t: series.t, h: series.h, l: series.l, c: series.c, ema7: ind.ema7,
+    closed: series.closedCount };
 }
 
 /**
@@ -29,7 +31,10 @@ export function detectBreakout(v, opt = {}) {
   if (!v) return null;
   const n = v.t.length;
   if (n < minBars + 1) return null;                 // 至少 minBars 根压制 + 1 根突破
-  const i = n - 1;                                  // 最后一根（已收盘）
+  // ⚠ 只在**已收盘**的K线上判定："收盘上穿 EMA7" 必须等这根真的收完，
+  //   否则未收盘那根一碰到均线就报，既早又不准（启动瞬间会刷出一堆）。
+  const i = Math.min(Number.isFinite(v.closed) ? v.closed : n, n) - 1;
+  if (i < minBars) return null;
   const a = v.ema7[i - 1], b = v.ema7[i];
   if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
   // ② 本根：由下向上穿越 EMA7

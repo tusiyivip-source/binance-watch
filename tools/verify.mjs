@@ -1262,6 +1262,14 @@ section('14b. 均线压制后突破（连续 ≥12 根收盘在 EMA7 下方 → 
     const second = scanBreakouts('ZUSDT', fake, cfg, seen, Date.now(), true);
     ok('★ 同一根突破K线只报一次', first.length === 1 && second.length === 0, first.length + '/' + second.length);
   }
+  {
+    // 未收盘那根不算：closed 只到 12，最后一根（第 13 根）是未收盘的形成中K线
+    const v = mk(12);
+    v.closed = 12;                                  // 只有前 12 根收盘（第 13 根还在形成中）
+    ok('★ 上穿发生在未收盘那根 → 不算（必须等收盘）', detectBreakout(v, { minBars: 12 }) === null);
+    v.closed = 13;
+    ok('★ 同一根收盘后 → 命中', !!detectBreakout(v, { minBars: 12 }));
+  }
   ok('配置默认：独立通道开启、级别 15分/30分/1时/2时、门槛 12 根',
     DEFAULT_SIGNAL.brkEnabled === true && DEFAULT_SIGNAL.brkMinBars === 12
     && JSON.stringify(DEFAULT_SIGNAL.brkLevels) === JSON.stringify(['15m', '30m', '1h', '2h']),

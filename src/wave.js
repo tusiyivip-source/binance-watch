@@ -33,6 +33,7 @@ export function waveView(series, key) {
     ema7: ind.ema7,
     dif: m.dif, dea: m.dea,
     barIdx: series.t.length - 1,
+    closed: series.closedCount,      // 已收盘根数（判定只在收盘K线上做）
   };
 }
 
@@ -40,7 +41,8 @@ export function waveView(series, key) {
 export function macdCrosses(v, fromT = null, toT = null) {
   const out = [];
   if (!v) return out;
-  for (let k = 1; k < v.t.length; k++) {
+  const last = Number.isFinite(v.closed) ? Math.min(v.closed, v.t.length) : v.t.length;
+  for (let k = 1; k < last; k++) {
     const d0 = v.dif[k - 1] - v.dea[k - 1];
     const d1 = v.dif[k] - v.dea[k];
     if (!Number.isFinite(d0) || !Number.isFinite(d1)) continue;
@@ -65,7 +67,7 @@ export function detectWave(main, sub, opt = {}) {
   const lookback = opt.lookback ?? 20;
   const win = opt.crossWindow ?? 2;
   if (!main || !sub) return null;
-  const n = main.t.length;
+  const n = Number.isFinite(main.closed) ? Math.min(main.closed, main.t.length) : main.t.length;
   if (n < minBars + 2) return null;
 
   // ① 主级别：最近窗口内的「高点 → 之后的最低点」
