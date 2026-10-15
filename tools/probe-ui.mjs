@@ -85,6 +85,19 @@ try {
   ok('★ 五浪视图容器在且能渲染（卡片或空态）', st.waveGrid && (st.waveCards > 0 || st.waveEmptyShown),
     'cards=' + st.waveCards + ' empty=' + st.waveEmptyShown);
 
+  // 图表均线：只应有 MA7 / EMA7（MA25 已移除）
+  await sleep(2000);
+  const ma = await evalJs(`(() => {
+    const e0 = (typeof VIEWS !== 'undefined' && VIEWS[activeView]?.entries?.[0]) || null;
+    const box = document.querySelector('#chart-ma');
+    return { hasMa25: e0 ? ('ma25' in e0) : 'n/a',
+      lines: e0 ? Object.keys(e0).filter(k => /^ma7$|^ema7$|^ma25$/.test(k)) : [],
+      label: box ? (box.parentElement?.textContent ?? '').trim() : 'n/a' };
+  })()`);
+  ok('★ 图表均线只画 MA7 / EMA7（没有 MA25）', ma.hasMa25 === false && ma.lines.join(',') === 'ma7,ema7',
+    'lines=' + ma.lines.join(',') + ' label=' + ma.label);
+  ok('★ 均线勾选框文案为「MA7/EMA7」', /MA7\/EMA7/.test(ma.label), ma.label);
+
   // 切到报警视图
   await evalJs(`document.querySelector('#tab-alert').click()`);
   await sleep(6000);

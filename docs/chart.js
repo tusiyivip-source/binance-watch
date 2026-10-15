@@ -6,7 +6,7 @@
  *
  * 配色与交互：
  *   涨 = 红 #f6465d，跌 = 绿 #0ecb81（币安习惯）
- *   MA7 = 金 #f0b90b，EMA7 = 青 #0ef0f0，MA25 = 紫
+ *   均线只画两条：MA7 = 金 #f0b90b，EMA7 = 青 #0ef0f0（MA25 已按需求去掉）
  *   十字光标磁吸、金黄标签、滚轮缩放、拖拽平移
  *   副图：MACD（柱 + DIF/DEA）；叠加：缠论笔折线 + 顶/底分型标记
  */
@@ -16,7 +16,7 @@ const LC = window.LightweightCharts;
 
 const C = {
   up: '#f6465d', down: '#0ecb81',
-  ma7: '#f0b90b', ema7: '#0ef0f0', ma25: '#a78bfa',
+  ma7: '#f0b90b', ema7: '#0ef0f0',
   text: '#848e9c', grid: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.1)',
   gold: '#f0b90b', pen: '#94a3b8',
 };
@@ -260,7 +260,6 @@ function initChart(card, minutes) {
     wickUpColor: C.up, wickDownColor: C.down,
     priceLineVisible: false, lastValueVisible: true,
   });
-  const ma25 = chart.addLineSeries({ color: C.ma25, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
   const ema7 = chart.addLineSeries({ color: C.ema7, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
   const ma7 = chart.addLineSeries({ color: C.ma7, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
   // 缠论笔：一条折线穿过所有笔端点（顶底天然交替，单条折线画出来就是笔）
@@ -277,7 +276,7 @@ function initChart(card, minutes) {
   chart.priceScale('macd').applyOptions({ scaleMargins: { top: 0.78, bottom: 0.02 }, visible: true });
   chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.86, bottom: 0 }, visible: false });
 
-  const e = { card, chart, candle, ma7, ema7, ma25, macdHist, macdDif, macdDea, vol, minutes, tip: null };
+  const e = { card, chart, candle, ma7, ema7, macdHist, macdDif, macdDea, vol, minutes, tip: null };
   chart.subscribeCrosshairMove(p => onCrosshair(e, p));
   holder.addEventListener('click', () => toggleZoom(card, e.view));
   return e;
@@ -397,7 +396,7 @@ function paintCard(view, i, it) {
   //   （症状：五浪视图只有第一张图有内容，其余全空）。
   const cs = Array.isArray(it.candles) ? it.candles : [];
   if (!cs.length) {
-    e.candle.setData([]); e.ma7.setData([]); e.ema7.setData([]); e.ma25.setData([]);
+    e.candle.setData([]); e.ma7.setData([]); e.ema7.setData([]);
     e.macdHist.setData([]); e.macdDif.setData([]); e.macdDea.setData([]); e.vol.setData([]);
     return;
   }
@@ -412,7 +411,6 @@ function paintCard(view, i, it) {
   const showMA = document.querySelector('#chart-ma').checked;
   e.ma7.setData(showMA ? line(it.ma7) : []);
   e.ema7.setData(showMA ? line(it.ema7) : []);
-  e.ma25.setData(showMA ? line(it.ma25) : []);
 
   // 缠论笔
   // 「缠论笔」已按需求彻底移除：不画笔线、不标分型
