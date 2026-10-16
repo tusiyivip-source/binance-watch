@@ -51,14 +51,9 @@
   <div class="viewtabs">
     <button id="tab-alert" class="vt">🔔 报警级别K线</button>
     <button id="tab-wave" class="vt on">🧩 两级五浪</button>
-    <button id="tab-top" class="vt">⚠ 顶部/底部结构</button>
+    <button id="tab-top" class="vt">⚠ 顶部结构</button>
     <span class="vtsep"></span>
     <span id="top-symbar" style="display:none">
-      <select id="top-dir" class="vtsel" title="选择监控哪一类结构">
-        <option value="all" selected>顶部+底部</option>
-        <option value="top5">仅顶部结构（做空）</option>
-        <option value="bot5">仅底部结构（做多）</option>
-      </select>
       <select id="top-level" class="vtsel" title="只看某个级别">
         <option value="all" selected>全部级别</option>
         <option value="15m">15分</option>
@@ -122,9 +117,7 @@
       <option value="all" selected>全部通道</option>
       <option value="watch">回调靠零轴</option>
       <option value="chain">两级五浪（当前策略）</option>
-      <option value="top5,bot5">顶部+底部结构</option>
-      <option value="top5">仅顶部结构（做空）</option>
-      <option value="bot5">仅底部结构（做多）</option>
+      <option value="top5">顶部结构</option>
       <option value="wave,wavefirst">五浪反弹（含首底预警）</option>
       <option value="wave">仅五浪完成</option>
       <option value="wavefirst">仅五浪首底预警</option>
@@ -205,10 +198,9 @@
     
     <div class="groupbox">
       <div class="gtitle">
-        <b>顶部/底部结构（独立界面）</b>
+        <b>顶部结构（独立界面）</b>
         <span class="gsub">级别 15分/30分/1时/2时/3时/6时 · 五根形态 + 第5根新低预警 → 反包确认</span>
         <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-top5Enabled"> 顶部</label>
-        <label class="toggle"><input type="checkbox" id="c-bot5Enabled"> 底部</label>
       </div>
       <div class="prow">
         <label>级别 <code>15分 / 30分 / 1时 / 2时 / 3时 / 6时</code></label>

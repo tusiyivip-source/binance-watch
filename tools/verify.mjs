@@ -1593,8 +1593,8 @@ section('17. 顶部/底部结构：五根形态 + 反转点 + 收盘站上/跌�
     const second = scanTop5('ZUSDT', fake, cfg, seen, Date.now(), true);
     ok('★ 同一阶段同一根K线只报一次', first.length === 1 && second.length === 0, first.length + '/' + second.length);
   }
-  ok('配置默认：顶部+底部开启、级别 15分/30分/1时/2时/3时/6时、要均线确认、不提前预警',
-    DEFAULT_SIGNAL.top5Enabled === true && DEFAULT_SIGNAL.bot5Enabled === true
+  ok('配置默认：顶部结构开启、底部结构已按用户要求关闭、级别 15分/30分/1时/2时/3时/6时、要均线确认、不提前预警',
+    DEFAULT_SIGNAL.top5Enabled === true && DEFAULT_SIGNAL.bot5Enabled === false
     && DEFAULT_SIGNAL.top5NeedMa === true && DEFAULT_SIGNAL.top5AllowWarn === false
     && JSON.stringify(DEFAULT_SIGNAL.top5Levels) === JSON.stringify(['15m', '30m', '1h', '2h', '3h', '6h']),
     JSON.stringify({ needMa: DEFAULT_SIGNAL.top5NeedMa, warn: DEFAULT_SIGNAL.top5AllowWarn }));

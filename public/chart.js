@@ -510,19 +510,16 @@ async function refreshTopView() {
   const bars = currentBars(view);
   const limit = +document.querySelector('#top-limit').value || 24;
   try {
-    const dirSel = document.querySelector('#top-dir');
-    const kind = (!dirSel || dirSel.value === 'all') ? 'top5,bot5' : dirSel.value;
-    const d = await fetch(`/api/alertchart?kind=${kind}&bars=${bars}&limit=${limit}`).then(r => r.json());
+    const d = await fetch(`/api/alertchart?kind=top5&bars=${bars}&limit=${limit}`).then(r => r.json());
     const lvSel = document.querySelector('#top-level');
     const lv = lvSel ? lvSel.value : 'all';
     view.items = (d.items ?? []).filter(it => lv === 'all' || it.key === lv);
-    if (dirSel) { view.dirPick = dirSel.value; }
     ensureCards(view, view.items);
     paintView(view);
     applyCols(view);
     document.querySelector('#top-empty').style.display = view.items.length ? 'none' : '';
     document.querySelector('#top-live').textContent = view.items.length
-      ? `共 ${view.items.length} 条结构（顶部 ${view.items.filter(x => x.kind === 'top5').length} · 底部 ${view.items.filter(x => x.kind === 'bot5').length}）· ${bars} 根 · ` + new Date().toLocaleTimeString('zh-CN', { hour12: false })
+      ? `共 ${d.total ?? view.items.length} 条顶部结构 · ${bars} 根 · ` + new Date().toLocaleTimeString('zh-CN', { hour12: false })
       : '暂无顶部结构';
   } catch (e) { console.warn('[top] 刷新失败：' + (e && e.message)); }
 }
@@ -630,7 +627,6 @@ function initCharts() {
   document.querySelector('#tab-top').addEventListener('click', () => setView('top'));
   document.querySelector('#top-refresh').addEventListener('click', () => refreshTopView());
   document.querySelector('#top-limit').addEventListener('change', () => refreshTopView());
-  document.querySelector('#top-dir').addEventListener('change', () => refreshTopView());
   document.querySelector('#top-level').addEventListener('change', () => refreshTopView());
   document.querySelector('#top-size').addEventListener('change', () => { applyCols(VIEWS.top); refreshTopView(); });
   document.querySelector('#chart-cols').addEventListener('change', () => { applyCols(VIEWS.alert); applyCols(VIEWS.wave); refreshActive(); });

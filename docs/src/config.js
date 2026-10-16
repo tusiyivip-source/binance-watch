@@ -133,7 +133,7 @@ export const DEFAULT_SIGNAL = {
   //   第1根=高点 → 第2根不创新高 → 第3根不超第1根 → 第4根不超第2根 → 第5根创这段新低
   //   且 高点向下 ≥ top5MinBars 根（用户口径"大于5根以上" → 默认 6）
   top5Enabled: true,        // 顶部结构（做空方向）
-  bot5Enabled: true,        // 底部结构（把顶部逻辑反过来：做多方向）
+  bot5Enabled: false,       // 底部结构（顶部逻辑的镜像）—— 用户 2026-10-16 要求去除，已关闭；代码保留
   top5Levels: ['15m', '30m', '1h', '2h', '3h', '6h'],
   top5WarnBars: 5,         // 走到第几根开始预警（第5根创新低 → 预警）
   top5StrictEngulf: true,  // 反包口径：true=严格阳包阴（开盘也不高于前收）| false=只要求收盘盖过前开
