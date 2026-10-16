@@ -148,6 +148,16 @@ export const DEFAULT_SIGNAL = {
   res2Enabled: true,
   res2WindowBars: 3,       // 两者相隔多少根K线内算共振（实测多为 1 根）
 
+  // ============ 底分型即报（★ 用户 2026-10-16：底分型出来就提醒） ============
+  //   最近 lookback 根里最低点那根是底分型中间根 + 第三根刚收盘（≤fracFreshBars 根）
+  //   不要求次级别五笔、不要求站上均线 —— 分型一收盘就报
+  fracEnabled: true,
+  fracLevels: ['15m', '30m', '1h', '2h', '3h', '6h'],
+  fracLookback: 20,
+  fracFreshBars: 1,        // 实时：底分型第三根收盘后 ≤1 根内报（"出来就提醒"）
+  fracInitFreshBars: 3,    // 启动补报：最近 3 根内刚成立的也报一遍
+  fracType: 'any',          // any=中间低点最低 | standard=中间高低点都最低
+
   chainEnabled: true,
   chainTriples: [
   {

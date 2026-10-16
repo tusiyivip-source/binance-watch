@@ -21,6 +21,7 @@ import { isBottomFractal, findFirstBottomFractal } from '../src/fractal.js';
 import { detectChain, makeChainAlert, scanChains, chainView } from '../src/chain.js';
 import { detectTop5, makeTop5Alert, scanTop5, top5View, isEngulf } from '../src/top5.js';
 import { scanResonance } from '../src/resonance.js';
+import { detectFractalAlert, makeFractalAlert, scanFractalAlerts, fracView } from '../src/fractalalert.js';
 import { nextBoundary, groupPeriodMs, BoundaryScheduler, levelPeriodMs } from '../src/boundary.js';
 
 // 验证脚本自己控制序列保留上限，避免受实盘 maxCandlesKept 影响导致对比样本数漂移
@@ -1688,6 +1689,63 @@ section('19. 双确认共振：五浪链 + 顶部结构（同标的同级别、�
       out.length ? 'gap=' + out[0].gapBars : 'null');
   }
   ok('配置默认：共振开启、窗口 3 根', DEFAULT_SIGNAL.res2Enabled === true && DEFAULT_SIGNAL.res2WindowBars === 3);
+}
+
+/* ============ 20. 底分型即报 ============ */
+section('20. 底分型即报：最低点那根是底分型中间根 + 第三根刚收盘 → 立刻提醒');
+{
+  const H = 3_600_000;
+  const mk = (lows, lastN) => {
+    const n = lows.length;
+    const h = lows.map(x => x + 1), c = lows.map(x => x + 0.5);
+    const o = c.map((x, i) => (i === 0 ? x : c[i - 1]));
+    return { key: '6h', ms: H, t: lows.map((_, i) => i * H), o, h, l: lows, c,
+      ma7: c.map(() => 999), ema7: c.map(() => 999), closed: lastN ?? n };
+  };
+  // 最低点在 index 4，左右都更高 → 底分型中间根
+  const lows = [10, 9.5, 9.2, 9.0, 8.0, 8.6, 8.9];
+  {
+    const hit = detectFractalAlert(mk(lows), { lookback: 20, freshBars: 1, type: 'any' });
+    ok('★ 最低点是底分型中间根、第三根刚收盘 → 命中', !!hit && hit.low === 8.0 && hit.age === 1,
+      hit ? `low=${hit.low} age=${hit.age}` : 'null');
+    if (hit) {
+      const a = makeFractalAlert('ZUSDT', hit, Date.now(), false);
+      ok('★ 报警 kind=frac、文案含「底分型收盘确认」、锚在最低点那根',
+        a.kind === 'frac' && /底分型收盘确认/.test(a.text) && a.candleT === hit.lowT);
+      ok('★ 带三根低点与"是否站上均线"标记',
+        Array.isArray(a.fracLows) && a.fracLows.length === 3 && typeof a.aboveMa === 'boolean');
+    }
+  }
+  ok('★ 底分型太久远（age=2 > freshBars=1）→ 不报',
+    detectFractalAlert(mk(lows), { lookback: 20, freshBars: 0, type: 'any' }) === null);
+  ok('★ 最低点还没拐头（右边那根更低）→ 不报',
+    detectFractalAlert(mk([10, 9.5, 9.2, 9.0, 8.0, 7.5, 7.2]), { lookback: 20, freshBars: 2, type: 'any' }) === null);
+  {
+    // 中间那根低点最低、但高点不是最低（右边那根高点更低）→ any 报、standard 不报
+    const lows2 = [10, 9.5, 9.2, 9.0, 8.0, 8.6, 8.9];
+    const mk2 = () => {
+      const h2 = [11, 10.5, 10.2, 10, 9.5, 9.0, 9.9];
+      const c2 = lows2.map((x, i) => (x + h2[i]) / 2);
+      const o2 = c2.map((x, i) => (i === 0 ? x : c2[i - 1]));
+      return { key: '6h', ms: H, t: lows2.map((_, i) => i * H), o: o2, h: h2, l: lows2, c: c2,
+        ma7: c2.map(() => 999), ema7: c2.map(() => 999), closed: lows2.length };
+    };
+    ok('★ any 口径报（中间低点最低）', !!detectFractalAlert(mk2(), { lookback: 20, freshBars: 1, type: 'any' }));
+    ok('★ standard 口径不报（中间高点不是最低）',
+      detectFractalAlert(mk2(), { lookback: 20, freshBars: 1, type: 'standard' }) === null);
+  }
+  {
+    const seen = new Map();
+    const fake = { '6h': { t: mk(lows).t, o: mk(lows).o, h: mk(lows).h, l: mk(lows).l, c: mk(lows).c,
+      ms: H, closedCount: lows.length, ensure: () => ({ ma7: mk(lows).ma7, ema7: mk(lows).ema7 }) } };
+    const cfg = { fracEnabled: true, fracLevels: ['6h'], fracLookback: 20, fracFreshBars: 1, fracType: 'any' };
+    const f1 = scanFractalAlerts('ZUSDT', fake, cfg, seen, Date.now(), false);
+    const f2 = scanFractalAlerts('ZUSDT', fake, cfg, seen, Date.now(), true);
+    ok('★ 同一底分型只报一次', f1.length === 1 && f2.length === 0, f1.length + '/' + f2.length);
+  }
+  ok('配置默认：底分型即报开启、级别 15分~6时、实时窗口 1 根',
+    DEFAULT_SIGNAL.fracEnabled === true && DEFAULT_SIGNAL.fracFreshBars === 1
+    && DEFAULT_SIGNAL.fracLevels.length === 6);
 }
 
 /* ============ 15. 双阴/双阳判定修正：窗口右移 + 两条前置条件 ============ */
