@@ -10,6 +10,7 @@
  * 延迟：K线收盘由实时价驱动，边界处 1~2 秒内即可判定；REST 只负责纠偏。
  */
 import { APP, LEVELS, NATIVE_LEVELS, REST_REFRESH_PLAN } from './config.js';
+import { BoundaryScheduler } from './boundary.js';
 import { parseKline } from './series.js';
 
 export class TickFeed {
@@ -25,7 +26,15 @@ export class TickFeed {
     this.lastPriceAt = 0;
     this.rollingTicks = 0;
     this.refreshStats = Object.fromEntries(REST_REFRESH_PLAN.map(p => [p.levels.join('+'), { done: 0, total: 0, cycles: 0 }]));
-    this.queues = REST_REFRESH_PLAN.map(p => ({ plan: p, items: [], cursor: 0, startedAt: 0 }));
+    // 整点调度：每个级别组一个调度器（组间错峰 5 秒，避免整点时一起冲）
+    this.queues = REST_REFRESH_PLAN.map((p, i) => ({
+      plan: p, items: [], cursor: 0, startedAt: 0,
+      sched: new BoundaryScheduler(p.levels, {
+        graceMs: APP.boundaryGraceMs,
+        staggerMs: i * 5000,
+        spreadMs: APP.boundarySpreadMs,
+      }),
+    }));
     this.timer = null;
   }
 
@@ -114,6 +123,36 @@ export class TickFeed {
 
   async scheduleRefresh() {
     const now = Date.now();
+    // ===== 整点模式（默认）：只在各周期收线时刻集中扫一轮，其余时间不碰接口 =====
+    if (APP.boundaryAligned) {
+      for (const q of this.queues) {
+        const { plan, sched } = q;
+        const done = q.cursor >= q.items.length;
+        if (sched.shouldStart(now, done)) {
+          q.items = [];
+          for (const st of this.market.symbols.values()) {
+            if (!st.seeded) continue;
+            for (const key of plan.levels) q.items.push([st, key]);
+          }
+          for (let i = q.items.length - 1; i > 0; i--) {
+            const j = (Math.random() * (i + 1)) | 0;
+            [q.items[i], q.items[j]] = [q.items[j], q.items[i]];
+          }
+          q.cursor = 0;
+          sched.beginRound(now);
+          this.refreshStats[plan.levels.join('+')].total += q.items.length;
+        }
+        if (!q.items.length || q.cursor >= q.items.length) continue;
+        const n = sched.batchSize(q.items.length, q.cursor, now);
+        const batch = q.items.slice(q.cursor, q.cursor + n);
+        q.cursor += batch.length;
+        if (!batch.length) continue;
+        this.rollingTicks += batch.length;
+        for (const [st, key] of batch) this.refreshOne(st, key).catch(() => { });
+      }
+      return;
+    }
+    // ===== 原逻辑：固定间隔持续轮询 =====
     for (const q of this.queues) {
       const { plan } = q;
       // 小批次跑完也必须等到周期到期，避免首次加载时重复补K线挤占额度。
@@ -163,10 +202,14 @@ export class TickFeed {
     const s = this.refreshStats[this.queues.find(q => q.plan.levels.includes(levelKey))?.plan.levels.join('+') ?? levelKey];
     if (s) s.done++;
     st.dirty = true;
+    // REST is authoritative: evaluate corrected closed candles immediately.
+    this.market.onCandleClose?.(st);
   }
 
   get stats() {
     return {
+      boundaryAligned: !!APP.boundaryAligned,
+      boundary: this.queues.map(q => ({ group: q.plan.levels.join('+'), ...q.sched.info, pending: Math.max(0, q.items.length - q.cursor), total: q.items.length })),
       mode: 'tick-rest',
       state: this.state,
       reconnects: this.reconnects,

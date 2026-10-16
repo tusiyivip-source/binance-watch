@@ -154,7 +154,7 @@ export const DEFAULT_SIGNAL = {
   fracEnabled: true,
   fracLevels: ['15m', '30m', '1h', '2h', '3h', '6h'],
   fracLookback: 20,
-  fracFreshBars: 1,        // 实时：底分型第三根收盘后 ≤1 根内报（"出来就提醒"）
+  fracFreshBars: 0,        // 实时只报刚收盘的第三根；旧形态仅在首次加载时展示
   fracInitFreshBars: 3,    // 启动补报：最近 3 根内刚成立的也报一遍
   fracType: 'any',          // any=中间低点最低 | standard=中间高低点都最低
 

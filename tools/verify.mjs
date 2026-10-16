@@ -1737,14 +1737,14 @@ section('20. 底分型即报：最低点那根是底分型中间根 + 第三根�
   {
     const seen = new Map();
     const fake = { '6h': { t: mk(lows).t, o: mk(lows).o, h: mk(lows).h, l: mk(lows).l, c: mk(lows).c,
-      ms: H, closedCount: lows.length, ensure: () => ({ ma7: mk(lows).ma7, ema7: mk(lows).ema7 }) } };
+      ms: H, closedCount: lows.length - 1, ensure: () => ({ ma7: mk(lows).ma7, ema7: mk(lows).ema7 }) } };
     const cfg = { fracEnabled: true, fracLevels: ['6h'], fracLookback: 20, fracFreshBars: 1, fracType: 'any' };
     const f1 = scanFractalAlerts('ZUSDT', fake, cfg, seen, Date.now(), false);
     const f2 = scanFractalAlerts('ZUSDT', fake, cfg, seen, Date.now(), true);
     ok('★ 同一底分型只报一次', f1.length === 1 && f2.length === 0, f1.length + '/' + f2.length);
   }
-  ok('配置默认：底分型即报开启、级别 15分~6时、实时窗口 1 根',
-    DEFAULT_SIGNAL.fracEnabled === true && DEFAULT_SIGNAL.fracFreshBars === 1
+  ok('配置默认：底分型即报开启、级别 15分~6时、实时只报当根',
+    DEFAULT_SIGNAL.fracEnabled === true && DEFAULT_SIGNAL.fracFreshBars === 0
     && DEFAULT_SIGNAL.fracLevels.length === 6);
 }
 

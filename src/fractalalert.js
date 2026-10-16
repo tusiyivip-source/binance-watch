@@ -12,6 +12,7 @@
  */
 import { LEVELS, LEVEL_INDEX } from './config.js';
 import { isBottomFractal } from './fractal.js';
+import { alertTiming } from './alert-timing.js';
 
 const label = k => (LEVELS[LEVEL_INDEX[k]]?.label ?? k);
 const fmt = v => (Number.isFinite(v) ? (Math.abs(v) >= 100 ? v.toFixed(4) : v.toPrecision(6)) : '—');
@@ -61,7 +62,7 @@ export function detectFractalAlert(v, opt = {}) {
     lowIdx: lIdx,
     lowT: v.t[lIdx], low: v.l[lIdx],
     threeLows: [v.l[lIdx - 1], v.l[lIdx], v.l[lIdx + 1]],
-    confirmT: v.t[lIdx + 1], close,
+    confirmT: v.t[lIdx + 1] + v.ms, close,
     age, type,
     ma7, ema7,
     aboveMa: Number.isFinite(ma7) && Number.isFinite(ema7) ? (close > ma7 && close > ema7) : null,
@@ -88,6 +89,9 @@ export function makeFractalAlert(symbol, hit, now, initial = false) {
     candleT: hit.lowT,                  // ★ 报警锚在"底分型中间那根"（最低点）
     ts: now,
     initial: !!initial,
+    ...alertTiming(hit.confirmT, now, initial),
+    fractalConfirmedAt: hit.confirmT,
+    confirmationKind: 'fractal',
     fracLow: hit.low,
     fracLows: hit.threeLows,
     fracAge: hit.age,
@@ -110,7 +114,7 @@ export function scanFractalAlerts(symbol, seriesMap, cfg, seen, now = Date.now()
     const v = fracView(seriesMap[key], key);
     const hit = detectFractalAlert(v, {
       lookback: cfg.fracLookback ?? 20,
-      freshBars: cfg.fracFreshBars ?? 2,
+      freshBars: initial ? (cfg.fracInitFreshBars ?? 3) : 0,
       type: cfg.fracType ?? 'any',
     });
     if (!hit) continue;

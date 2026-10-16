@@ -143,6 +143,21 @@ export const DEFAULT_SIGNAL = {
   top5Lookback: 20,        // 高点在最近几根里找
 
   // 两级五浪：每组独立，仅次级别五笔 + 对应主级别底分型确认。
+  // ============ 双确认共振（★ 用户 2026-10-16：共振报警，要在左侧K线图表显示） ============
+  //   同一标的、同一级别：两级五浪链先报出 → 顶部结构在 ≤N 根内收盘确认
+  res2Enabled: true,
+  res2WindowBars: 3,       // 两者相隔多少根K线内算共振（实测多为 1 根）
+
+  // ============ 底分型即报（★ 用户 2026-10-16：底分型出来就提醒） ============
+  //   最近 lookback 根里最低点那根是底分型中间根 + 第三根刚收盘（≤fracFreshBars 根）
+  //   不要求次级别五笔、不要求站上均线 —— 分型一收盘就报
+  fracEnabled: true,
+  fracLevels: ['15m', '30m', '1h', '2h', '3h', '6h'],
+  fracLookback: 20,
+  fracFreshBars: 0,        // 实时只报刚收盘的第三根；旧形态仅在首次加载时展示
+  fracInitFreshBars: 3,    // 启动补报：最近 3 根内刚成立的也报一遍
+  fracType: 'any',          // any=中间低点最低 | standard=中间高低点都最低
+
   chainEnabled: true,
   chainTriples: [
   {
@@ -174,7 +189,14 @@ export const DEFAULT_SIGNAL = {
   chainSubMinBars: 5,       // 次级别每一笔（一浪）至少5根K线，包含首尾端点
   chainInnerMinBars: 5,     // 内部相邻交叉之间最少几根K线（用户：每次内部不少于五根）
   chainLookback: 20,        // 主级别高点在最近几根里找
-  chainFractalType: 'any',       // 主级别见底分型口径：any=中间低点最低（默认，实测覆盖最好）| standard/relay/weakest
+  chainFractalType: 'any',
+  // ===== 用户 2026-10-16 口径调整 =====
+  chainMainMode: 'top5',   // 主级别收盘K按「顶部结构」逻辑：五根形态 + 反转点 + 收盘站上 MA7+EMA7
+  chainMainNeedMa: true,   // 确认阶段要均线（收盘站上 MA7+EMA7）；早的那一声由 chainMainWarn 的「预警」负责
+  chainMainFreshBars: 20,
+  chainMainWarn: true,
+  chainMainWarnFreshBars: 3,  // 预警窗口：底分型确认后 ≤N 根内都算     // 两阶段：底分型刚确认先发**预警**（不偏晚），站上均线再发**确认**  // 主级别反转点发生在最近 N 根内就算（去重保证只报一次，且在反转那根就报；设小会大量漏报）
+  chainMinStrokes: 5,      // 次级别最少几笔；**允许高于五浪**（6/7/8 笔都行，取最长合法浪）       // 主级别见底分型口径：any=中间低点最低（默认，实测覆盖最好）| standard/relay/weakest
 
   // ============ 缠论笔 / 背驰（★ 引擎内部计算，界面完全不显示） ============
   // 按用户要求：这些判定照常算（供共振通道与内部结构分析使用），
@@ -337,6 +359,10 @@ export const APP = {
   tickerRefreshMs: 60_000,   // 涨幅榜刷新
   exchangeInfoRefreshMs: 30 * 60_000,
   resyncMs: 15 * 60_000,     // 全量对账，修复丢包
+  // ===== 整点扫描（用户要求：每个整点刷新，以防被接口屏蔽）=====
+  boundaryAligned: true,     // true=只在该周期收线时刻集中扫一轮；false=旧的固定间隔持续轮询
+  boundaryGraceMs: 4000,     // 收线后等几秒再拉（等交易所定稿）
+  boundarySpreadMs: 25_000,  // 一轮标的在这个窗口内均匀打完
   broadcastMs: 1000,
   cacheSaveMs: 300_000,       // K线缓存写盘间隔（5 分钟）
   cacheFile: 'data/klines-cache.json',         // 前端表格推送频率

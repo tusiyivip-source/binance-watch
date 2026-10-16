@@ -20,7 +20,7 @@ function fixture() {
   for(let i=0;i<360;i++){if([25,65,105,165,215].includes(i))sign=-sign;inner.dif[i]=sign;}
   return {main,sub,inner};
 }
-const detect = f => detectChain(f.main,f.sub,f.inner);
+const detect = f => detectChain(f.main,f.sub,f.inner,{mainMode:'fractal',confirmGraceBars:0});
 test('10分钟缺1根时用5分钟复核，并仅等待30分钟底分型',()=>{
   const knots=[[0,100],[1,110],[6,80],[11,95],[14,60],[19,85],[24,40],[31,70]];
   function series(key,ms,ratio){
@@ -37,7 +37,7 @@ test('10分钟缺1根时用5分钟复核，并仅等待30分钟底分型',()=>{
     h:[115,105,100,95,90,85,75,65,45,60],l:[100,90,85,80,75,70,60,50,39.9,45],
     c:Array(10).fill(55),closedCount:10,ensure:()=>({ema7:[]}),macd:()=>({dif:[],dea:[]})};
   const map=new Proxy({'5m':sub5,'10m':sub10,'30m':main},{get(o,k){assert.ok(k in o,`不得继续等待 ${String(k)}`);return o[k];}});
-  const cfg={...DEFAULT_SIGNAL,chainTriples:[{sub:'5m',main:'30m'},{sub:'10m',main:'1h'}]};
+  const cfg={...DEFAULT_SIGNAL,chainMainMode:'fractal',chainTriples:[{sub:'5m',main:'30m'},{sub:'10m',main:'1h'}]};
   const alerts=scanChains('TESTUSDT',map,cfg,new Map(),6400);
   assert.equal(alerts.length,1);assert.equal(alerts[0].level,'30m');
   assert.equal(alerts[0].subLevel,'5m');assert.equal(alerts[0].chainFallbackFrom,'10m');
@@ -137,7 +137,7 @@ test('10分钟五笔与1小时底分型可独立触发，不读取6小时或其�
   }
   const wrap=v=>({...v,closedCount:v.closed,ensure:()=>({ema7:[]}),macd:()=>({dif:[],dea:[]})});
   const map=new Proxy({'1h':wrap(f.main),'10m':wrap(f.sub)},{get(o,k){assert.ok(k in o,`不得读取第三周期 ${String(k)}`);return o[k];}});
-  const cfg={...DEFAULT_SIGNAL,chainTriples:[{main:'1h',sub:'10m'}]};
+  const cfg={...DEFAULT_SIGNAL,chainMainMode:'fractal',chainTriples:[{main:'1h',sub:'10m'}]};
   const seen=new Map(),alerts=scanChains('TESTUSDT',map,cfg,seen,3600);
   assert.equal(alerts.length,1);assert.equal(alerts[0].innerLevel,null);
   assert.equal(scanChains('TESTUSDT',map,cfg,seen,3601).length,0);

@@ -9,6 +9,8 @@ import { scanBreakouts } from './breakout.js';
 import { scanFirstBottoms } from './firstbottom.js';
 import { scanChains } from './chain.js';
 import { scanTop5 } from './top5.js';
+import { scanResonance } from './resonance.js';
+import { scanFractalAlerts } from './fractalalert.js';
 
 
 const SWEEP_MS = 1000;
@@ -50,6 +52,11 @@ export class Engine extends Emitter {
     this.chainSeen = new Map();
     this.top5Seen = new Map();
     this.top5Count = 0;
+    this.res2Seen = new Map();
+    this.fracSeen = new Map();
+    this.fracCount = 0;
+    this.res2Recent = [];      // 最近的 chain/top5 报警（跨轮，供共振判定）
+    this.res2Count = 0;
     this.chainCount = 0;
     this.fbCount = 0;
     this.brkCount = 0;
@@ -141,6 +148,8 @@ export class Engine extends Emitter {
       return 0;
     }
     this.evaluations++;
+    const firstSymbolScan = !st.signalScanStarted;
+    st.signalScanStarted = true;
     st.levels = res.levels;
     st.bullCount = res.bullCount;
     st.aboveCount = res.aboveCount;
@@ -192,6 +201,8 @@ export class Engine extends Emitter {
           a.id = ++this.alertSeq;
           a.initial = forceNew ? false : !!this.initialPhase;
           this.top5Count++;
+          this.res2Recent.push(a);
+          if (this.res2Recent.length > 400) this.res2Recent.splice(0, this.res2Recent.length - 400);
           this.alerts.push(a);
           this.signalCount++;
           this.emit('alert', a);
@@ -206,11 +217,12 @@ export class Engine extends Emitter {
     if (this.cfg.chainEnabled) {
       try {
         const fired = scanChains(st.symbol, st.series, this.cfg, this.chainSeen, Date.now(),
-          !!this.initialPhase && !forceNew);
+          firstSymbolScan || (!!this.initialPhase && !forceNew));
         for (const a of fired) {
           a.id = ++this.alertSeq;
-          a.initial = forceNew ? false : !!this.initialPhase;
           this.chainCount++;
+          this.res2Recent.push(a);
+          if (this.res2Recent.length > 400) this.res2Recent.splice(0, this.res2Recent.length - 400);
           this.alerts.push(a);
           this.signalCount++;
           this.emit('alert', a);
@@ -218,6 +230,41 @@ export class Engine extends Emitter {
         }
       } catch (e) {
         this.log.warn(`结构判定 ${st.symbol} 失败：${e.message}`);
+      }
+    }
+
+    // —— 底分型即报（用户：底分型出来就提醒）——
+    if (this.cfg.fracEnabled) {
+      try {
+        const initPhase = firstSymbolScan || (!!this.initialPhase && !forceNew);
+        const fracCfg = initPhase ? { ...this.cfg, fracFreshBars: this.cfg.fracInitFreshBars ?? 3 } : this.cfg;
+        for (const a of scanFractalAlerts(st.symbol, st.series, fracCfg, this.fracSeen, Date.now(), initPhase)) {
+          a.id = ++this.alertSeq;
+          this.fracCount++;
+          this.alerts.push(a);
+          this.signalCount++;
+          this.emit('alert', a);
+          this.log.signal('📐 ' + a.symbol + ' ' + a.text);
+        }
+      } catch (e) {
+        this.log.warn(`底分型判定 ${st.symbol} 失败：${e.message}`);
+      }
+    }
+
+    // —— 双确认共振（两级五浪链 + 顶部结构；本轮内判定）——
+    if (this.cfg.res2Enabled && this.res2Recent.length >= 2) {
+      try {
+        for (const a of scanResonance(this.res2Recent, this.res2Seen, this.cfg, Date.now())) {
+          a.id = ++this.alertSeq;
+          a.initial = forceNew ? false : !!this.initialPhase;
+          this.res2Count++;
+          this.alerts.push(a);
+          this.signalCount++;
+          this.emit('alert', a);
+          this.log.signal('🎯 ' + a.symbol + ' ' + a.text);
+        }
+      } catch (e) {
+        this.log.warn(`共振判定 ${st.symbol} 失败：${e.message}`);
       }
     }
 
@@ -553,6 +600,10 @@ export class Engine extends Emitter {
         chainFallbackFrom: a.chainFallbackFrom ?? null,
         chainFifthBars: a.chainFifthBars ?? null,
         confirmedAt: a.confirmedAt ?? null,
+        fractalConfirmedAt: a.fractalConfirmedAt ?? null,
+        confirmationKind: a.confirmationKind ?? null,
+        historical: !!a.historical || !!a.initial,
+        delayMs: a.delayMs ?? null,
         chainLow: Number.isFinite(a.chainLow) ? a.chainLow : null,
         // 顶部结构：把五根K线的关键价格带给卡片
         topBars: Number.isFinite(a.topBars) ? a.topBars : null,
@@ -564,6 +615,15 @@ export class Engine extends Emitter {
         topDir: a.topDir ?? null,
         barT: a.barT ?? null,
         barPct: Number.isFinite(a.barPct) ? a.barPct : null,
+        // 共振：两个时间点 + 相隔根数 + 确认根涨幅
+        chainT: a.chainT ?? null,
+        topT: a.topT ?? null,
+        gapBars: Number.isFinite(a.gapBars) ? a.gapBars : null,
+        resPct: Number.isFinite(a.resPct) ? a.resPct : (Number.isFinite(a.barPct) ? a.barPct : null),
+        chainSubStrokes: Number.isFinite(a.chainSubStrokes) ? a.chainSubStrokes : null,
+        fracLow: Number.isFinite(a.fracLow) ? a.fracLow : null,
+        fracLows: Array.isArray(a.fracLows) ? a.fracLows : null,
+        aboveMa: typeof a.aboveMa === 'boolean' ? a.aboveMa : null,
         barBodyPct: Number.isFinite(a.barBodyPct) ? a.barBodyPct : null,
         topEngulf: !!a.topEngulf,
         alertPrice: a.price ?? null,
@@ -619,6 +679,12 @@ export class Engine extends Emitter {
 
   stats() {
     return {
+      boundary: this.market.feedStats?.boundary ?? null,
+      boundaryAligned: this.market.feedStats?.boundaryAligned ?? null,
+      chainCount: this.chainCount, fracCount: this.fracCount, top5Count: this.top5Count, res2Count: this.res2Count,
+      res2Recent: this.res2Recent.length,
+      seenSizes: { chain: this.chainSeen.size, top5: this.top5Seen.size, res2: this.res2Seen.size, fb: this.fbSeen.size, brk: this.brkSeen.size },
+      alertsLen: this.alerts.length,
       sweepCount: this.sweepCount,
       lastSweepMs: this.lastSweepMs,
       lastSweepAt: this.lastSweepAt,

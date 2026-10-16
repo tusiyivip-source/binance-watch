@@ -356,7 +356,11 @@ function paintCard(view, i, it) {
 
   if (isAlert) {
     head.querySelector('.lv').innerHTML = `<span class="sym">${it.symbol}</span>`;
-    head.querySelector('.roles').innerHTML = (it.kind === 'top5' || it.kind === 'bot5')
+    head.querySelector('.roles').innerHTML = it.kind === 'frac'
+      ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span><span class="rb" style="color:#0ecb81">📐 底分型</span>`
+      : it.kind === 'res2'
+      ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span><span class="rb" style="color:#f0b90b">🎯 共振</span>`
+      : (it.kind === 'top5' || it.kind === 'bot5')
       ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span><span class="rb">${it.kind === 'bot5' ? '底部结构' : '顶部结构'}</span>`
       : it.kind === 'chain'
       ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span>`
@@ -366,11 +370,23 @@ function paintCard(view, i, it) {
       ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span>` + (it.subLevelLabel ? `<span class="rb">← ${it.subLevelLabel}</span>` : '')
       : `<span class="rb lvl">${it.label}</span>`;
     const st = head.querySelector('.st');
-    st.textContent = it.mode === 'closed' ? '已确认' : '预警';
+    st.textContent = it.historical || it.initial ? '历史补载' : it.mode === 'closed' ? '已确认' : '预警';
     st.className = 'st ' + (it.mode === 'closed' ? 's1' : 's3');
     // 形态提醒没有评分，用方向标签代替；共振信号仍显示组合与评分
     const isDual = it.kind === 'dual';
-    if (it.kind === 'top5' || it.kind === 'bot5') {
+    if (it.kind === 'frac') {
+      head.querySelector('.sp').innerHTML =
+        `<span class="grp">低点 ${fmtPrice(it.fracLow)} · 三根 ${(it.fracLows ?? []).map(fmtPrice).join('/')}</span>`
+        + `<span class="sc" style="color:${it.aboveMa ? '#0ecb81' : '#f6461d'}">${it.aboveMa ? '已站上 MA7/EMA7' : '仍在均线下'}</span>` + divBadge;
+    } else if (it.kind === 'res2') {
+      const f = t => new Date(t).toLocaleString('zh-CN', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+      head.querySelector('.sp').innerHTML =
+        `<span class="grp">链 ${f(it.chainT)} → 确认 ${f(it.topT)}（相隔 ${it.gapBars} 根）</span>`
+        + `<span class="sc">${it.chainSubStrokes ?? '?'} 笔结构</span>`
+        + (Number.isFinite(it.resPct)
+          ? `<span class="sc" style="color:${it.resPct >= 0 ? '#0ecb81' : '#f6465d'}">确认根 ${it.resPct >= 0 ? '+' : ''}${it.resPct.toFixed(2)}%</span>`
+          : '') + divBadge;
+    } else if (it.kind === 'top5' || it.kind === 'bot5') {
       head.querySelector('.sp').innerHTML =
         (it.kind === 'bot5'
           ? `<span class="grp">低点${fmtPrice(it.topHigh)} · 向上${it.topBars ?? '?'}根</span><span class="sc">第5根新高</span>`
@@ -400,11 +416,18 @@ function paintCard(view, i, it) {
         ? `<span class="grp">${it.side === 'long' ? '双阴不破 · 看多' : '双阳不穿 · 看空'}</span>` + (divBadge ? ' ' + divBadge : '')
         : `<span class="grp">${String(grp).replace(/>/g, '→')}</span>` + sc + brk + divBadge;
     }
-    const t = new Date(it.at || Date.now());
+    const t = new Date(it.confirmedAt || it.at || Date.now());
     const p = n => String(n).padStart(2, '0');
     head.querySelector('.px').textContent =
       `${fmtPrice(it.price)}　${p(t.getHours())}:${p(t.getMinutes())}`
       + (it.kind === 'wave' && Number.isFinite(it.ema7) ? `　EMA7 ${fmtPrice(it.ema7)}` : '');
+    if (Number.isFinite(it.confirmedAt)) {
+      const stamp = v => new Date(v).toLocaleString('zh-CN', { hour12: false });
+      const lag = Math.max(0, Math.round(((it.at ?? it.confirmedAt) - it.confirmedAt) / 1000));
+      head.querySelector('.px').textContent += it.historical || it.initial ? ' · 补载' : ` · 延迟${lag}秒`;
+      head.querySelector('.px').title = `确认：${stamp(it.confirmedAt)}\n发现：${stamp(it.at ?? it.confirmedAt)}\n相差：${lag}秒`
+        + (it.fractalConfirmedAt ? `\n底分型确认：${stamp(it.fractalConfirmedAt)}` : '');
+    }
   } else {
     // K线图（多级别）：同一个币种的所有级别 —— 每张卡片也标出**币种名称**，
     // 方便放大单张、截图或滚动时辨认。
@@ -458,9 +481,14 @@ function paintCard(view, i, it) {
   const markers = points.map(p => ({ time: Math.floor(p.t / 1000),
     position: p.type === 'top' ? 'aboveBar' : 'belowBar', color: '#0ecb81', shape: 'circle',
     text: String(it.chainSubPoints.indexOf(p)) }));
-  if (it.kind === 'chain' && Number.isFinite(it.confirmedAt)) {
+  if ((it.kind === 'chain' || it.kind === 'frac') && Number.isFinite(it.confirmedAt)) {
     const at = cs.findIndex(c => c[0] + it.ms === it.confirmedAt);
     if (at >= 0) markers.push({ time: T(at), position: 'belowBar', color: '#f0b90b',
+      shape: 'arrowUp', text: `${it.levelLabel}${it.confirmationKind === 'structure' ? '结构收盘确认' : '底分型收盘确认'}` });
+  }
+  if (Number.isFinite(it.fractalConfirmedAt) && it.fractalConfirmedAt !== it.confirmedAt) {
+    const at = cs.findIndex(c => c[0] + it.ms === it.fractalConfirmedAt);
+    if (at >= 0) markers.push({ time: T(at), position: 'belowBar', color: '#0ecb81',
       shape: 'arrowUp', text: `${it.levelLabel}底分型收盘确认` });
   }
   e.candle.setMarkers(markers.sort((a, b) => a.time - b.time));
@@ -639,6 +667,12 @@ function initCharts() {
   document.querySelector('#tab-wave').addEventListener('click', () => setView('wave'));
   document.querySelector('#tab-top').addEventListener('click', () => setView('top'));
   document.querySelector('#top-refresh').addEventListener('click', () => refreshTopView());
+  document.querySelector('#top-fullscan').addEventListener('click', async () => {
+    const el = document.querySelector('#boundary-live');
+    if (el) el.textContent = '全量补K线中…';
+    try { await fetch('/api/resync'); } catch { /* 忽略 */ }
+    setTimeout(() => refreshTopView(), 4000);
+  });
   document.querySelector('#top-limit').addEventListener('change', () => refreshTopView());
   document.querySelector('#top-sort').addEventListener('change', () => refreshTopView());
   document.querySelector('#top-level').addEventListener('change', () => refreshTopView());

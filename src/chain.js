@@ -2,6 +2,7 @@
 import { LEVELS, LEVEL_INDEX } from './config.js';
 import { isBottomFractal } from './fractal.js';
 import { detectTop5 } from './top5.js';
+import { alertTiming } from './alert-timing.js';
 import { mergeInclusive, findFractals, buildStrokePoints } from './chan.js';
 
 const label = k => (LEVELS[LEVEL_INDEX[k]]?.label ?? k);
@@ -206,6 +207,7 @@ export function detectChain(main, sub, inner, opt = {}) {
     subPoints: six.map(p => ({ t: sub.t[pivotIdx(p)], price: p.price, type: p.type })),
     subLows: lows, lowsDesc,
     confirmT,
+    fractalConfirmedAt: fIdx >= 0 ? main.t[fIdx + 1] + main.ms : null,
 
   };
 }
@@ -240,6 +242,9 @@ export function makeChainAlert(symbol, hit, now, initial = false) {
     chainFallbackFrom: hit.fallbackFrom ?? null,
     chainFifthBars: null,
     confirmedAt: hit.confirmT,
+    ...alertTiming(hit.confirmT, now, initial),
+    fractalConfirmedAt: hit.fractalConfirmedAt ?? null,
+    confirmationKind: hit.top ? 'structure' : 'fractal',
     barT: (hit.confirmT ?? 0) - (hit.mainMs ?? 0),   // 确认那根K线的开盘时间（与顶部结构对齐，供共振判定）
     chainLow: hit.fractalLow,
     chain3Lows: hit.fractal3Lows,
@@ -288,8 +293,9 @@ export function scanChains(symbol, seriesMap, cfg, seen, now = Date.now(), initi
       mainMode: cfg.chainMainMode ?? 'top5',
       mainNeedMa: cfg.chainMainNeedMa === true,
       mainWarn: cfg.chainMainWarn !== false,
-      mainWarnFreshBars: cfg.chainMainWarnFreshBars ?? 3,
-      mainFreshBars: initial ? (cfg.chainMainFreshBars ?? 3) : (cfg.chainMainFreshBars ?? 3),
+      mainWarnFreshBars: initial ? (cfg.chainMainWarnFreshBars ?? 3) : 0,
+      mainFreshBars: initial ? (cfg.chainMainFreshBars ?? 3) : 0,
+      confirmGraceBars: initial ? 2 : 0,
       subMinBars: cfg.chainSubMinBars ?? 5,
       lookback: cfg.chainLookback ?? 20,
       fractalType: cfg.chainFractalType ?? 'any',

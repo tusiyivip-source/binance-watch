@@ -202,6 +202,8 @@ export class TickFeed {
     const s = this.refreshStats[this.queues.find(q => q.plan.levels.includes(levelKey))?.plan.levels.join('+') ?? levelKey];
     if (s) s.done++;
     st.dirty = true;
+    // REST is authoritative: evaluate corrected closed candles immediately.
+    this.market.onCandleClose?.(st);
   }
 
   get stats() {

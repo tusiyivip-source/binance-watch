@@ -148,6 +148,8 @@ export class Engine extends Emitter {
       return 0;
     }
     this.evaluations++;
+    const firstSymbolScan = !st.signalScanStarted;
+    st.signalScanStarted = true;
     st.levels = res.levels;
     st.bullCount = res.bullCount;
     st.aboveCount = res.aboveCount;
@@ -215,10 +217,9 @@ export class Engine extends Emitter {
     if (this.cfg.chainEnabled) {
       try {
         const fired = scanChains(st.symbol, st.series, this.cfg, this.chainSeen, Date.now(),
-          !!this.initialPhase && !forceNew);
+          firstSymbolScan || (!!this.initialPhase && !forceNew));
         for (const a of fired) {
           a.id = ++this.alertSeq;
-          a.initial = forceNew ? false : !!this.initialPhase;
           this.chainCount++;
           this.res2Recent.push(a);
           if (this.res2Recent.length > 400) this.res2Recent.splice(0, this.res2Recent.length - 400);
@@ -235,11 +236,10 @@ export class Engine extends Emitter {
     // —— 底分型即报（用户：底分型出来就提醒）——
     if (this.cfg.fracEnabled) {
       try {
-        const initPhase = !!this.initialPhase && !forceNew;
+        const initPhase = firstSymbolScan || (!!this.initialPhase && !forceNew);
         const fracCfg = initPhase ? { ...this.cfg, fracFreshBars: this.cfg.fracInitFreshBars ?? 3 } : this.cfg;
         for (const a of scanFractalAlerts(st.symbol, st.series, fracCfg, this.fracSeen, Date.now(), initPhase)) {
           a.id = ++this.alertSeq;
-          a.initial = forceNew ? false : !!this.initialPhase;
           this.fracCount++;
           this.alerts.push(a);
           this.signalCount++;
@@ -600,6 +600,10 @@ export class Engine extends Emitter {
         chainFallbackFrom: a.chainFallbackFrom ?? null,
         chainFifthBars: a.chainFifthBars ?? null,
         confirmedAt: a.confirmedAt ?? null,
+        fractalConfirmedAt: a.fractalConfirmedAt ?? null,
+        confirmationKind: a.confirmationKind ?? null,
+        historical: !!a.historical || !!a.initial,
+        delayMs: a.delayMs ?? null,
         chainLow: Number.isFinite(a.chainLow) ? a.chainLow : null,
         // 顶部结构：把五根K线的关键价格带给卡片
         topBars: Number.isFinite(a.topBars) ? a.topBars : null,

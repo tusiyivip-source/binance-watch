@@ -196,7 +196,7 @@ function renderAlerts() {
         <span>@${fmtPrice(a.price)}</span>
         ${bullTxt ? '<span>' + bullTxt + '</span>' : ''}
         ${distTxt ? '<span>' + distTxt + '</span>' : ''}
-        <span>${hhmmss(a.ts)}</span>
+        <span>${a.confirmedAt ? '确认 ' + hhmmss(a.confirmedAt) + ' · 发现 ' : ''}${hhmmss(a.ts)}</span>
         ${sinceTxt}
       </div>`;
     el.addEventListener('click', () => openDetail(a.symbol));

@@ -1,8 +1,11 @@
-import test from 'node:test';
+import test, { beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { TickFeed } from '../src/tickfeed.js';
 import { Market } from '../src/market.js';
 import { APP } from '../src/config.js';
+const originalBoundaryMode = APP.boundaryAligned;
+beforeEach(() => { APP.boundaryAligned = false; });
+afterEach(() => { APP.boundaryAligned = originalBoundaryMode; });
 
 test('small seeded universe waits for refresh interval after exhausting queue', async () => {
   const original = Date.now;

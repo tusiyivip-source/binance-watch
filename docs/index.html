@@ -83,7 +83,9 @@
         <option value="large">大</option>
         <option value="xl">特大</option>
       </select>
-      <button id="top-refresh" class="vt mini" title="立即刷新">↻</button>
+      <button id="top-refresh" class="vt mini" title="立即刷新视图">↻</button>
+      <button id="top-fullscan" class="vt mini" title="立刻全量补K线并重估（平时按整点自动扫）">全扫</button>
+      <span id="boundary-live" class="chartlive" title="按各周期收线整点自动扫描，其余时间不碰接口"></span>
     </span>
     <span id="wave-symbar" style="display:none">
       <span class="chartsym">每条两级五浪的<b style="color:#f0b90b">主级别</b>K线 · 按时间倒序</span>
@@ -124,6 +126,8 @@
       <option value="all" selected>全部通道</option>
       <option value="watch">回调靠零轴</option>
       <option value="chain">两级五浪（当前策略）</option>
+      <option value="frac">📐 底分型即报</option>
+      <option value="res2">🎯 双确认共振</option>
       <option value="top5">顶部结构</option>
       <option value="wave,wavefirst">五浪反弹（含首底预警）</option>
       <option value="wave">仅五浪完成</option>

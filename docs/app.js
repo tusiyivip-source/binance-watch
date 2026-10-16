@@ -196,7 +196,7 @@ function renderAlerts() {
         <span>@${fmtPrice(a.price)}</span>
         ${bullTxt ? '<span>' + bullTxt + '</span>' : ''}
         ${distTxt ? '<span>' + distTxt + '</span>' : ''}
-        <span>${hhmmss(a.ts)}</span>
+        <span>${a.confirmedAt ? '确认 ' + hhmmss(a.confirmedAt) + ' · 发现 ' : ''}${hhmmss(a.ts)}</span>
         ${sinceTxt}
       </div>`;
     el.addEventListener('click', () => openDetail(a.symbol));
@@ -575,6 +575,18 @@ async function pollStats() {
   try {
     const s = await fetch('/api/stats').then(r => r.json());
     const m = s.market;
+    // 整点扫描状态：显示最近一个待扫的整点
+    try {
+      const el = document.querySelector('#boundary-live');
+      const bd = s.engine?.boundary;
+      if (el && Array.isArray(bd) && bd.length) {
+        const nx = bd.filter(x => x.nextAt).sort((a, b) => a.nextAt - b.nextAt)[0];
+        if (nx) {
+          const t = new Date(nx.nextAt).toLocaleTimeString('zh-CN', { hour12: false });
+          el.textContent = `整点扫描：下次 ${t}（${nx.group}）`;
+        }
+      }
+    } catch { /* 忽略 */ }
     $('#pill-sym').textContent = `标的 ${m.symbols} · K线就绪 ${m.seededSymbols ?? 0}/${m.symbols}`;
     let progress = $('#data-progress');
     if (!progress) {
