@@ -197,7 +197,7 @@ function routeApi(pathname, search) {
     case '/api/alertchart': {
       const bars = Math.max(40, Math.min(400, Number(q.get('bars')) || 150));
       const limit = Math.max(1, Math.min(60, Number(q.get('limit')) || 24));
-      return { body: safe(() => engine.alertCharts(bars, limit), { items: [], total: 0, shown: 0 }) };
+      return { body: safe(() => engine.alertCharts(bars, limit, q.get('kind')), { items: [], total: 0, shown: 0 }) };
     }
     case '/api/config': return { body: engine.cfg };
     case '/api/resync': {

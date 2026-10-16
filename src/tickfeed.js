@@ -116,10 +116,9 @@ export class TickFeed {
     const now = Date.now();
     for (const q of this.queues) {
       const { plan } = q;
-      // 重建任务表的时机：周期到 / 上轮跑完 / 任务表还是空的（启动时可能尚未播种完）
+      // 小批次跑完也必须等到周期到期，避免首次加载时重复补K线挤占额度。
       const stale = !q.startedAt || now - q.startedAt >= plan.everyMs;
-      const exhausted = q.cursor >= q.items.length;
-      if (stale || exhausted || !q.items.length) {
+      if (stale || !q.items.length) {
         q.items = [];
         for (const st of this.market.symbols.values()) {
           if (!st.seeded) continue;

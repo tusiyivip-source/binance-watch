@@ -574,6 +574,23 @@ async function pollStats() {
   try {
     const s = await fetch('/api/stats').then(r => r.json());
     const m = s.market;
+    $('#pill-sym').textContent = `标的 ${m.symbols} · K线就绪 ${m.seededSymbols ?? 0}/${m.symbols}`;
+    let progress = $('#data-progress');
+    if (!progress) {
+      progress = document.createElement('div');
+      progress.id = 'data-progress';
+      progress.setAttribute('role', 'status');
+      progress.style.cssText = 'padding:10px 18px;color:#fbbf24;background:#172033';
+      document.querySelector('header').after(progress);
+    }
+    const ready = m.seededSymbols ?? 0;
+    const wait = Math.ceil(((m.rest.rateLimitedUntil ?? 0) - Date.now()) / 1000);
+    progress.textContent = (m.rest.geoBlockedUntil > Date.now())
+      ? '币安接口受地区访问限制，历史K线暂不可用。'
+      : wait > 0 ? `币安接口限流，${wait} 秒后自动重试。K线就绪 ${ready}/${m.symbols}，尚未完成全量扫描。`
+      : !m.symbols ? '正在获取币安合约涨幅榜…'
+      : ready < m.symbols ? `历史K线加载中：${ready}/${m.symbols} 个币种就绪。已就绪币种持续扫描，首次加载需要数分钟，请保持页面打开。${m.seeding.active ? '' : '未成功加载的币种将在下次刷新时重试。'}`
+      : `历史K线已就绪：${ready}/${m.symbols}。持续扫描五笔结构，等待对应主级别底分型收盘确认。`;
     if (m.feedMode === 'tick-rest') {
       // 合约模式：没有 K线 WS 分片，实时价走 !bookTicker，K线由 REST 滚动补
       const t = m.tick ?? {};

@@ -248,11 +248,12 @@ export class Market {
       this.revision++;
       if (fresh.length) this.log.info(`涨幅榜更新：+${fresh.length} 个新标的（共 ${this.universe.length}）`);
       this.syncSubscriptions();
-      if (seed && fresh.length) {
+      if (seed && !this.seeding.active) {
         // ⚠ 必须走 mapLimit（有并发闸门），**不能**裸循环 for…seedSymbol()：
         //    后者会让 200 标的 × 12 级别 = 2400 个协程同时涌向限流器，
         //    全部堵在队列里发不出请求，表现为「有权重却一条K线都播不下来、日志也不再输出」。
-        this.seedBatch(fresh).catch(e => this.log.error('补播种失败：' + e.message));
+        this.seedBatch([...this.symbols.values()].filter(st => !st.seeded))
+          .catch(e => this.log.error('补播种失败：' + e.message));
       }
     } catch (e) {
       this.log.warn('涨幅榜刷新失败：' + e.message);
@@ -269,7 +270,7 @@ export class Market {
     const targets = gapFill ? NATIVE_LEVELS.filter(lv => only.includes(lv.key)) : NATIVE_LEVELS;
     for (const lv of targets) {
       const ms = lv.minutes * 60_000;
-      let lim = lv.backfill ?? lv.limit ?? APP.candleLimit;
+      let lim = Math.min(APP.maxCandlesKept, lv.backfill ?? lv.limit ?? APP.candleLimit);
       if (gapFill) {
         // —— 补缺口按币安权重规则取最小根数 ——
         // klines 的权重按 limit 分档：1~99 → 1，100~499 → 2，500~1000 → 5。
@@ -306,8 +307,8 @@ export class Market {
     this.log.info(`补播种 ${list.length} 个新标的…`);
     const t0 = Date.now();
     await this.rest.mapLimit(list, async st => {
-      try { await this.seedSymbol(st); } catch (e) { this.log.warn(`播种 ${st.symbol} 失败：${e.message}`); }
-      this.seeding.done++;
+      try { await this.seedSymbol(st); this.seeding.done++; }
+      catch (e) { this.log.warn(`播种 ${st.symbol} 失败：${e.message}`); }
     });
     this.seeding.active = false;
     this.log.info(`补播种完成 ${this.seeding.done}/${list.length}，用时 ${((Date.now() - t0) / 1000).toFixed(1)}s`);
@@ -404,6 +405,7 @@ export class Market {
       feedMode: this.feedMode,
       tick: this.tickFeed ? this.tickFeed.stats : null,
       symbols: this.symbols.size,
+      seededSymbols: [...this.symbols.values()].filter(st => st.seeded).length,
       universe: this.universe.length,
       klineMessages: this.klineMessages,
       lastTickerAt: this.lastTickerAt,
@@ -411,7 +413,7 @@ export class Market {
       wsState: this.wsState,
       shards: shardInfo,
       seeding: this.seeding,
-      rest: this.rest.stats,
+      rest: { ...this.rest.stats, rateLimitedUntil: this.rest.bannedUntil ?? 0, geoBlockedUntil: this.rest.geoBlockedUntil ?? 0 },
       weightCap: APP.profile.officialWeightCap,
       uptime: Date.now() - this.startedAt,
     };
