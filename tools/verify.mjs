@@ -1593,6 +1593,20 @@ section('17. 顶部/底部结构：五根形态 + 反转点 + 收盘站上/跌�
     const second = scanTop5('ZUSDT', fake, cfg, seen, Date.now(), true);
     ok('★ 同一阶段同一根K线只报一次', first.length === 1 && second.length === 0, first.length + '/' + second.length);
   }
+  // ★ 用户要求：按"上穿均线那一根"的单根涨幅排序 —— 报警里要带涨幅字段
+  {
+    const hs = [...H5, 92, 93], ls = [...L5, 86.5, 88];
+    const cs = [90, 93, 92, 93, 89, 88, 95], os = [91, 90, 93, 92, 93, 87, 92];
+    const ma7 = cs.map(() => 94), ema7 = cs.map(() => 94.5);
+    const hit = detectTop5(mk(hs, ls, os, cs, [ma7, ema7]), { minBars: 5, lookback: 20 });
+    ok('★ 确认根（上穿均线那一根）带单根涨幅：95 vs 前收88 → +7.95%',
+      !!hit && Math.abs(hit.barPct - (95 - 88) / 88 * 100) < 1e-9,
+      hit ? `barPct=${hit.barPct?.toFixed(2)}% 前收=${hit.barPrevClose}` : 'null');
+    if (hit) {
+      const a = makeTop5Alert('ZUSDT', hit, Date.now(), false);
+      ok('★ 报警对象带 barPct（供前端按涨幅排序）', Number.isFinite(a.barPct) && a.barPct > 0, String(a.barPct?.toFixed(2)));
+    }
+  }
   ok('配置默认：顶部结构开启、底部结构已按用户要求关闭、级别 15分/30分/1时/2时/3时/6时、要均线确认、不提前预警',
     DEFAULT_SIGNAL.top5Enabled === true && DEFAULT_SIGNAL.bot5Enabled === false
     && DEFAULT_SIGNAL.top5NeedMa === true && DEFAULT_SIGNAL.top5AllowWarn === false

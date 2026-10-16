@@ -136,7 +136,7 @@ export function detectTop5(v, opt = {}) {
     : (Number.isFinite(ma7) && Number.isFinite(ema7)
       && (bot ? (close < ma7 && close < ema7) : (close > ma7 && close > ema7)));
 
-  let stage = null, reason = null, confT = null;
+  let stage = null, reason = null, confT = null, confIdxOut = li;
   if (!allowWarn) {
     // ★ 用户口径（不提前提醒）：反转点出现后，**等到某一根收盘站上/跌破两条均线**才确认；
     //   且只在"站上均线的那一根"报一次（之后 confIdx 不再是最后一根 → 不重复报）。
@@ -155,6 +155,7 @@ export function detectTop5(v, opt = {}) {
     stage = 'confirmed';
     reason = needMa ? 'ma-reclaim' : 'ext-revert';
     confT = v.t[confIdx];
+    confIdxOut = confIdx;
   } else {
     const patternOk = (isNewExt && (bot ? v.c[li] < v.o[li] : v.c[li] > v.o[li])) || isEngulf(v, li, strictEngulf, dir);
     if (patternOk && maOk) { stage = 'confirmed'; reason = 'ext-revert'; }
@@ -176,7 +177,13 @@ export function detectTop5(v, opt = {}) {
     isNewExt, isNewLow: isNewExt && !bot,
     engulf: isEngulf(v, li, strictEngulf, dir),
     revertBar: bot ? v.c[li] < v.o[li] : v.c[li] > v.o[li],
-    revIdx, lastRevT: v.t[revIdx], confT,
+    revIdx, lastRevT: v.t[revIdx], confT, confIdx: confIdxOut,
+    // ★ 用户要求：按"当前上穿均线那一根K线"的单根涨幅排序
+    barOpen: v.o[confIdxOut], barClose: v.c[confIdxOut], barHigh: v.h[confIdxOut], barLow: v.l[confIdxOut],
+    barPrevClose: confIdxOut > 0 ? v.c[confIdxOut - 1] : null,
+    barPct: (confIdxOut > 0 && v.c[confIdxOut - 1]) ? (v.c[confIdxOut] - v.c[confIdxOut - 1]) / v.c[confIdxOut - 1] * 100 : null,
+    barBodyPct: v.o[confIdxOut] ? (v.c[confIdxOut] - v.o[confIdxOut]) / v.o[confIdxOut] * 100 : null,
+    barT: v.t[confIdxOut],
     ma7, ema7, maOk,
     lowReversal: reason === 'ext-revert', reason, stage,
     breakBars: li - i5,                              // 第5根之后又走了几根
@@ -233,6 +240,11 @@ export function makeTop5Alert(symbol, hit, now, initial = false) {
     topStage: hit.stage,
     topEngulf: !!hit.engulf,
     topDir: hit.dir,
+    barT: hit.barT ?? null,
+    barPct: Number.isFinite(hit.barPct) ? hit.barPct : null,
+    barBodyPct: Number.isFinite(hit.barBodyPct) ? hit.barBodyPct : null,
+    barOpen: Number.isFinite(hit.barOpen) ? hit.barOpen : null,
+    barClose: Number.isFinite(hit.barClose) ? hit.barClose : null,
     text: `【${bot ? '底部结构' : '顶部结构'}·${warn ? '预警' : '反包确认'}】${body}`,
   };
 }

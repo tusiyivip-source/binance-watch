@@ -64,6 +64,13 @@
         <option value="6h">6时</option>
       </select>
       <span class="chartsym">每条顶部结构的<b style="color:#f0b90b">对应级别</b>K线 · 按时间倒序</span>
+      <select id="top-sort" class="vtsel" title="排序方式">
+        <option value="time" selected>按时间倒序</option>
+        <option value="pctDesc">按单根涨幅 ↓（高→低）</option>
+        <option value="pctAsc">按单根涨幅 ↑（低→高）</option>
+        <option value="pctAbsDesc">按涨幅绝对值 ↓</option>
+        <option value="level">按级别（15分→6时）</option>
+      </select>
       <select id="top-limit" class="vtsel" title="最多展示多少条">
         <option value="12">最近 12 条</option>
         <option value="24" selected>最近 24 条</option>

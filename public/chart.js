@@ -374,7 +374,10 @@ function paintCard(view, i, it) {
       head.querySelector('.sp').innerHTML =
         (it.kind === 'bot5'
           ? `<span class="grp">低点${fmtPrice(it.topHigh)} · 向上${it.topBars ?? '?'}根</span><span class="sc">第5根新高</span>`
-          : `<span class="grp">高点${fmtPrice(it.topHigh)} · 向下${it.topBars ?? '?'}根</span><span class="sc">第5根新低 ${fmtPrice(it.topLow5)}</span>`) + divBadge;
+          : `<span class="grp">高点${fmtPrice(it.topHigh)} · 向下${it.topBars ?? '?'}根</span><span class="sc">第5根新低 ${fmtPrice(it.topLow5)}</span>`)
+        + (Number.isFinite(it.barPct)
+          ? `<span class="sc" style="color:${it.barPct >= 0 ? '#0ecb81' : '#f6465d'}">本根 ${it.barPct >= 0 ? '+' : ''}${it.barPct.toFixed(2)}%</span>`
+          : '') + divBadge;
     } else if (it.kind === 'chain') {
       head.querySelector('.sp').innerHTML =
         `<span class="grp">回调${it.chainBars ?? '?'}根 · 下上下上下</span>`
@@ -514,6 +517,16 @@ async function refreshTopView() {
     const lvSel = document.querySelector('#top-level');
     const lv = lvSel ? lvSel.value : 'all';
     view.items = (d.items ?? []).filter(it => lv === 'all' || it.key === lv);
+    // ★ 排序：按"上穿均线那一根K线"的单根涨幅 / 级别 / 时间
+    const sortSel = document.querySelector('#top-sort');
+    const sort = sortSel ? sortSel.value : 'time';
+    const pct = x => (Number.isFinite(x.barPct) ? x.barPct : -Infinity);
+    const lvOrder = { '15m': 0, '30m': 1, '1h': 2, '2h': 3, '3h': 4, '6h': 5 };
+    if (sort === 'pctDesc') view.items.sort((a, b) => pct(b) - pct(a));
+    else if (sort === 'pctAsc') view.items.sort((a, b) => pct(a) - pct(b));
+    else if (sort === 'pctAbsDesc') view.items.sort((a, b) => Math.abs(pct(b)) - Math.abs(pct(a)));
+    else if (sort === 'level') view.items.sort((a, b) => (lvOrder[a.key] ?? 9) - (lvOrder[b.key] ?? 9) || (b.at ?? 0) - (a.at ?? 0));
+    view.sortPick = sort;
     ensureCards(view, view.items);
     paintView(view);
     applyCols(view);
@@ -627,6 +640,7 @@ function initCharts() {
   document.querySelector('#tab-top').addEventListener('click', () => setView('top'));
   document.querySelector('#top-refresh').addEventListener('click', () => refreshTopView());
   document.querySelector('#top-limit').addEventListener('change', () => refreshTopView());
+  document.querySelector('#top-sort').addEventListener('change', () => refreshTopView());
   document.querySelector('#top-level').addEventListener('change', () => refreshTopView());
   document.querySelector('#top-size').addEventListener('change', () => { applyCols(VIEWS.top); refreshTopView(); });
   document.querySelector('#chart-cols').addEventListener('change', () => { applyCols(VIEWS.alert); applyCols(VIEWS.wave); refreshActive(); });
