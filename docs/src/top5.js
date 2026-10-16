@@ -35,6 +35,9 @@ export function top5View(series, key) {
   };
 }
 
+/** 安全取值：ma7/ema7 是 Float64Array 等**定型数组**，不能用 Array.isArray 判断 */
+const numAt = (a, i) => (a && i >= 0 && i < a.length && Number.isFinite(a[i])) ? a[i] : null;
+
 /**
  * 「反包」实体盖住前一根实体。
  *   dir='top'    → 阳包阴（本根收阳，收盘 ≥ 前开、开盘 ≤ 前收）
@@ -126,8 +129,8 @@ export function detectTop5(v, opt = {}) {
   }
   if (revIdx < 0 && !allowWarn) return null;           // 确认模式必须已有反转点；预警模式不需要
   const isNewExt = bot ? v.h[li] > extPrev : v.l[li] < extPrev;
-  const ma7 = Array.isArray(v.ma7) ? v.ma7[li] : null;
-  const ema7 = Array.isArray(v.ema7) ? v.ema7[li] : null;
+  const ma7 = numAt(v.ma7, li);
+  const ema7 = numAt(v.ema7, li);
   const close = v.c[li];
   const maOk = !needMa ? true
     : (Number.isFinite(ma7) && Number.isFinite(ema7)
@@ -140,16 +143,15 @@ export function detectTop5(v, opt = {}) {
     let confIdx = -1;
     if (needMa) {
       for (let k = revIdx; k <= li; k++) {
-        const m = Array.isArray(v.ma7) ? v.ma7[k] : null;
-        const e = Array.isArray(v.ema7) ? v.ema7[k] : null;
-        if (!Number.isFinite(m) || !Number.isFinite(e)) continue;
+        const m = numAt(v.ma7, k), e = numAt(v.ema7, k);
+        if (m === null || e === null) continue;
         if (bot ? (v.c[k] < m && v.c[k] < e) : (v.c[k] > m && v.c[k] > e)) { confIdx = k; break; }
       }
     } else {
       confIdx = revIdx;                                 // 关掉均线条件 → 反转点那根就报
     }
     const freshBars = opt.freshBars ?? 0;                // 允许确认发生在最近几根内（启动补报用）
-    if (confIdx < 0 || (li - confIdx) > freshBars) return null;   // 还没回到均线上 → 不提醒
+    if (confIdx < 0 || (li - confIdx) > freshBars) return null;
     stage = 'confirmed';
     reason = needMa ? 'ma-reclaim' : 'ext-revert';
     confT = v.t[confIdx];
