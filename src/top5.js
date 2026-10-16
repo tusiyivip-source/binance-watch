@@ -82,13 +82,18 @@ export function detectTop5(v, opt = {}) {
   let minPrev = Infinity;
   for (let k = i1; k < li; k++) if (v.l[k] < minPrev) minPrev = v.l[k];
   const isNewLow = v.l[li] < minPrev;
-  const engulf = isEngulf(v, li, strictEngulf);
+  const bullBar = v.c[li] > v.o[li];                   // 本根收阳
+  const engulf = isEngulf(v, li, strictEngulf);        // 本根阳包阴（实体盖住前一根）
+  // 低点反包（用户口径）：**创新低那根只要收阳，那根就是低点** ——
+  //   新低可以出现在第 N 根、也可以是第 N+1 根，只要那根"收阳"就算低点反包成立。
+  const lowReversal = isNewLow && bullBar;
 
-  let stage = null;
-  if (engulf) stage = 'confirmed';                    // 反包 → 确认
-  else if (li === i5) stage = 'warning';              // 第5根创新低 → 先预警
-  else if (!isNewLow) stage = 'warning';              // 后面某根没创新低 → 预警（等反包）
-  if (!stage) return null;                            // 还在继续创新低 → 不提醒
+  let stage = null, reason = null;
+  if (lowReversal) { stage = 'confirmed'; reason = 'low-bull'; }      // 创新低 + 收阳 → 低点就是这根
+  else if (engulf) { stage = 'confirmed'; reason = 'engulf'; }        // 不创新低但阳包阴 → 反包确认
+  else if (li === i5) { stage = 'warning'; reason = 'bar5'; }         // 第5根创新低 → 先预警
+  else if (!isNewLow) { stage = 'warning'; reason = 'no-new-low'; }   // 某根没创新低 → 预警（等反包）
+  if (!stage) return null;                            // 继续收阴创新低 → 不提醒
 
   return {
     level: v.key,
@@ -98,7 +103,7 @@ export function detectTop5(v, opt = {}) {
     bars: n - i1,                                    // 高点向下已走几根
     lastT: v.t[li], lastClose: v.c[li], lastLow: v.l[li], lastOpen: v.o[li],
     prevOpen: v.o[li - 1], prevClose: v.c[li - 1],
-    isNewLow, engulf, stage,
+    isNewLow, engulf, bullBar, lowReversal, reason, stage,
     breakBars: li - i5,                              // 第5根之后又走了几根
   };
 }
@@ -113,8 +118,11 @@ export function makeTop5Alert(symbol, hit, now, initial = false) {
   const body = warn
     ? `${common}${hit.breakBars > 0 ? `（第5根后又走 ${hit.breakBars} 根，本根未创新低 ${fmt(hit.lastLow)}）` : '（第5根刚创新低）'}；`
       + `**等反包确认**（本根收 ${fmt(hit.lastClose)}）`
-    : `${common}；本根**反包（阳包阴）**：开 ${fmt(hit.lastOpen)} ≤ 前收 ${fmt(hit.prevClose)}、`
-      + `收 ${fmt(hit.lastClose)} ≥ 前开 ${fmt(hit.prevOpen)} → **止跌反包成立**`;
+    : (hit.reason === 'low-bull'
+      ? `${common}；本根**创新低 ${fmt(hit.lastLow)} 但收阳**（开 ${fmt(hit.lastOpen)} → 收 ${fmt(hit.lastClose)}）`
+        + ` → **低点反包成立（这根就是低点）**`
+      : `${common}；本根**反包（阳包阴）**：开 ${fmt(hit.lastOpen)} ≤ 前收 ${fmt(hit.prevClose)}、`
+        + `收 ${fmt(hit.lastClose)} ≥ 前开 ${fmt(hit.prevOpen)} → **止跌反包成立**`);
   return {
     kind: 'top5',
     id: 0,

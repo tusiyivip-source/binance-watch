@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 独立验证脚本： node tools/verify.mjs
  *
  * 1) 本地合成K线是否与币安原生K线完全一致（用 1m→3m 对照原生 3m，覆盖全部字段）
@@ -1532,6 +1532,29 @@ section('17. 1小时顶部结构：五根形态 + 第5根新低预警 → 反包
     const hit = detectTop5(mk([...H5, 92], [...L5, 89]), { minBars: 5, lookback: 20 });
     ok('★ 第6根不创新低 → 预警（等反包）', !!hit && hit.stage === 'warning' && hit.bars === 6,
       hit ? `stage=${hit.stage} bars=${hit.bars} 未创新低` : 'null');
+  }
+  // ★ 低点反包：创新低那根收阳 → 直接确认（不必等阳包阴）
+  {
+    const hs = [...H5, 92], ls = [...L5, 86.5];      // 第6根创新低（86.5 < 88）
+    const cs = [90, 93, 92, 93, 89, 88];             // 第6根收 88 > 开 87 → 收阳
+    const os = [91, 90, 93, 92, 93, 87];
+    const hit = detectTop5(mk(hs, ls, os, cs), { minBars: 5, lookback: 20 });
+    ok('★ 创新低那根收阳 → 低点反包确认（stage=confirmed, reason=low-bull）',
+      !!hit && hit.stage === 'confirmed' && hit.reason === 'low-bull' && hit.lowReversal === true,
+      hit ? `stage=${hit.stage} reason=${hit.reason}` : 'null');
+    if (hit) {
+      const a = makeTop5Alert('ZUSDT', hit, Date.now(), false);
+      ok('★ 文案含「创新低…但收阳 / 低点反包成立（这根就是低点）」',
+        /但收阳/.test(a.text) && /低点反包成立/.test(a.text), a.text.slice(-60));
+    }
+  }
+  // 创新低但收阴 → 还在跌，不提醒
+  {
+    const hs = [...H5, 92], ls = [...L5, 86.5];
+    const cs = [90, 93, 92, 93, 89, 87];             // 第6根 开88.5 → 收87，收阴
+    const os = [91, 90, 93, 92, 93, 88.5];
+    ok('★ 创新低但收阴 → 不提醒（还在跌）',
+      detectTop5(mk(hs, ls, os, cs), { minBars: 5, lookback: 20 }) === null);
   }
   // 第6根继续创新低 → 不提醒
   {
