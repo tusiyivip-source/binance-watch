@@ -122,20 +122,30 @@ export function detectChain(main, sub, inner, opt = {}) {
   if (mainBars < mainMinBars) return null;
   const tHigh = main.t[hIdx] + main.ms;
 
-  // 主级别顶部分型/顶部结构确认
-  let top = null;
+  // 主级别顶部分型/顶部结构确认 —— **两阶段**（用户 2026-10-16：不要偏晚）
+  //   预警 stage='warning'：主级别**最低点那根**底分型刚确认（右边那根收盘）→ 最早的一声
+  //   确认 stage='confirmed'：再等到收盘同时站上 MA7 与 EMA7（顶部结构逻辑）
+  let top = null, warnOnly = false;
   if (mainMode === 'top5') {
     top = detectTop5(main, {
       minBars: 5, lookback,
       needMa: opt.mainNeedMa !== false,
-      allowWarn: false,                 // 不提前提醒：只认收盘站上均线那一根
+      allowWarn: false,
       freshBars: opt.mainFreshBars ?? 0,
       strictEngulf: opt.mainStrictEngulf !== false,
       dir: 'top',
     });
-    if (!top) return null;              // 主级别还没按顶部结构收盘确认
-    const hi = main.t.indexOf(top.highT);
-    if (hi >= 0) hIdx = hi;             // 形态第1根作为整段回调的起点
+    if (top) {
+      const hi = main.t.indexOf(top.highT);
+      if (hi >= 0) hIdx = hi;             // 形态第1根作为整段回调的起点
+    } else if (opt.mainWarn !== false) {
+      // 还没站上均线 → 先给"预警"：底分型刚在最低点确认那一根
+      if (!(lIdx >= 1 && lIdx + 1 <= mLen - 1 && isBottomFractal(main, lIdx, fractalType))) return null;
+      // 预警窗口：底分型确认后 ≤ chainWarnFreshBars 根内都算（不设窗口的话只在那一瞬间成立，实盘几乎抓不到）
+      const warnFresh = opt.mainWarnFreshBars ?? 3;
+      if ((mLen - 1) - (lIdx + 1) > warnFresh) return null;
+      warnOnly = true;
+    } else return null;
   }
 
   // 主级别底分型（额外信息；旧口径下是必需条件）
@@ -147,17 +157,21 @@ export function detectChain(main, sub, inner, opt = {}) {
   const fractal3Lows = [main.l[fRef - 1], main.l[fRef], main.l[fRef + 1]];   // 前/中/后三根的低点
   const fractalClose = main.c[fRef + 1];                    // 底分型第三根收盘 = 成立时刻
   const fractalAge = (mLen - 1) - (fRef + 1);               // 成立后过了几根
-  // 触发时刻：top5 口径 = 收盘站上均线那一根；旧口径 = 底分型第三根收盘（且必须是最新一根）
+  // 触发时刻：确认=站上均线那一根；预警=底分型第三根收盘；旧口径=底分型第三根收盘
   const confirmT = top ? (top.barT + main.ms) : (main.t[fRef + 1] + main.ms);
-  if (!top && fractalAge !== 0) return null;     // 旧口径：只在最新收盘确认，不补报过期底分型
+  if (!top && !warnOnly && fractalAge !== 0) return null;   // 旧口径：只在最新收盘确认
+  const stage = top ? 'confirmed' : 'warning';
 
   // ② 次级别：下上下上下 五笔（顶→底→顶→底→顶→底）
   const subClosed = Math.min(sub.closed ?? sub.t.length, sub.t.length);
+  // 次级别端点允许比主级别确认晚 (confirmGraceBars 根主级别K线)：缠论笔要等分型确认，天然滞后
+  const graceBars = opt.confirmGraceBars ?? 2;
+  const cutoff = confirmT + graceBars * main.ms;
   const pts = (sub.pts ?? []).filter(p => Number.isInteger(p.confirmIdx)
-    && p.confirmIdx < subClosed && sub.t[p.confirmIdx] + sub.ms <= confirmT);
+    && p.confirmIdx < subClosed && sub.t[p.confirmIdx] + sub.ms <= cutoff);
   if (pts.length < 6) return null;
   const minStrokes = Math.max(5, opt.minStrokes ?? 5);   // 用户：可以高于五浪，6/7/8 浪都行
-  const wave = findFiveWaves(sub, subMinBars, confirmT, minStrokes);
+  const wave = findFiveWaves(sub, subMinBars, cutoff, minStrokes);
   if (!wave) return null;
   const six = wave.six;
   if (opt.selectedWave && !sameWaveMove(wave, opt.selectedWave)) return null;
@@ -187,6 +201,7 @@ export function detectChain(main, sub, inner, opt = {}) {
     lowT: main.t[lIdx], lowPrice: main.l[lIdx],
     fractalT, fractalLow, fractalClose, fractalAge, fractalType, fractal3Lows,
     subStrokes: wave.strokes ?? 5, subBars, subMinBars, subFrom: t0, subTo: t5,
+    stage, warnOnly,
     mainMode, top: top ? { high: top.high, low5: top.low5, barPct: top.barPct, ma7: top.ma7, ema7: top.ema7, bars: top.bars } : null,
     subPoints: six.map(p => ({ t: sub.t[pivotIdx(p)], price: p.price, type: p.type })),
     subLows: lows, lowsDesc,
@@ -202,15 +217,15 @@ export function makeChainAlert(symbol, hit, now, initial = false) {
     kind: 'chain',
     id: 0,
     symbol,
-    mode: 'closed',
-    stage: 'chain',
-    confirmed: true,
+    mode: hit.stage === 'warning' ? 'live' : 'closed',
+    stage: hit.stage === 'warning' ? 'chain-warn' : 'chain',
+    confirmed: hit.stage !== 'warning',
     side: 'long',
     level: hit.mainKey,                       // 报警级别 = 主级别（图表按它取图）
     levelLabel: M,
     subLevel: hit.subKey, subLevelLabel: S,
     innerLevel: null, innerLevelLabel: null,
-    group: `${S}五浪 → ${M}底分型 · 两级结构`,
+    group: `${S}五浪 → ${M}${hit.stage === 'warning' ? '底分型预警' : '底分型/均线确认'} · 两级结构`,
     base: hit.mainKey, mid: hit.subKey, big: null,
     score: 0,
     price: hit.fractalClose,
@@ -232,7 +247,7 @@ export function makeChainAlert(symbol, hit, now, initial = false) {
     chainMainMode: hit.mainMode,
     mainTop: hit.top ?? null,
     barPct: Number.isFinite(hit.top?.barPct) ? hit.top.barPct : null,
-    text: `【两级五浪·最大有效级别】${M} `
+    text: `【两级五浪·${hit.stage === 'warning' ? '预警' : '确认'}】${M} `
       // 主级别收盘K：按「顶部结构」逻辑（五根形态 + 反转点 + 收盘站上 MA7/EMA7）
       + (hit.mainMode === 'top5' && hit.top
         ? `顶部结构成立：高点 ${fmt(hit.top.high)} → 第5根创新低 ${fmt(hit.top.low5)} → 收盘 ${fmt(hit.fractalClose)} `
@@ -271,7 +286,10 @@ export function scanChains(symbol, seriesMap, cfg, seen, now = Date.now(), initi
       mainMinBars: cfg.chainMainMinBars ?? 5,
       minStrokes: cfg.chainMinStrokes ?? 5,
       mainMode: cfg.chainMainMode ?? 'top5',
-      mainNeedMa: cfg.chainMainNeedMa !== false,
+      mainNeedMa: cfg.chainMainNeedMa === true,
+      mainWarn: cfg.chainMainWarn !== false,
+      mainWarnFreshBars: cfg.chainMainWarnFreshBars ?? 3,
+      mainFreshBars: initial ? (cfg.chainMainFreshBars ?? 3) : (cfg.chainMainFreshBars ?? 3),
       subMinBars: cfg.chainSubMinBars ?? 5,
       lookback: cfg.chainLookback ?? 20,
       fractalType: cfg.chainFractalType ?? 'any',
@@ -280,7 +298,7 @@ export function scanChains(symbol, seriesMap, cfg, seen, now = Date.now(), initi
     if (!hit) continue;
     const next = pairs[pairs.findIndex(p => p.sub === t.sub) + 1];
     if (next && near.has(next.sub) && sameWaveMove(candidate.wave, near.get(next.sub))) hit.fallbackFrom = next.sub;
-    const key = `${symbol}|${t.main}|${t.sub}|${hit.fractalT}`;
+    const key = `${symbol}|${t.main}|${t.sub}|${hit.fractalT}|${hit.stage}`;
     if (seen.has(key)) continue;
     seen.set(key, now);
     out.push(makeChainAlert(symbol, hit, now, initial));

@@ -182,7 +182,10 @@ export const DEFAULT_SIGNAL = {
   chainFractalType: 'any',
   // ===== 用户 2026-10-16 口径调整 =====
   chainMainMode: 'top5',   // 主级别收盘K按「顶部结构」逻辑：五根形态 + 反转点 + 收盘站上 MA7+EMA7
-  chainMainNeedMa: true,   // 必须有收盘站上两条均线才算（不提前提醒）
+  chainMainNeedMa: true,   // 确认阶段要均线（收盘站上 MA7+EMA7）；早的那一声由 chainMainWarn 的「预警」负责
+  chainMainFreshBars: 20,
+  chainMainWarn: true,
+  chainMainWarnFreshBars: 3,  // 预警窗口：底分型确认后 ≤N 根内都算     // 两阶段：底分型刚确认先发**预警**（不偏晚），站上均线再发**确认**  // 主级别反转点发生在最近 N 根内就算（去重保证只报一次，且在反转那根就报；设小会大量漏报）
   chainMinStrokes: 5,      // 次级别最少几笔；**允许高于五浪**（6/7/8 笔都行，取最长合法浪）       // 主级别见底分型口径：any=中间低点最低（默认，实测覆盖最好）| standard/relay/weakest
 
   // ============ 缠论笔 / 背驰（★ 引擎内部计算，界面完全不显示） ============
