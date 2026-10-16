@@ -58,7 +58,7 @@
         <option value="3h">3时</option>
         <option value="6h">6时</option>
       </select>
-      <span class="chartsym">每条斐波那契回调的<b style="color:#f0b90b">10分钟</b>K线 · 按时间倒序</span>
+      <span class="chartsym">每条斐波那契回调的<b style="color:#f0b90b">对应级别</b>K线 · 按时间倒序</span>
       <select id="top-sort" class="vtsel" title="排序方式">
         <option value="time" selected>按时间倒序</option>
         <option value="pctDesc">按单根涨幅 ↓（高→低）</option>
@@ -168,7 +168,7 @@
     </div>
     <div id="topchartwrap" style="display:none">
       <div id="topchartgrid"></div>
-      <div id="top-empty" class="empty">暂无斐波那契回调信号。条件：10分钟 MACD 金叉 → 高点死叉（一段上涨）→ 回调（再次金叉 或 底分型收盘）时，回撤不超过前段涨幅的 <b>50%</b>。</div>
+      <div id="top-empty" class="empty">暂无斐波那契回调信号。级别：10分/30分/1时/2时/3时/6时。条件：MACD 金叉 → 高点死叉（一段上涨）→ 回调（再次金叉 或 底分型收盘）时，回撤不超过前段涨幅的 <b>50%</b>。</div>
     </div>
     <div id="alertchartwrap">
       <div id="alertchartgrid"></div>
@@ -206,11 +206,11 @@
     <div class="groupbox">
       <div class="gtitle">
         <b>斐波那契回调（当前策略）</b>
-        <span class="gsub">10分钟：MACD 金叉 → 高点死叉 = 一段上涨；回调到再次金叉/底分型时，回撤 ≤50% 即有效</span>
+        <span class="gsub">多级别（10分/30分/1时/2时/3时/6时）：MACD 金叉 → 高点死叉 = 一段上涨；回调到再次金叉/底分型时，回撤 ≤50% 即有效</span>
         <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-fibEnabled"> 启用</label>
       </div>
       <div class="prow">
-        <label>级别 <code>10分钟</code></label>
+        <label>级别 <code>10分 / 30分 / 1时 / 2时 / 3时 / 6时</code></label>
         <label>最大回撤% <input id="c-fibMaxRetrace" type="number" min="10" max="100" step="0.1"></label>
         <label>前段涨幅下限% <input id="c-fibMinRisePct" type="number" min="0" max="50" step="0.1"></label>
         <label>交叉回看根数 <input id="c-fibLookback" type="number" min="10" max="200" step="1"></label>
@@ -219,8 +219,7 @@
         ① 上涨段：最近一次 <b>MACD 金叉</b> → 之后的 <b>死叉</b>（高点），拉斐波那契（高点=0%，起点=100%）<br>
         ② 回调段：死叉之后的下跌，到 <b>再次金叉</b> 或 <b>底分型第三根收盘</b> 为止<br>
         ③ 回撤比例 =（高点 − 回调最低）÷ 前段涨幅；<b>≤「最大回撤%」即视为有效</b>，立刻提醒<br>
-        <span style="color:#f0b90b">实测提示</span>：按 50% 口径目前几乎不出信号（当前市场回调普遍 60~90%，最浅 53.5%）——
-        想有信号就把「最大回撤%」调到 61.8 或 78.6（即时生效）。
+        <span style="color:#f0b90b">实测</span>：六个级别一起看时，50% 口径约 18 条、61.8% 约 25 条、78.6% 约 40 条（181 标的快照）。
       </div>
     </div>
     <div class="groupbox">

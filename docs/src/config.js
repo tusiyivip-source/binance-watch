@@ -133,7 +133,7 @@ export const DEFAULT_SIGNAL = {
   //   10分钟级别：MACD 金叉 → 高点死叉 = 一段上涨，拉斐波那契；
   //   死叉之后的回调（到再次金叉 或 底分型收盘）回撤 ≤ fibMaxRetrace(50%) → 有效 → 提醒
   fibEnabled: true,
-  fibLevels: ['10m'],       // A = 10分钟级别
+  fibLevels: ['10m', '30m', '1h', '2h', '3h', '6h'],   // 多级别一起监控（A=10分钟 为基础级别）
   fibMaxRetrace: 50,        // 回调不超过前段涨幅的 50%
   fibMinRisePct: 0,         // 前段涨幅下限（%），0=不限
   fibLookback: 40,          // MACD 交叉在最近几根里找

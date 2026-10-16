@@ -1808,9 +1808,9 @@ section('21. 斐波那契回调：金叉→死叉上涨段 → 回调 ≤50% 有
   }
   ok('★ 只有金叉没有死叉（还没到高点）→ 不报',
     detectFibPullback(build({ pull: 105, pullBars: 6 }), { maxRetrace: 90, freshBars: 20, lookback: 3 }) === null);
-  ok('配置默认：斐波那契开启、级别 10分钟、最大回撤 50%、顶部结构已停用',
+  ok('配置默认：斐波那契开启、多级别（10分/30分/1时/2时/3时/6时）、最大回撤 50%、顶部结构已停用',
     DEFAULT_SIGNAL.fibEnabled === true && DEFAULT_SIGNAL.fibMaxRetrace === 50
-    && JSON.stringify(DEFAULT_SIGNAL.fibLevels) === JSON.stringify(['10m'])
+    && DEFAULT_SIGNAL.fibLevels.length === 6 && DEFAULT_SIGNAL.fibLevels[0] === '10m'
     && DEFAULT_SIGNAL.top5Enabled === false,
     JSON.stringify(DEFAULT_SIGNAL.fibLevels));
 }
