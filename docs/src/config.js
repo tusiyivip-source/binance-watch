@@ -134,7 +134,7 @@ export const DEFAULT_SIGNAL = {
   //   且 高点向下 ≥ top5MinBars 根（用户口径"大于5根以上" → 默认 6）
   top5Enabled: true,        // 顶部结构（做空方向）
   bot5Enabled: false,       // 底部结构（顶部逻辑的镜像）—— 用户 2026-10-16 要求去除，已关闭；代码保留
-  top5Levels: ['15m', '30m', '1h', '2h', '3h', '6h'],
+  top5Levels: ['30m', '1h', '2h', '3h', '6h'],   // 用户：提醒级别 30 1 2 3 6
   top5WarnBars: 5,         // 走到第几根开始预警（第5根创新低 → 预警）
   top5StrictEngulf: true,  // 反包口径：true=严格阳包阴（开盘也不高于前收）| false=只要求收盘盖过前开
   top5NeedMa: true,        // ★ 确认再加一条：底部收盘同时站上 EMA7+MA7 / 顶部同时跌破（收盘成立才算）
@@ -152,10 +152,11 @@ export const DEFAULT_SIGNAL = {
   //   最近 lookback 根里最低点那根是底分型中间根 + 第三根刚收盘（≤fracFreshBars 根）
   //   不要求次级别五笔、不要求站上均线 —— 分型一收盘就报
   fracEnabled: true,
-  fracLevels: ['15m', '30m', '1h', '2h', '3h', '6h'],
+  fracLevels: ['30m', '1h', '2h', '3h', '6h'],   // 用户：提醒级别 30 1 2 3 6
   fracLookback: 20,
   fracFreshBars: 0,        // 实时只报刚收盘的第三根；旧形态仅在首次加载时展示
-  fracInitFreshBars: 3,    // 启动补报：最近 3 根内刚成立的也报一遍
+  fracInitFreshBars: 3,    // 启动补报（按根数，备用）
+  fracInitFreshMs: 7_200_000,  // ★ 启动补报按**时间**给窗口（2 小时）：避免大级别把窗口吃光（6时3根=18小时 vs 15分3根=45分钟）
   fracType: 'any',          // any=中间低点最低 | standard=中间高低点都最低
 
   chainEnabled: true,

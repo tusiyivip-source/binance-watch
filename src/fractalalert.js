@@ -109,12 +109,20 @@ export function makeFractalAlert(symbol, hit, now, initial = false) {
 export function scanFractalAlerts(symbol, seriesMap, cfg, seen, now = Date.now(), initial = false) {
   const out = [];
   if (!cfg.fracEnabled) return out;
-  const levels = cfg.fracLevels ?? ['15m', '30m', '1h', '2h', '3h', '6h'];
+  const levels = cfg.fracLevels ?? ['30m', '1h', '2h', '3h', '6h'];
   for (const key of levels) {
     const v = fracView(seriesMap[key], key);
+    // 实时：第三根收盘后 ≤ fracFreshBars 根内报（默认 0 = 当根就报）
+    // 启动补报：用**时间窗口** fracInitFreshMs 换算成该级别的根数，避免大级别把窗口吃光
+    let freshBars = initial ? (cfg.fracInitFreshBars ?? 0) : (cfg.fracFreshBars ?? 0);
+    if (initial && cfg.fracInitFreshMs) {
+      // 时间窗口优先（各按自己周期换算）——否则大级别会被"根数窗口"吃光
+      const lvMs = (LEVELS[LEVEL_INDEX[key]]?.minutes ?? 1) * 60_000;
+      freshBars = Math.max(1, Math.ceil(cfg.fracInitFreshMs / lvMs));
+    }
     const hit = detectFractalAlert(v, {
       lookback: cfg.fracLookback ?? 20,
-      freshBars: initial ? (cfg.fracInitFreshBars ?? 3) : 0,
+      freshBars,
       type: cfg.fracType ?? 'any',
     });
     if (!hit) continue;

@@ -1613,10 +1613,10 @@ section('17. 顶部/底部结构：五根形态 + 反转点 + 收盘站上/跌�
       ok('★ 报警对象带 barPct（供前端按涨幅排序）', Number.isFinite(a.barPct) && a.barPct > 0, String(a.barPct?.toFixed(2)));
     }
   }
-  ok('配置默认：顶部结构开启、底部结构已按用户要求关闭、级别 15分/30分/1时/2时/3时/6时、要均线确认、不提前预警',
+  ok('配置默认：顶部结构开启、底部结构已按用户要求关闭、级别 30分/1时/2时/3时/6时、要均线确认、不提前预警',
     DEFAULT_SIGNAL.top5Enabled === true && DEFAULT_SIGNAL.bot5Enabled === false
     && DEFAULT_SIGNAL.top5NeedMa === true && DEFAULT_SIGNAL.top5AllowWarn === false
-    && JSON.stringify(DEFAULT_SIGNAL.top5Levels) === JSON.stringify(['15m', '30m', '1h', '2h', '3h', '6h']),
+    && JSON.stringify(DEFAULT_SIGNAL.top5Levels) === JSON.stringify(['30m', '1h', '2h', '3h', '6h']),
     JSON.stringify({ needMa: DEFAULT_SIGNAL.top5NeedMa, warn: DEFAULT_SIGNAL.top5AllowWarn }));
 }
 
@@ -1738,14 +1738,15 @@ section('20. 底分型即报：最低点那根是底分型中间根 + 第三根�
     const seen = new Map();
     const fake = { '6h': { t: mk(lows).t, o: mk(lows).o, h: mk(lows).h, l: mk(lows).l, c: mk(lows).c,
       ms: H, closedCount: lows.length - 1, ensure: () => ({ ma7: mk(lows).ma7, ema7: mk(lows).ema7 }) } };
-    const cfg = { fracEnabled: true, fracLevels: ['6h'], fracLookback: 20, fracFreshBars: 1, fracType: 'any' };
+    const cfg = { fracEnabled: true, fracLevels: ['6h'], fracLookback: 20, fracFreshBars: 1, fracType: 'any', fracInitFreshMs: 0 };
     const f1 = scanFractalAlerts('ZUSDT', fake, cfg, seen, Date.now(), false);
     const f2 = scanFractalAlerts('ZUSDT', fake, cfg, seen, Date.now(), true);
     ok('★ 同一底分型只报一次', f1.length === 1 && f2.length === 0, f1.length + '/' + f2.length);
   }
-  ok('配置默认：底分型即报开启、级别 15分~6时、实时只报当根',
+  ok('配置默认：底分型即报开启、级别 30分/1时/2时/3时/6时、实时只报当根',
     DEFAULT_SIGNAL.fracEnabled === true && DEFAULT_SIGNAL.fracFreshBars === 0
-    && DEFAULT_SIGNAL.fracLevels.length === 6);
+    && JSON.stringify(DEFAULT_SIGNAL.fracLevels) === JSON.stringify(['30m', '1h', '2h', '3h', '6h']),
+    JSON.stringify(DEFAULT_SIGNAL.fracLevels));
 }
 
 /* ============ 15. 双阴/双阳判定修正：窗口右移 + 两条前置条件 ============ */
