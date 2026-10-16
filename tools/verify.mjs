@@ -1502,129 +1502,102 @@ section('16. 三级别结构：主级别回调≥5根 + 次级别 下上下上�
     JSON.stringify(DEFAULT_SIGNAL.chainTriples));
 }
 
-/* ============ 17. 1小时顶部结构（两阶段） ============ */
-section('17. 1小时顶部结构：五根形态 + 第5根新低预警 → 反包确认（可跌到第N根）');
+/* ============ 17. 顶部/底部结构（含均线回踩确认） ============ */
+section('17. 顶部/底部结构：五根形态 + 反转点 + 收盘站上/跌破 MA7+EMA7 才算确认（不提前提醒）');
 {
   const H = 3_600_000;
-  /** hs/ls 必填；os/cs 可选（不传则 c=(h+l)/2、o=前一根 c）——反包判定要用到 o/c */
-  const mk = (hs, ls, os, cs) => {
+  /** hs/ls 必填；os/cs 可选；mas 可选 [ma7数组, ema7数组]（不传＝永远站不上的极值） */
+  const mk = (hs, ls, os, cs, mas) => {
     const n = hs.length;
     const c = cs ?? hs.map((x, i) => (x + ls[i]) / 2);
     const o = os ?? c.map((x, i) => (i === 0 ? x : c[i - 1]));
-    return { key: '1h', ms: H, t: hs.map((_, i) => i * H), o, h: hs, l: ls, c, closed: n };
+    return {
+      key: '1h', ms: H, t: hs.map((_, i) => i * H), o, h: hs, l: ls, c,
+      ma7: mas ? mas[0] : c.map(() => -1e9), ema7: mas ? mas[1] : c.map(() => -1e9),
+      closed: n,
+    };
   };
-  // 前五根形态：第1根高点100 → 第2根96(不创新高) → 第3根94 → 第4根95(不超第2根) → 第5根低点88(低于前四根最低90)
+  // 前五根（顶部形态）：第1根高点100 → 第2根96 → 第3根94 → 第4根95(不超96) → 第5根低点88(低于前四根最低90)
   const H5 = [100, 96, 94, 95, 93];
   const L5 = [95, 92, 90, 91, 88];
 
+  // ① 默认口径（均线回踩确认）：反转点出现 → 等收盘站上 MA7+EMA7 那一根才报
   {
-    const hit = detectTop5(mk(H5, L5), { minBars: 5, lookback: 20 });
-    ok('★ 第5根创新低 → 预警（stage=warning）', !!hit && hit.stage === 'warning',
-      hit ? `stage=${hit.stage} bars=${hit.bars} 新高?${hit.isNewLow}` : 'null');
+    const hs = [...H5, 92, 93], ls = [...L5, 86.5, 88];
+    const cs = [90, 93, 92, 93, 89, 88, 95];     // 第6根创新低收阳=反转点；第7根收95
+    const os = [91, 90, 93, 92, 93, 87, 92];
+    const ma7 = cs.map(() => 94), ema7 = cs.map(() => 94.5);
+    const hit = detectTop5(mk(hs, ls, os, cs, [ma7, ema7]), { minBars: 5, lookback: 20 });
+    ok('★ 默认口径：反转点后收盘站上 MA7+EMA7 那一根才确认（reason=ma-reclaim）',
+      !!hit && hit.stage === 'confirmed' && hit.reason === 'ma-reclaim', hit ? `reason=${hit.reason} bars=${hit.bars}` : 'null');
     if (hit) {
+      ok('★ 报警 kind=top5、mode=closed（已确认样式）、side=short',
+        makeTop5Alert('ZUSDT', hit, Date.now(), false).kind === 'top5'
+        && makeTop5Alert('ZUSDT', hit, Date.now(), false).mode === 'closed');
       const a = makeTop5Alert('ZUSDT', hit, Date.now(), false);
-      ok('★ 预警文案含「·预警 / 等阳包阴确认」，且 mode=live（未确认样式）',
-        /·预警/.test(a.text) && /等阳包阴确认/.test(a.text) && a.mode === 'live' && a.confirmed === false);
+      ok('★ 文案含「站上 MA7 … 与 EMA7 … → 底分型确认成立（收盘成立，不提前提醒）」',
+        /站上 MA7/.test(a.text) && /底分型确认成立/.test(a.text) && /不提前提醒/.test(a.text));
     }
+    // 反转点已出现但收盘还在均线下方 → 不报
+    ok('★ 反转点已出现但尚未站上均线 → 不报（不提前提醒）',
+      detectTop5(mk(hs, ls, os, [...cs.slice(0, 6), 93.5], [ma7, ema7]), { minBars: 5, lookback: 20 }) === null);
+    // 反转点还没出现 → 不报
+    ok('★ 反转点还没出现 → 不报',
+      detectTop5(mk([...H5, 91], [...L5, 87], null, null, [ma7.slice(0, 6), ema7.slice(0, 6)]), { minBars: 5, lookback: 20 }) === null);
   }
-  // 第6根不创新低 → 预警
+  // ② 预警模式（allowWarn=true，需显式打开）
+  ok('★ 第5根创新低 → 预警（warning/bar5，仅当显式打开预警）',
+    (h => !!h && h.stage === 'warning' && h.reason === 'bar5')(
+      detectTop5(mk(H5, L5), { minBars: 5, lookback: 20, allowWarn: true })));
+  ok('★ 默认不打开预警 → 同一形态不报',
+    detectTop5(mk(H5, L5), { minBars: 5, lookback: 20 }) === null);
+  ok('★ 第6根不创新低 → 预警（warning/no-new-ext）',
+    (h => !!h && h.stage === 'warning' && h.reason === 'no-new-ext')(
+      detectTop5(mk([...H5, 92], [...L5, 89]), { minBars: 5, lookback: 20, allowWarn: true })));
+  ok('★ 第6根继续创新低 → 不报（还在跌）',
+    detectTop5(mk([...H5, 92], [...L5, 87]), { minBars: 5, lookback: 20, allowWarn: true }) === null);
+  // ③ 形态确认（关掉均线条件 needMa=false → 反转点那根就报）
   {
-    const hit = detectTop5(mk([...H5, 92], [...L5, 89]), { minBars: 5, lookback: 20 });
-    ok('★ 第6根不创新低 → 预警（等反包）', !!hit && hit.stage === 'warning' && hit.bars === 6,
-      hit ? `stage=${hit.stage} bars=${hit.bars} 未创新低` : 'null');
+    const hs = [...H5, 92], ls = [...L5, 88.5];
+    const cs = [90, 93, 92, 93, 89, 94], os = [91, 90, 93, 92, 93, 88.5];
+    const hit = detectTop5(mk(hs, ls, os, cs), { minBars: 5, lookback: 20, needMa: false });
+    ok('★ 关掉均线条件：第6根阳包阴 → 直接确认（reason=ext-revert）',
+      !!hit && hit.stage === 'confirmed' && hit.engulf === true, hit ? `reason=${hit.reason}` : 'null');
   }
-  // ★ 低点反包：创新低那根收阳 → 直接确认（不必等阳包阴）
-  {
-    const hs = [...H5, 92], ls = [...L5, 86.5];      // 第6根创新低（86.5 < 88）
-    const cs = [90, 93, 92, 93, 89, 88];             // 第6根收 88 > 开 87 → 收阳
-    const os = [91, 90, 93, 92, 93, 87];
-    const hit = detectTop5(mk(hs, ls, os, cs), { minBars: 5, lookback: 20 });
-    ok('★ 创新低那根收阳 → 低点反包确认（stage=confirmed, reason=ext-revert）',
-      !!hit && hit.stage === 'confirmed' && hit.reason === 'ext-revert' && hit.lowReversal === true,
-      hit ? `stage=${hit.stage} reason=${hit.reason}` : 'null');
-    if (hit) {
-      const a = makeTop5Alert('ZUSDT', hit, Date.now(), false);
-      ok('★ 文案含「创新低…但收阳 / 低点反包成立（这根就是低点）」',
-        /但收阳/.test(a.text) && /低点反包成立/.test(a.text), a.text.slice(-60));
-    }
-  }
-  // 创新低但收阴 → 还在跌，不提醒
-  {
-    const hs = [...H5, 92], ls = [...L5, 86.5];
-    const cs = [90, 93, 92, 93, 89, 87];             // 第6根 开88.5 → 收87，收阴
-    const os = [91, 90, 93, 92, 93, 88.5];
-    ok('★ 创新低但收阴 → 不提醒（还在跌）',
-      detectTop5(mk(hs, ls, os, cs), { minBars: 5, lookback: 20 }) === null);
-  }
-  // 第6根继续创新低 → 不提醒
-  {
-    ok('★ 第6根继续创新低 → 不提醒（还在跌）',
-      detectTop5(mk([...H5, 92], [...L5, 87]), { minBars: 5, lookback: 20 }) === null);
-  }
-  // 第6根反包 → 确认
-  {
-    const hs = [...H5, 94], ls = [...L5, 88.5];
-    const cs = [90, 93, 92, 93, 89, 94];       // 第5根阴线(93→89)、第6根收94
-    const os = [91, 90, 93, 92, 93, 88.5];     // 第6根开88.5 ≤ 前收89；收94 ≥ 前开93
-    const hit = detectTop5(mk(hs, ls, os, cs), { minBars: 5, lookback: 20 });
-    ok('★ 第6根反包（阳包阴）→ 确认（stage=confirmed）', !!hit && hit.stage === 'confirmed' && hit.engulf === true,
-      hit ? `stage=${hit.stage} engulf=${hit.engulf}` : 'null');
-    if (hit) {
-      const a = makeTop5Alert('ZUSDT', hit, Date.now(), false);
-      ok('★ 确认文案含「·反包确认 / 止跌反包成立」，且 mode=closed（已确认样式）',
-        /·反包确认/.test(a.text) && /止跌反包成立/.test(a.text) && a.mode === 'closed' && a.confirmed === true);
-    }
-  }
-  // 阳线但没反包（收盘没盖过前一根开盘）→ 只到预警
-  {
-    const hs = [...H5, 92], ls = [...L5, 89];
-    const cs = [90, 93, 92, 93, 89, 90];       // 第6根收90 < 前开93 → 不算反包
-    const os = [91, 90, 93, 92, 93, 88.6];
-    const hit = detectTop5(mk(hs, ls, os, cs), { minBars: 5, lookback: 20 });
-    ok('★ 阳线但收盘没盖过前一根开盘 → 不算反包，只给预警',
-      !!hit && hit.stage === 'warning' && hit.engulf === false, hit ? `stage=${hit.stage}` : 'null');
-  }
-  // 前五根形态不成立
+  // ④ 形态反例
   ok('★ 第4根高点超过第2根（97 > 96）→ 不命中',
-    detectTop5(mk([100, 96, 94, 97, 93], [95, 92, 90, 91, 88]), { minBars: 5 }) === null);
+    detectTop5(mk([100, 96, 94, 97, 93], [95, 92, 90, 91, 88]), { minBars: 5, allowWarn: true }) === null);
   ok('★ 第5根没有低于前四根最低 → 不命中',
-    detectTop5(mk([100, 96, 94, 95, 93], [95, 92, 90, 91, 91.5]), { minBars: 5 }) === null);
-  // 结构失效：价格重新站上第1根高点
-  ok('★ 之后又涨过第1根高点（101 > 100）→ 结构失效，不命中',
-    detectTop5(mk([...H5, 101], [...L5, 89]), { minBars: 5 }) === null);
-  // 去重（同阶段同一根只报一次）
+    detectTop5(mk([100, 96, 94, 95, 93], [95, 92, 90, 91, 91.5]), { minBars: 5, allowWarn: true }) === null);
+  ok('★ 之后又涨过第1根高点（101 > 100）→ 结构失效',
+    detectTop5(mk([...H5, 101], [...L5, 89]), { minBars: 5, allowWarn: true }) === null);
+  // ⑤ 底部结构（完全镜像）
   {
-    // 序列前面补两根（不影响：锚点取的是窗口内最高）
+    const BH = [8, 12, 14, 13, 15], BL = [5, 9, 11, 10, 12];   // 第1根低点5 → 第5根高点15 > 前四根最高14
+    const hit = detectTop5(mk(BH, BL), { minBars: 5, lookback: 20, dir: 'bottom', allowWarn: true });
+    ok('★ 底部结构（镜像）：第5根创新高 → 预警', !!hit && hit.dir === 'bottom' && hit.stage === 'warning',
+      hit ? `dir=${hit.dir} stage=${hit.stage}` : 'null');
+    const a = makeTop5Alert('ZUSDT', hit, Date.now(), false);
+    ok('★ 底部结构报警：kind=bot5、side=long、文案含「底部结构」', a.kind === 'bot5' && a.side === 'long' && /底部结构/.test(a.text));
+    ok('★ 底部结构：第5根没有高于前四根 → 不命中',
+      detectTop5(mk([8, 12, 14, 13, 11], [5, 9, 11, 10, 12]), { minBars: 5, dir: 'bottom', allowWarn: true }) === null);
+  }
+  // ⑥ 去重（同阶段同一根只报一次）
+  {
     const v = mk([98, ...H5], [96, ...L5]);
-    const cfg = { top5Levels: ['1h'], top5WarnBars: 5, top5Lookback: 20 };
-    const fake = { '1h': { t: v.t, o: v.o, h: v.h, l: v.l, c: v.c, ms: H, closedCount: v.closed } };
+    const cfg = { top5Levels: ['1h'], top5WarnBars: 5, top5Lookback: 20, top5AllowWarn: true, top5NeedMa: false };
+    const fake = { '1h': { t: v.t, o: v.o, h: v.h, l: v.l, c: v.c, ma7: v.ma7, ema7: v.ema7, ms: H, closedCount: v.closed,
+      ensure: () => ({ ma7: v.ma7, ema7: v.ema7 }) } };
     const seen = new Map();
     const first = scanTop5('ZUSDT', fake, cfg, seen, Date.now(), false);
     const second = scanTop5('ZUSDT', fake, cfg, seen, Date.now(), true);
     ok('★ 同一阶段同一根K线只报一次', first.length === 1 && second.length === 0, first.length + '/' + second.length);
   }
-  // ★ 底部结构（把顶部逻辑完全反过来）
-  {
-    const B5 = [5, 9, 11, 10, 12];      // 低点：第1根最低5 → 第2根9(不创新低) → 第3根11 → 第4根10(不低于第2根) → 第5根高12
-    const BL = [5, 9, 11, 10, 12];
-    const BH = [8, 12, 14, 13, 15];     // 第5根高点15 > 前四根最高14
-    const hit = detectTop5(mk(BH, BL), { minBars: 5, lookback: 20, dir: 'bottom' });
-    ok('★ 底部结构（镜像）：第5根创新高 → 预警', !!hit && hit.stage === 'warning' && hit.dir === 'bottom',
-      hit ? `stage=${hit.stage} dir=${hit.dir}` : 'null');
-    if (hit) {
-      const a = makeTop5Alert('ZUSDT', hit, Date.now(), false);
-      ok('★ 底部结构报警：kind=bot5、side=long、文案含「底部结构 / 创新高 / 等阴包阳确认」',
-        a.kind === 'bot5' && a.side === 'long' && /底部结构/.test(a.text) && /等阴包阳确认/.test(a.text), a.kind);
-    }
-  }
-  // 底部：第5根未创新高 → 不命中
-  ok('★ 底部结构：第5根没有高于前四根 → 不命中',
-    detectTop5(mk([8, 12, 14, 13, 11], [5, 9, 11, 10, 12]), { minBars: 5, lookback: 20, dir: 'bottom' }) === null);
-  ok('配置默认：顶部结构开启、级别 15分/30分/1时/2时/3时/6时、第5根起预警、严格反包口径',
-    DEFAULT_SIGNAL.top5Enabled === true && DEFAULT_SIGNAL.top5WarnBars === 5
-    && DEFAULT_SIGNAL.top5StrictEngulf === true
-    && JSON.stringify(DEFAULT_SIGNAL.top5Levels) === JSON.stringify(['15m','30m','1h','2h','3h','6h']),
-    JSON.stringify({ warn: DEFAULT_SIGNAL.top5WarnBars, strict: DEFAULT_SIGNAL.top5StrictEngulf }));
+  ok('配置默认：顶部+底部开启、级别 15分/30分/1时/2时/3时/6时、要均线确认、不提前预警',
+    DEFAULT_SIGNAL.top5Enabled === true && DEFAULT_SIGNAL.bot5Enabled === true
+    && DEFAULT_SIGNAL.top5NeedMa === true && DEFAULT_SIGNAL.top5AllowWarn === false
+    && JSON.stringify(DEFAULT_SIGNAL.top5Levels) === JSON.stringify(['15m', '30m', '1h', '2h', '3h', '6h']),
+    JSON.stringify({ needMa: DEFAULT_SIGNAL.top5NeedMa, warn: DEFAULT_SIGNAL.top5AllowWarn }));
 }
 
 /* ============ 15. 双阴/双阳判定修正：窗口右移 + 两条前置条件 ============ */

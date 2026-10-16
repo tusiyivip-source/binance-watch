@@ -23,11 +23,14 @@ import { LEVELS, LEVEL_INDEX } from './config.js';
 const label = k => (LEVELS[LEVEL_INDEX[k]]?.label ?? k);
 const fmt = v => (Number.isFinite(v) ? (Math.abs(v) >= 100 ? v.toFixed(4) : v.toPrecision(6)) : '—');
 
-/** 视图：K线（含开盘价）+ 已收盘根数 */
+/** 视图：K线（含开盘价）+ MA7/EMA7 + 已收盘根数 */
 export function top5View(series, key) {
   if (!series || !series.t || series.t.length < 6) return null;   // 五根形态最少要 5 根，留 1 根余量
+  let ind = null;
+  try { ind = series.ensure(); } catch { ind = null; }
   return {
     key, ms: series.ms, t: series.t, o: series.o, h: series.h, l: series.l, c: series.c,
+    ma7: ind?.ma7 ?? null, ema7: ind?.ema7 ?? null,
     closed: series.closedCount,
   };
 }
@@ -67,6 +70,10 @@ export function detectTop5(v, opt = {}) {
   const strictEngulf = opt.strictEngulf !== false;
   const dir = opt.dir ?? 'top';              // 'top' 顶部结构 | 'bottom' 底部结构（完全镜像）
   const bot = dir === 'bottom';
+  // 用户 2026-10-15 追加：顶/底分型的确认**再加一条均线条件**，且**收盘成立才算**（不提前提醒）
+  //   底部：收盘同时**站上** EMA7 与 MA7 ；顶部：收盘同时**跌破** EMA7 与 MA7
+  const needMa = opt.needMa !== false;
+  const allowWarn = opt.allowWarn === true;  // 默认 false → 不再提前预警，只报确认
   if (!v) return null;
   const n = Number.isFinite(v.closed) ? Math.min(v.closed, v.t.length) : v.t.length;
   if (n < minBars) return null;                        // 至少要有 5 根（第5根收完即可预警）
@@ -106,19 +113,51 @@ export function detectTop5(v, opt = {}) {
   for (let k = i1; k < li; k++) {
     if (bot ? v.h[k] > extPrev : v.l[k] < extPrev) extPrev = bot ? v.h[k] : v.l[k];
   }
+  // 反转点：从第5根起，第一根满足「创新极值 + 反向收盘」或「反向包住前一根」的K线
+  let revIdx = -1;
+  for (let k = i5; k <= li; k++) {
+    let ext = bot ? -Infinity : Infinity;
+    for (let j = i1; j < k; j++) {
+      if (bot ? v.h[j] > ext : v.l[j] < ext) ext = bot ? v.h[j] : v.l[j];
+    }
+    const newExt = bot ? v.h[k] > ext : v.l[k] < ext;
+    const revert = bot ? v.c[k] < v.o[k] : v.c[k] > v.o[k];
+    if ((newExt && revert) || isEngulf(v, k, strictEngulf, dir)) { revIdx = k; break; }
+  }
+  if (revIdx < 0 && !allowWarn) return null;           // 确认模式必须已有反转点；预警模式不需要
   const isNewExt = bot ? v.h[li] > extPrev : v.l[li] < extPrev;
-  const lo = v.l[li], hi = v.h[li];
-  // 反转根：顶部=创新低但收阳；底部=创新高但收阴
-  const revertBar = bot ? v.c[li] < v.o[li] : v.c[li] > v.o[li];
-  const eng = isEngulf(v, li, strictEngulf, dir);
-  const extReversal = isNewExt && revertBar;
+  const ma7 = Array.isArray(v.ma7) ? v.ma7[li] : null;
+  const ema7 = Array.isArray(v.ema7) ? v.ema7[li] : null;
+  const close = v.c[li];
+  const maOk = !needMa ? true
+    : (Number.isFinite(ma7) && Number.isFinite(ema7)
+      && (bot ? (close < ma7 && close < ema7) : (close > ma7 && close > ema7)));
 
   let stage = null, reason = null;
-  if (extReversal) { stage = 'confirmed'; reason = 'ext-revert'; }    // 创新极值 + 反向收盘 → 就是极值点
-  else if (eng) { stage = 'confirmed'; reason = 'engulf'; }           // 反向包住前一根 → 反包确认
-  else if (li === i5) { stage = 'warning'; reason = 'bar5'; }         // 第5根创新极值 → 先预警
-  else if (!isNewExt) { stage = 'warning'; reason = 'no-new-ext'; }   // 某根没创新极值 → 预警（等反包）
-  if (!stage) return null;                            // 继续同向推进 → 不提醒
+  if (!allowWarn) {
+    // ★ 用户口径（不提前提醒）：反转点出现后，**等到某一根收盘站上/跌破两条均线**才确认；
+    //   且只在"站上均线的那一根"报一次（之后 confIdx 不再是最后一根 → 不重复报）。
+    let confIdx = -1;
+    if (needMa) {
+      for (let k = revIdx; k <= li; k++) {
+        const m = Array.isArray(v.ma7) ? v.ma7[k] : null;
+        const e = Array.isArray(v.ema7) ? v.ema7[k] : null;
+        if (!Number.isFinite(m) || !Number.isFinite(e)) continue;
+        if (bot ? (v.c[k] < m && v.c[k] < e) : (v.c[k] > m && v.c[k] > e)) { confIdx = k; break; }
+      }
+    } else {
+      confIdx = revIdx;                                 // 关掉均线条件 → 反转点那根就报
+    }
+    if (confIdx < 0 || confIdx !== li) return null;     // 还没回到均线上（或已报过）→ 不提醒
+    stage = 'confirmed';
+    reason = needMa ? 'ma-reclaim' : 'ext-revert';
+  } else {
+    const patternOk = (isNewExt && (bot ? v.c[li] < v.o[li] : v.c[li] > v.o[li])) || isEngulf(v, li, strictEngulf, dir);
+    if (patternOk && maOk) { stage = 'confirmed'; reason = 'ext-revert'; }
+    else if (li === i5) { stage = 'warning'; reason = 'bar5'; }
+    else if (!isNewExt) { stage = 'warning'; reason = 'no-new-ext'; }
+  }
+  if (!stage) return null;
 
   return {
     level: v.key,
@@ -128,10 +167,14 @@ export function detectTop5(v, opt = {}) {
     h2: v.h[i2], h3: v.h[i3], h4: v.h[i4],
     low1: v.l[i1], low2: v.l[i2], low3: v.l[i3], low4v: v.l[i4], low5: v.l[i5],
     bars: n - i1,                                    // 第1根之后已走几根
-    lastT: v.t[li], lastClose: v.c[li], lastLow: lo, lastHigh: hi, lastOpen: v.o[li],
+    lastT: v.t[li], lastClose: v.c[li], lastLow: v.l[li], lastHigh: v.h[li], lastOpen: v.o[li],
     prevOpen: v.o[li - 1], prevClose: v.c[li - 1],
-    isNewExt, isNewLow: isNewExt && !bot, engulf: eng, revertBar,
-    lowReversal: extReversal, reason, stage,
+    isNewExt, isNewLow: isNewExt && !bot,
+    engulf: isEngulf(v, li, strictEngulf, dir),
+    revertBar: bot ? v.c[li] < v.o[li] : v.c[li] > v.o[li],
+    revIdx, lastRevT: v.t[revIdx],
+    ma7, ema7, maOk,
+    lowReversal: reason === 'ext-revert', reason, stage,
     breakBars: li - i5,                              // 第5根之后又走了几根
   };
 }
@@ -147,14 +190,20 @@ export function makeTop5Alert(symbol, hit, now, initial = false) {
       + ` → 第4根 ${f(hit.low4v)} → 第5根创新高 ${f(hit.lastHigh)}；低点向上已走 ${hit.bars} 根`
     : `${L} 高点 ${f(hit.high)}（第1根）→ 第2根不创新高 ${f(hit.h2)} → 第3根 ${f(hit.h3)}`
       + ` → 第4根 ${f(hit.h4)} → 第5根创新低 ${f(hit.low5)}；高点向下已走 ${hit.bars} 根`;
+  const maTxt = (Number.isFinite(hit.ma7) && Number.isFinite(hit.ema7))
+    ? `；**收盘 ${f(hit.lastClose)} ${bot ? '跌破' : '站上'} MA7 ${f(hit.ma7)} 与 EMA7 ${f(hit.ema7)}**`
+    : '';
   const body = warn
     ? `${common}${hit.breakBars > 0 ? `（第5根后又走 ${hit.breakBars} 根，本根未创${bot ? '新高' : '新低'} ${f(bot ? hit.lastHigh : hit.lastLow)}）` : `（第5根刚创${bot ? '新高' : '新低'}）`}；`
       + `**等${bot ? '阴包阳' : '阳包阴'}确认**（本根收 ${f(hit.lastClose)}）`
-    : (hit.reason === 'ext-revert'
-      ? `${common}；本根**创${bot ? '新高' : '新低'} ${f(bot ? hit.lastHigh : hit.lastLow)} 但收${bot ? '阴' : '阳'}**`
-        + `（开 ${f(hit.lastOpen)} → 收 ${f(hit.lastClose)}） → **${bot ? '高点' : '低点'}反包成立（这根就是${bot ? '高点' : '低点'}）**`
-      : `${common}；本根**反包（${bot ? '阴包阳' : '阳包阴'}）**：开 ${f(hit.lastOpen)} ${bot ? '≥' : '≤'} 前收 ${f(hit.prevClose)}、`
-        + `收 ${f(hit.lastClose)} ${bot ? '≤' : '≥'} 前开 ${f(hit.prevOpen)} → **${bot ? '滞涨' : '止跌'}反包成立**`);
+    : hit.reason === 'ma-reclaim'
+      ? `${common}；反转点在 ${new Date(hit.lastRevT).toLocaleString('zh-CN', { hour12: false })}${maTxt}`
+        + ` → **${bot ? '顶' : '底'}分型确认成立**（收盘成立，不提前提醒）`
+      : hit.reason === 'ext-revert'
+        ? `${common}；本根**创${bot ? '新高' : '新低'} ${f(bot ? hit.lastHigh : hit.lastLow)} 但收${bot ? '阴' : '阳'}**`
+          + `（开 ${f(hit.lastOpen)} → 收 ${f(hit.lastClose)}） → **${bot ? '高点' : '低点'}反包成立（这根就是${bot ? '高点' : '低点'}）**${maTxt}`
+        : `${common}；本根**反包（${bot ? '阴包阳' : '阳包阴'}）**：开 ${f(hit.lastOpen)} ${bot ? '≥' : '≤'} 前收 ${f(hit.prevClose)}、`
+          + `收 ${f(hit.lastClose)} ${bot ? '≤' : '≥'} 前开 ${f(hit.prevOpen)}${maTxt}`;
   return {
     kind: bot ? 'bot5' : 'top5',
     id: 0,
@@ -196,6 +245,8 @@ export function scanTop5(symbol, seriesMap, cfg, seen, now = Date.now(), initial
     for (const dir of dirs) {
       const hit = detectTop5(v, {
         minBars: cfg.top5WarnBars ?? 5,
+        needMa: cfg.top5NeedMa !== false,
+        allowWarn: cfg.top5AllowWarn === true,
         lookback: cfg.top5Lookback ?? 20,
         strictEngulf: cfg.top5StrictEngulf !== false,
         dir,

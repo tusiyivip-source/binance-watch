@@ -137,6 +137,8 @@ export const DEFAULT_SIGNAL = {
   top5Levels: ['15m', '30m', '1h', '2h', '3h', '6h'],
   top5WarnBars: 5,         // 走到第几根开始预警（第5根创新低 → 预警）
   top5StrictEngulf: true,  // 反包口径：true=严格阳包阴（开盘也不高于前收）| false=只要求收盘盖过前开
+  top5NeedMa: true,        // ★ 确认再加一条：底部收盘同时站上 EMA7+MA7 / 顶部同时跌破（收盘成立才算）
+  top5AllowWarn: false,    // ★ 默认关闭"提前预警"，只报收盘确认
   top5Lookback: 20,        // 高点在最近几根里找
 
   // 两级五浪：每组独立，仅次级别五笔 + 对应主级别底分型确认。
