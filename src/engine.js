@@ -184,7 +184,7 @@ export class Engine extends Emitter {
       }
     }
     // —— 1小时顶部结构（用户第 2 条策略）——
-    if (this.cfg.top5Enabled) {
+    if (this.cfg.top5Enabled || this.cfg.bot5Enabled) {
       try {
         const fired = scanTop5(st.symbol, st.series, this.cfg, this.top5Seen, Date.now(),
           !!this.initialPhase && !forceNew);
@@ -195,7 +195,7 @@ export class Engine extends Emitter {
           this.alerts.push(a);
           this.signalCount++;
           this.emit('alert', a);
-          this.log.signal('⚠ ' + a.symbol + ' ' + a.text);
+          this.log.signal((a.kind === 'bot5' ? '🔻 ' : '⚠ ') + a.symbol + ' ' + a.text);
         }
       } catch (e) {
         this.log.warn(`顶部结构判定 ${st.symbol} 失败：${e.message}`);
@@ -561,6 +561,7 @@ export class Engine extends Emitter {
         topH4: Number.isFinite(a.topH4) ? a.topH4 : null,
         topLow5: Number.isFinite(a.topLow5) ? a.topLow5 : null,
         topStage: a.topStage ?? null,
+        topDir: a.topDir ?? null,
         topEngulf: !!a.topEngulf,
         alertPrice: a.price ?? null,
         text: a.text ?? '',

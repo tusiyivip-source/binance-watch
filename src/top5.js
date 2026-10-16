@@ -32,13 +32,22 @@ export function top5View(series, key) {
   };
 }
 
-/** 「反包」= 阳包阴：本根为阳线，且实体盖住前一根实体（开盘 ≤ 前收，收盘 ≥ 前开） */
-export function isEngulf(v, i, strict = true) {
+/**
+ * 「反包」实体盖住前一根实体。
+ *   dir='top'    → 阳包阴（本根收阳，收盘 ≥ 前开、开盘 ≤ 前收）
+ *   dir='bottom' → 阴包阳（本根收阴，收盘 ≤ 前开、开盘 ≥ 前收）
+ */
+export function isEngulf(v, i, strict = true, dir = 'top') {
   if (i < 1) return false;
-  const bull = v.c[i] > v.o[i];
-  if (!bull) return false;
-  if (v.c[i] < v.o[i - 1]) return false;                 // 收盘必须盖过前一根开盘
-  if (strict && v.o[i] > v.c[i - 1]) return false;       // 严格口径：开盘也不高于前一根收盘
+  if (dir === 'bottom') {
+    if (!(v.c[i] < v.o[i])) return false;                // 本根收阴
+    if (v.c[i] > v.o[i - 1]) return false;               // 收盘必须跌破前一根开盘
+    if (strict && v.o[i] < v.c[i - 1]) return false;     // 严格口径：开盘也不低于前一根收盘
+    return true;
+  }
+  if (!(v.c[i] > v.o[i])) return false;                  // 本根收阳
+  if (v.c[i] < v.o[i - 1]) return false;
+  if (strict && v.o[i] > v.c[i - 1]) return false;
   return true;
 }
 
@@ -54,90 +63,113 @@ export function isEngulf(v, i, strict = true) {
  */
 export function detectTop5(v, opt = {}) {
   const minBars = opt.minBars ?? 5;          // 结构至少要走到第5根
-  const lookback = opt.lookback ?? 20;       // 高点在最近几根里找
+  const lookback = opt.lookback ?? 20;       // 极值点在最近几根里找
   const strictEngulf = opt.strictEngulf !== false;
+  const dir = opt.dir ?? 'top';              // 'top' 顶部结构 | 'bottom' 底部结构（完全镜像）
+  const bot = dir === 'bottom';
   if (!v) return null;
   const n = Number.isFinite(v.closed) ? Math.min(v.closed, v.t.length) : v.t.length;
   if (n < minBars) return null;                        // 至少要有 5 根（第5根收完即可预警）
 
-  // ① 第1根：最近 lookback 根（已收盘）里的最高点
+  // ① 第1根：顶部取"最近 lookback 根里的最高"；底部取"最低"
   const from = Math.max(0, n - lookback);
   let i1 = from;
-  for (let k = from; k < n; k++) if (v.h[k] > v.h[i1]) i1 = k;
+  for (let k = from; k < n; k++) {
+    if (bot ? v.l[k] < v.l[i1] : v.h[k] > v.h[i1]) i1 = k;
+  }
   const i2 = i1 + 1, i3 = i1 + 2, i4 = i1 + 3, i5 = i1 + 4;
   if (i5 > n - 1) return null;                        // 第5根还没收盘
 
-  // 前五根形态
-  if (!(v.h[i2] <= v.h[i1])) return null;             // 第2根不创新高
-  if (!(v.h[i3] <= v.h[i1])) return null;             // 第3根不超第1根
-  if (!(v.h[i4] <= v.h[i2])) return null;             // 第4根不超第2根
-  const low4 = Math.min(v.l[i1], v.l[i2], v.l[i3], v.l[i4]);
-  if (!(v.l[i5] < low4)) return null;                 // 第5根低于前四根
+  // 前五根形态（底部结构为完全镜像：高点↔低点）
+  if (bot) {
+    if (!(v.l[i2] >= v.l[i1])) return null;           // 第2根不创新低
+    if (!(v.l[i3] >= v.l[i1])) return null;           // 第3根不低于第1根
+    if (!(v.l[i4] >= v.l[i2])) return null;           // 第4根不低于第2根
+    const hi4 = Math.max(v.h[i1], v.h[i2], v.h[i3], v.h[i4]);
+    if (!(v.h[i5] > hi4)) return null;                // 第5根高于前四根（创新高）
+  } else {
+    if (!(v.h[i2] <= v.h[i1])) return null;           // 第2根不创新高
+    if (!(v.h[i3] <= v.h[i1])) return null;           // 第3根不超第1根
+    if (!(v.h[i4] <= v.h[i2])) return null;           // 第4根不超第2根
+    const low4 = Math.min(v.l[i1], v.l[i2], v.l[i3], v.l[i4]);
+    if (!(v.l[i5] < low4)) return null;               // 第5根低于前四根
+  }
 
-  // ② 结构失效：价格重新站上第1根高点
+  // ② 结构失效：顶部=价格重新站上第1根高点；底部=重新跌破第1根低点
   const li = n - 1;                                   // 最新收盘那根
-  for (let k = i5 + 1; k <= li; k++) if (v.h[k] > v.h[i1]) return null;
+  for (let k = i5 + 1; k <= li; k++) {
+    if (bot ? v.l[k] < v.l[i1] : v.h[k] > v.h[i1]) return null;
+  }
 
-  // 当前这根相对"前面所有根"是否创新低
-  let minPrev = Infinity;
-  for (let k = i1; k < li; k++) if (v.l[k] < minPrev) minPrev = v.l[k];
-  const isNewLow = v.l[li] < minPrev;
-  const bullBar = v.c[li] > v.o[li];                   // 本根收阳
-  const engulf = isEngulf(v, li, strictEngulf);        // 本根阳包阴（实体盖住前一根）
-  // 低点反包（用户口径）：**创新低那根只要收阳，那根就是低点** ——
-  //   新低可以出现在第 N 根、也可以是第 N+1 根，只要那根"收阳"就算低点反包成立。
-  const lowReversal = isNewLow && bullBar;
+  // 当前这根相对"前面所有根"是否创新极值
+  let extPrev = bot ? -Infinity : Infinity;
+  for (let k = i1; k < li; k++) {
+    if (bot ? v.h[k] > extPrev : v.l[k] < extPrev) extPrev = bot ? v.h[k] : v.l[k];
+  }
+  const isNewExt = bot ? v.h[li] > extPrev : v.l[li] < extPrev;
+  const lo = v.l[li], hi = v.h[li];
+  // 反转根：顶部=创新低但收阳；底部=创新高但收阴
+  const revertBar = bot ? v.c[li] < v.o[li] : v.c[li] > v.o[li];
+  const eng = isEngulf(v, li, strictEngulf, dir);
+  const extReversal = isNewExt && revertBar;
 
   let stage = null, reason = null;
-  if (lowReversal) { stage = 'confirmed'; reason = 'low-bull'; }      // 创新低 + 收阳 → 低点就是这根
-  else if (engulf) { stage = 'confirmed'; reason = 'engulf'; }        // 不创新低但阳包阴 → 反包确认
-  else if (li === i5) { stage = 'warning'; reason = 'bar5'; }         // 第5根创新低 → 先预警
-  else if (!isNewLow) { stage = 'warning'; reason = 'no-new-low'; }   // 某根没创新低 → 预警（等反包）
-  if (!stage) return null;                            // 继续收阴创新低 → 不提醒
+  if (extReversal) { stage = 'confirmed'; reason = 'ext-revert'; }    // 创新极值 + 反向收盘 → 就是极值点
+  else if (eng) { stage = 'confirmed'; reason = 'engulf'; }           // 反向包住前一根 → 反包确认
+  else if (li === i5) { stage = 'warning'; reason = 'bar5'; }         // 第5根创新极值 → 先预警
+  else if (!isNewExt) { stage = 'warning'; reason = 'no-new-ext'; }   // 某根没创新极值 → 预警（等反包）
+  if (!stage) return null;                            // 继续同向推进 → 不提醒
 
   return {
     level: v.key,
+    dir,
     highT: v.t[i1], high: v.h[i1],
+    lowT: v.t[i1], low: v.l[i1],
     h2: v.h[i2], h3: v.h[i3], h4: v.h[i4],
     low1: v.l[i1], low2: v.l[i2], low3: v.l[i3], low4v: v.l[i4], low5: v.l[i5],
-    bars: n - i1,                                    // 高点向下已走几根
-    lastT: v.t[li], lastClose: v.c[li], lastLow: v.l[li], lastOpen: v.o[li],
+    bars: n - i1,                                    // 第1根之后已走几根
+    lastT: v.t[li], lastClose: v.c[li], lastLow: lo, lastHigh: hi, lastOpen: v.o[li],
     prevOpen: v.o[li - 1], prevClose: v.c[li - 1],
-    isNewLow, engulf, bullBar, lowReversal, reason, stage,
+    isNewExt, isNewLow: isNewExt && !bot, engulf: eng, revertBar,
+    lowReversal: extReversal, reason, stage,
     breakBars: li - i5,                              // 第5根之后又走了几根
   };
 }
 
-/** 组装报警（stage: warning=预警 / confirmed=反包确认） */
+/** 组装报警（dir: top 顶部结构 / bottom 底部结构；stage: warning 预警 / confirmed 确认） */
 export function makeTop5Alert(symbol, hit, now, initial = false) {
   const L = label(hit.level);
+  const bot = hit.dir === 'bottom';
   const warn = hit.stage === 'warning';
-  const common = `${L} 高点 ${fmt(hit.high)}（第1根）→ 第2根不创新高 ${fmt(hit.h2)}`
-    + ` → 第3根 ${fmt(hit.h3)} → 第4根 ${fmt(hit.h4)} → 第5根创新低 ${fmt(hit.low5)}；`
-    + `高点向下已走 ${hit.bars} 根`;
+  const f = fmt;
+  const common = bot
+    ? `${L} 低点 ${f(hit.low)}（第1根）→ 第2根不创新低 ${f(hit.low2)} → 第3根 ${f(hit.low3)}`
+      + ` → 第4根 ${f(hit.low4v)} → 第5根创新高 ${f(hit.lastHigh)}；低点向上已走 ${hit.bars} 根`
+    : `${L} 高点 ${f(hit.high)}（第1根）→ 第2根不创新高 ${f(hit.h2)} → 第3根 ${f(hit.h3)}`
+      + ` → 第4根 ${f(hit.h4)} → 第5根创新低 ${f(hit.low5)}；高点向下已走 ${hit.bars} 根`;
   const body = warn
-    ? `${common}${hit.breakBars > 0 ? `（第5根后又走 ${hit.breakBars} 根，本根未创新低 ${fmt(hit.lastLow)}）` : '（第5根刚创新低）'}；`
-      + `**等反包确认**（本根收 ${fmt(hit.lastClose)}）`
-    : (hit.reason === 'low-bull'
-      ? `${common}；本根**创新低 ${fmt(hit.lastLow)} 但收阳**（开 ${fmt(hit.lastOpen)} → 收 ${fmt(hit.lastClose)}）`
-        + ` → **低点反包成立（这根就是低点）**`
-      : `${common}；本根**反包（阳包阴）**：开 ${fmt(hit.lastOpen)} ≤ 前收 ${fmt(hit.prevClose)}、`
-        + `收 ${fmt(hit.lastClose)} ≥ 前开 ${fmt(hit.prevOpen)} → **止跌反包成立**`);
+    ? `${common}${hit.breakBars > 0 ? `（第5根后又走 ${hit.breakBars} 根，本根未创${bot ? '新高' : '新低'} ${f(bot ? hit.lastHigh : hit.lastLow)}）` : `（第5根刚创${bot ? '新高' : '新低'}）`}；`
+      + `**等${bot ? '阴包阳' : '阳包阴'}确认**（本根收 ${f(hit.lastClose)}）`
+    : (hit.reason === 'ext-revert'
+      ? `${common}；本根**创${bot ? '新高' : '新低'} ${f(bot ? hit.lastHigh : hit.lastLow)} 但收${bot ? '阴' : '阳'}**`
+        + `（开 ${f(hit.lastOpen)} → 收 ${f(hit.lastClose)}） → **${bot ? '高点' : '低点'}反包成立（这根就是${bot ? '高点' : '低点'}）**`
+      : `${common}；本根**反包（${bot ? '阴包阳' : '阳包阴'}）**：开 ${f(hit.lastOpen)} ${bot ? '≥' : '≤'} 前收 ${f(hit.prevClose)}、`
+        + `收 ${f(hit.lastClose)} ${bot ? '≤' : '≥'} 前开 ${f(hit.prevOpen)} → **${bot ? '滞涨' : '止跌'}反包成立**`);
   return {
-    kind: 'top5',
+    kind: bot ? 'bot5' : 'top5',
     id: 0,
     symbol,
-    mode: warn ? 'live' : 'closed',              // 预警=未确认样式，确认=已确认样式
+    mode: warn ? 'live' : 'closed',
     stage: warn ? 'warning' : 'confirmed',
     confirmed: !warn,
-    side: 'short',
+    side: bot ? 'long' : 'short',
     level: hit.level,
     levelLabel: L,
-    group: `${L} · 顶部结构${warn ? '·预警' : '·反包确认'}`,
+    group: `${L} · ${bot ? '底部结构' : '顶部结构'}${warn ? '·预警' : '·反包确认'}`,
     base: hit.level, mid: null, big: null,
     score: 0,
     price: hit.lastClose,
-    candleT: warn ? hit.lastT : hit.lastT,
+    candleT: hit.lastT,
     ts: now,
     initial: !!initial,
     topBars: hit.bars,
@@ -147,21 +179,33 @@ export function makeTop5Alert(symbol, hit, now, initial = false) {
     topLow5: hit.low5,
     topStage: hit.stage,
     topEngulf: !!hit.engulf,
-    text: `【顶部结构·${warn ? '预警' : '反包确认'}】${body}`,
+    topDir: hit.dir,
+    text: `【${bot ? '底部结构' : '顶部结构'}·${warn ? '预警' : '反包确认'}】${body}`,
   };
 }
 
-/** 一次扫描（默认只看 1小时） */
+/** 一次扫描：按配置的级别，分别扫「顶部结构」与「底部结构」两方向 */
 export function scanTop5(symbol, seriesMap, cfg, seen, now = Date.now(), initial = false) {
   const out = [];
+  const dirs = [];
+  if (cfg.top5Enabled !== false) dirs.push('top');
+  if (cfg.bot5Enabled) dirs.push('bottom');
+  if (!dirs.length) return out;
   for (const key of (cfg.top5Levels ?? ['1h'])) {
     const v = top5View(seriesMap[key], key);
-    const hit = detectTop5(v, { minBars: cfg.top5WarnBars ?? 5, lookback: cfg.top5Lookback ?? 20, strictEngulf: cfg.top5StrictEngulf !== false });
-    if (!hit) continue;
-    const k = `${symbol}|${key}|${hit.highT}|${hit.stage}|${hit.lastT}`;
-    if (seen.has(k)) continue;
-    seen.set(k, now);
-    out.push(makeTop5Alert(symbol, hit, now, initial));
+    for (const dir of dirs) {
+      const hit = detectTop5(v, {
+        minBars: cfg.top5WarnBars ?? 5,
+        lookback: cfg.top5Lookback ?? 20,
+        strictEngulf: cfg.top5StrictEngulf !== false,
+        dir,
+      });
+      if (!hit) continue;
+      const k = `${symbol}|${key}|${dir}|${hit.highT}|${hit.stage}|${hit.lastT}`;
+      if (seen.has(k)) continue;
+      seen.set(k, now);
+      out.push(makeTop5Alert(symbol, hit, now, initial));
+    }
   }
   return out;
 }

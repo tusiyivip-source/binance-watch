@@ -1523,8 +1523,8 @@ section('17. 1小时顶部结构：五根形态 + 第5根新低预警 → 反包
       hit ? `stage=${hit.stage} bars=${hit.bars} 新高?${hit.isNewLow}` : 'null');
     if (hit) {
       const a = makeTop5Alert('ZUSDT', hit, Date.now(), false);
-      ok('★ 预警文案含「·预警 / 等反包确认」，且 mode=live（未确认样式）',
-        /·预警/.test(a.text) && /等反包确认/.test(a.text) && a.mode === 'live' && a.confirmed === false);
+      ok('★ 预警文案含「·预警 / 等阳包阴确认」，且 mode=live（未确认样式）',
+        /·预警/.test(a.text) && /等阳包阴确认/.test(a.text) && a.mode === 'live' && a.confirmed === false);
     }
   }
   // 第6根不创新低 → 预警
@@ -1539,8 +1539,8 @@ section('17. 1小时顶部结构：五根形态 + 第5根新低预警 → 反包
     const cs = [90, 93, 92, 93, 89, 88];             // 第6根收 88 > 开 87 → 收阳
     const os = [91, 90, 93, 92, 93, 87];
     const hit = detectTop5(mk(hs, ls, os, cs), { minBars: 5, lookback: 20 });
-    ok('★ 创新低那根收阳 → 低点反包确认（stage=confirmed, reason=low-bull）',
-      !!hit && hit.stage === 'confirmed' && hit.reason === 'low-bull' && hit.lowReversal === true,
+    ok('★ 创新低那根收阳 → 低点反包确认（stage=confirmed, reason=ext-revert）',
+      !!hit && hit.stage === 'confirmed' && hit.reason === 'ext-revert' && hit.lowReversal === true,
       hit ? `stage=${hit.stage} reason=${hit.reason}` : 'null');
     if (hit) {
       const a = makeTop5Alert('ZUSDT', hit, Date.now(), false);
@@ -1603,6 +1603,23 @@ section('17. 1小时顶部结构：五根形态 + 第5根新低预警 → 反包
     const second = scanTop5('ZUSDT', fake, cfg, seen, Date.now(), true);
     ok('★ 同一阶段同一根K线只报一次', first.length === 1 && second.length === 0, first.length + '/' + second.length);
   }
+  // ★ 底部结构（把顶部逻辑完全反过来）
+  {
+    const B5 = [5, 9, 11, 10, 12];      // 低点：第1根最低5 → 第2根9(不创新低) → 第3根11 → 第4根10(不低于第2根) → 第5根高12
+    const BL = [5, 9, 11, 10, 12];
+    const BH = [8, 12, 14, 13, 15];     // 第5根高点15 > 前四根最高14
+    const hit = detectTop5(mk(BH, BL), { minBars: 5, lookback: 20, dir: 'bottom' });
+    ok('★ 底部结构（镜像）：第5根创新高 → 预警', !!hit && hit.stage === 'warning' && hit.dir === 'bottom',
+      hit ? `stage=${hit.stage} dir=${hit.dir}` : 'null');
+    if (hit) {
+      const a = makeTop5Alert('ZUSDT', hit, Date.now(), false);
+      ok('★ 底部结构报警：kind=bot5、side=long、文案含「底部结构 / 创新高 / 等阴包阳确认」',
+        a.kind === 'bot5' && a.side === 'long' && /底部结构/.test(a.text) && /等阴包阳确认/.test(a.text), a.kind);
+    }
+  }
+  // 底部：第5根未创新高 → 不命中
+  ok('★ 底部结构：第5根没有高于前四根 → 不命中',
+    detectTop5(mk([8, 12, 14, 13, 11], [5, 9, 11, 10, 12]), { minBars: 5, lookback: 20, dir: 'bottom' }) === null);
   ok('配置默认：顶部结构开启、级别 15分/30分/1时/2时/3时/6时、第5根起预警、严格反包口径',
     DEFAULT_SIGNAL.top5Enabled === true && DEFAULT_SIGNAL.top5WarnBars === 5
     && DEFAULT_SIGNAL.top5StrictEngulf === true

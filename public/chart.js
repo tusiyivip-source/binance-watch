@@ -356,8 +356,8 @@ function paintCard(view, i, it) {
 
   if (isAlert) {
     head.querySelector('.lv').innerHTML = `<span class="sym">${it.symbol}</span>`;
-    head.querySelector('.roles').innerHTML = it.kind === 'top5'
-      ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span><span class="rb">顶部结构</span>`
+    head.querySelector('.roles').innerHTML = (it.kind === 'top5' || it.kind === 'bot5')
+      ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span><span class="rb">${it.kind === 'bot5' ? '底部结构' : '顶部结构'}</span>`
       : it.kind === 'chain'
       ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span>`
         + (it.subLevelLabel ? `<span class="rb">→${it.subLevelLabel}</span>` : '')
@@ -370,10 +370,11 @@ function paintCard(view, i, it) {
     st.className = 'st ' + (it.mode === 'closed' ? 's1' : 's3');
     // 形态提醒没有评分，用方向标签代替；共振信号仍显示组合与评分
     const isDual = it.kind === 'dual';
-    if (it.kind === 'top5') {
+    if (it.kind === 'top5' || it.kind === 'bot5') {
       head.querySelector('.sp').innerHTML =
-        `<span class="grp">高点${fmtPrice(it.topHigh)} · 向下${it.topBars ?? '?'}根</span>`
-        + `<span class="sc">第5根新低 ${fmtPrice(it.topLow5)}</span>` + divBadge;
+        (it.kind === 'bot5'
+          ? `<span class="grp">低点${fmtPrice(it.topHigh)} · 向上${it.topBars ?? '?'}根</span><span class="sc">第5根新高</span>`
+          : `<span class="grp">高点${fmtPrice(it.topHigh)} · 向下${it.topBars ?? '?'}根</span><span class="sc">第5根新低 ${fmtPrice(it.topLow5)}</span>`) + divBadge;
     } else if (it.kind === 'chain') {
       head.querySelector('.sp').innerHTML =
         `<span class="grp">回调${it.chainBars ?? '?'}根 · 下上下上下</span>`
@@ -509,14 +510,14 @@ async function refreshTopView() {
   const bars = currentBars(view);
   const limit = +document.querySelector('#top-limit').value || 24;
   try {
-    const d = await fetch(`/api/alertchart?kind=top5&bars=${bars}&limit=${limit}`).then(r => r.json());
+    const d = await fetch(`/api/alertchart?kind=top5,bot5&bars=${bars}&limit=${limit}`).then(r => r.json());
     view.items = d.items ?? [];
     ensureCards(view, view.items);
     paintView(view);
     applyCols(view);
     document.querySelector('#top-empty').style.display = view.items.length ? 'none' : '';
     document.querySelector('#top-live').textContent = view.items.length
-      ? `共 ${d.total ?? view.items.length} 条顶部结构 · ${bars} 根 · ` + new Date().toLocaleTimeString('zh-CN', { hour12: false })
+      ? `共 ${view.items.length} 条结构（顶部 ${view.items.filter(x => x.kind === 'top5').length} · 底部 ${view.items.filter(x => x.kind === 'bot5').length}）· ${bars} 根 · ` + new Date().toLocaleTimeString('zh-CN', { hour12: false })
       : '暂无顶部结构';
   } catch (e) { console.warn('[top] 刷新失败：' + (e && e.message)); }
 }
