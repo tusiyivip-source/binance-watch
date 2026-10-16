@@ -363,8 +363,8 @@ function paintCard(view, i, it) {
     const isDual = it.kind === 'dual';
     if (it.kind === 'chain') {
       head.querySelector('.sp').innerHTML =
-        `<span class="grp">回调${it.chainBars ?? '?'}根 · 五浪 ${it.chainSeq ?? ''}</span>`
-        + (Array.isArray(it.chainGaps) ? `<span class="sc">间隔 ${it.chainGaps.join('/')}</span>` : '')
+        `<span class="grp">回调${it.chainBars ?? '?'}根 · 下上下上下</span>`
+        + (Array.isArray(it.chainSubBars) ? `<span class="sc">每笔 ${it.chainSubBars.join('/')}根</span>` : '')
         + divBadge;
     } else if (it.kind === 'wave') {
       // 五浪信号：显示五浪序列 + 金叉到上穿隔了几根 + 一笔下跨度
@@ -411,6 +411,8 @@ function paintCard(view, i, it) {
   //   （症状：五浪视图只有第一张图有内容，其余全空）。
   const cs = Array.isArray(it.candles) ? it.candles : [];
   if (!cs.length) {
+    if (e.chainLine) e.chainLine.setData([]);
+    e.candle.setMarkers([]);
     e.candle.setData([]); e.ma7.setData([]); e.ema7.setData([]);
     e.macdHist.setData([]); e.macdDif.setData([]); e.macdDea.setData([]); e.vol.setData([]);
     return;
@@ -427,8 +429,24 @@ function paintCard(view, i, it) {
   e.ma7.setData(showMA ? line(it.ma7) : []);
   e.ema7.setData(showMA ? line(it.ema7) : []);
 
-  // 缠论笔
-  // 「缠论笔」已按需求彻底移除：不画笔线、不标分型
+  // 只画这条报警实际使用的五笔快照，避免实时成笔变化后画到另一组结构。
+  if (it.kind === 'chain' && !e.chainLine) {
+    e.chainLine = e.chart.addLineSeries({ color: '#0ecb81', lineWidth: 2,
+      priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+  }
+  const points = it.kind === 'chain' && it.key === it.subLevel && Array.isArray(it.chainSubPoints)
+    ? it.chainSubPoints.filter(p => Number.isFinite(p.t) && Number.isFinite(p.price)
+      && p.t >= cs[0][0] && p.t <= cs[cs.length - 1][0]) : [];
+  if (e.chainLine) e.chainLine.setData(points.map(p => ({ time: Math.floor(p.t / 1000), value: p.price })));
+  const markers = points.map(p => ({ time: Math.floor(p.t / 1000),
+    position: p.type === 'top' ? 'aboveBar' : 'belowBar', color: '#0ecb81', shape: 'circle',
+    text: String(it.chainSubPoints.indexOf(p)) }));
+  if (it.kind === 'chain' && Number.isFinite(it.confirmedAt)) {
+    const at = cs.findIndex(c => c[0] + it.ms === it.confirmedAt);
+    if (at >= 0) markers.push({ time: T(at), position: 'belowBar', color: '#f0b90b',
+      shape: 'arrowUp', text: `${it.levelLabel}底分型收盘确认` });
+  }
+  e.candle.setMarkers(markers.sort((a, b) => a.time - b.time));
 
   // MACD 副图
   const showMacd = document.querySelector('#chart-macd').checked;
@@ -488,8 +506,8 @@ async function refreshWaveView() {
     applyCols(view);
     document.querySelector('#wave-empty').style.display = view.items.length ? 'none' : '';
     document.querySelector('#wave-live').textContent = view.items.length
-      ? `共 ${all.length} 条三级别结构（6-1-10 / 3-30-5 / 2-15-3 / 1-10-2）${pickW === 'all' ? '' : '（只看 ' + (pairs.find(p => p.key === pickW)?.label ?? pickW) + '）'} · ${bars} 根 · ` + new Date().toLocaleTimeString('zh-CN', { hour12: false })
-      : '暂无三级别结构信号';
+      ? `共 ${all.length} 条两级五浪（3分→15分 / 5分→30分 / 10分→1时 / 15分→2时 / 30分→3时 / 1时→6时）${pickW === 'all' ? '' : '（只看 ' + (pairs.find(p => p.key === pickW)?.label ?? pickW) + '）'} · ${bars} 根 · ` + new Date().toLocaleTimeString('zh-CN', { hour12: false })
+      : '暂无两级五浪信号';
   } catch (e) { console.warn('[wave] 刷新失败：' + (e && e.message)); }
 }
 

@@ -50,10 +50,10 @@
 <main>
   <div class="viewtabs">
     <button id="tab-alert" class="vt">🔔 报警级别K线</button>
-    <button id="tab-wave" class="vt on">🧩 三级别结构</button>
+    <button id="tab-wave" class="vt on">🧩 两级五浪</button>
     <span class="vtsep"></span>
     <span id="wave-symbar" style="display:none">
-      <span class="chartsym">每条三级别结构的<b style="color:#f0b90b">主级别</b>K线 · 按时间倒序</span>
+      <span class="chartsym">每条两级五浪的<b style="color:#f0b90b">主级别</b>K线 · 按时间倒序</span>
       <select id="wave-limit" class="vtsel" title="最多展示多少条">
         <option value="12">最近 12 条</option>
         <option value="24" selected>最近 24 条</option>
@@ -90,7 +90,7 @@
     <select id="alert-kind" class="vtsel" style="display:none" title="按通道筛选">
       <option value="all" selected>全部通道</option>
       <option value="watch">回调靠零轴</option>
-      <option value="chain">三级别结构（当前策略）</option>
+      <option value="chain">两级五浪（当前策略）</option>
       <option value="wave,wavefirst">五浪反弹（含首底预警）</option>
       <option value="wave">仅五浪完成</option>
       <option value="wavefirst">仅五浪首底预警</option>
@@ -129,7 +129,7 @@
   <div id="view-matrix" class="view">
     <div id="wavechartwrap" style="display:none">
       <div id="wavechartgrid"></div>
-      <div id="wave-empty" class="empty">暂无三级别结构信号。条件：<b>主级别</b>回调高点→低点 ≥5 根 → <b>次级别</b>走出 <b>下上下上下 五笔</b> → <b>内部级别</b> MACD <b>死→金→死→金→死</b>（相邻间隔 ≥5 根）→ <b>主级别出现底分型</b>且第三根收盘成立 → 提前提醒。</div>
+      <div id="wave-empty" class="empty">暂无两级五浪信号。条件：<b>主级别</b>回调高点→低点 ≥5 根 → <b>次级别</b>走出 <b>下上下上下 五笔</b> → <b>主级别出现底分型</b>且第三根收盘成立 → 提前提醒。</div>
     </div>
     <div id="alertchartwrap">
       <div id="alertchartgrid"></div>
@@ -166,18 +166,18 @@
     
     <div class="groupbox">
       <div class="gtitle">
-        <b>三级别结构（当前策略）</b>
-        <span class="gsub">主级别回调 ≥5 根 → 次级别 下上下上下 五笔 → 内部 死金死金死（间隔 ≥5 根）→ 主级别底分型成立即报</span>
+        <b>两级五浪（当前策略）</b>
+        <span class="gsub">主级别回调 ≥5 根 → 次级别 下上下上下 五笔→ 主级别底分型成立即报</span>
         <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-chainEnabled"> 启用</label>
       </div>
       <div class="prow">
-        <label style="flex:1 1 100%">级别组合（主-次-内）：
-          <code>6时-1小时-10分</code>　<code>3时-30分-5分</code>　<code>2时-15分-3分</code>　<code>1时-10分-2分</code>
+        <label style="flex:1 1 100%">级别组合（五浪级别 → 底分型确认级别）：
+          <code>3分→15分</code>　<code>5分→30分</code>　<code>10分→1时</code>　<code>15分→2时</code>　<code>30分→3时</code>　<code>1时→6时</code>
         </label>
       </div>
       <div class="prow">
         <label>主级别回调最少根数 <input id="c-chainMainMinBars" type="number" min="3" max="30" step="1"></label>
-        <label>内部交叉最少间隔 <input id="c-chainInnerMinBars" type="number" min="3" max="30" step="1"></label>
+        <label>次级别每笔最少根数 <input id="c-chainSubMinBars" type="number" min="5" max="30" step="1"></label>
         <label>主级别高点回看 <input id="c-chainLookback" type="number" min="5" max="100" step="1"></label>
         <label>主级别底分型
           <select id="c-chainFractalType">
@@ -189,13 +189,11 @@
         </label>
       </div>
       <div class="gnote">
-        ① <b>主级别</b>（6时/3时/2时/1时）：回调 高点→之后最低点 <b>≥5 根K线</b>。<br>
-        ② <b>次级别</b>（1时/30分/15分/10分）：高低点连成 <b>下上下上下 五笔</b>（用缠论分型端点）。<br>
-        ③ <b>内部级别</b>（10分/5分/3分/2分）：MACD <b>死→金→死→金→死</b>，且<b>相邻交叉之间 ≥5 根K线</b>；<br>
-        　　取的是"这段窗口内<b>最近走完</b>的一个五浪"（实测内部级别历史深度只覆盖 11%~37%，不要求整段正好五个）。<br>
-        ④ 主级别在<b>回调最低点 ±1~3 根内</b>出现<b>底分型</b>、第三根<b>收盘</b>成立 → <b>提前提醒</b>（不等上穿均线）。<br>
-        <span style="color:#f0b90b">提示</span>：内部级别（1分/3分/5分）历史已加深到 1000 根，
-        重启后第一次播种会多花几分钟把历史拉齐。
+        ① <b>主级别</b>（15分/30分/1时/2时/3时/6时）：回调 高点→之后最低点 <b>≥5 根K线</b>。<br>
+        ② <b>次级别</b>（3分/5分/10分/15分/30分/1时）：高低点连成 <b>下上下上下 五笔</b>，<b>一笔一浪，每笔至少5根K线（含首尾）</b>。<br>
+        ③ <b>回调最低点就是底分型中间那根</b>，第三根<b>收盘</b>成立 → <b>提前提醒</b>；只使用该确认时刻已收盘的数据，同一结构仅提醒一次。<br>
+        同一段回调优先选最大的有效五浪级别，再等配对主级别确认。15分和30分都合格时，采用30分→3时。<br>
+        某笔只有4根时可向小一档复核，复核仍须每笔≥5根；例如10分降为5分后，改等30分底分型。MACD不作为条件。
       </div>
     </div>
     <div class="groupbox">

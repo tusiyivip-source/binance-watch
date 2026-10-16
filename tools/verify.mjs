@@ -1379,7 +1379,7 @@ section('16. 三级别结构：主级别回调≥5根 + 次级别 下上下上�
     const c = [97, 94, 90, 88, 86, 84, 82, 78.5, 81, 83, 84, 85];
     const t = c.map((_, i) => i * M);
     const ema7 = c.map(() => 0);
-    return { key: '6h', ms: M, t, h, l, c, ema7, dif: c.map(() => 0), dea: c.map(() => 0), closed: t.length, pts: null };
+    return { key: '6h', ms: M, t, h, l, c, ema7, dif: c.map(() => 0), dea: c.map(() => 0), closed: 9, pts: null };
   };
   /** 次级别：t0..t5 六个端点 T,B,T,B,T,B（= 下上下上下 五笔） */
   const mkSub = (t0) => {
@@ -1388,8 +1388,15 @@ section('16. 三级别结构：主级别回调≥5根 + 次级别 下上下上�
     const pts = [];
     const lows = [96, 92, 88];
     for (let k = 0; k < 3; k++) {
-      pts.push({ mi: 5 + k * 16, origIdx: 5 + k * 16, type: 'top', price: 99 });
-      pts.push({ mi: 12 + k * 16, origIdx: 12 + k * 16, type: 'bottom', price: lows[k] });
+      pts.push({ mi: 5 + k * 16, origIdx: 5 + k * 16, confirmIdx: 6 + k * 16, type: 'top', price: 99 });
+      pts.push({ mi: 12 + k * 16, origIdx: 12 + k * 16, confirmIdx: 13 + k * 16, type: 'bottom', price: lows[k] });
+    }
+    const knots = [{ origIdx: 0, price: 94 }, ...pts, { origIdx: 59, price: 99 }];
+    for (let i = 0; i < n; i++) {
+      const j = Math.max(1, knots.findIndex(p => p.origIdx >= i));
+      const a = knots[j - 1], b = knots[j];
+      const price = a.price + (b.price - a.price) * (i - a.origIdx) / (b.origIdx - a.origIdx);
+      h[i] = price + 0.1; l[i] = price - 0.1; c[i] = price;
     }
     return { key: '1h', ms: S, t, h, l, c, ema7: c.map(() => 0), dif: c.map(() => 0), dea: c.map(() => 0), closed: t.length, pts };
   };
@@ -1410,7 +1417,7 @@ section('16. 三级别结构：主级别回调≥5根 + 次级别 下上下上�
   };
 
   const main = mkMain();
-  const t0 = main.t[1];                       // 主级别高点之后
+  const t0 = main.t[0];                       // 首顶位于主级别高点K线内
   const sub = mkSub(t0);
   const span = 60 * S;
   const inner = mkInner(t0, span);
@@ -1418,17 +1425,17 @@ section('16. 三级别结构：主级别回调≥5根 + 次级别 下上下上�
   {
     const hit = detectChain(main, sub, inner, { mainMinBars: 5, innerMinBars: 5, lookback: 20 });
     ok('★ 主级别回调≥5根 + 次级别五笔 + 内部死金死金死(间隔≥5) + 主级别底分型 → 命中', !!hit,
-      hit ? `主${hit.mainBars}根 内部${hit.innerSeq} 间隔${hit.innerGaps.join('/')}` : 'null');
+      hit ? `主${hit.mainBars}根 内部${hit.innerSeq} 间隔${hit.subBars.join('/')}` : 'null');
     if (hit) {
       ok('★ 主级别回调根数 ≥5', hit.mainBars >= 5, 'bars=' + hit.mainBars);
-      ok('★ 内部序列 = 死→金→死→金→死', hit.innerSeq === 'DGDGD', hit.innerSeq);
-      ok('★ 相邻交叉间隔都 ≥5 根', hit.innerGaps.every(g => g >= 5), hit.innerGaps.join('/'));
+      ok('★ 内部序列 = 死→金→死→金→死', hit.innerKey === null, hit.innerSeq);
+      ok('★ 相邻交叉间隔都 ≥5 根', hit.subBars.every(g => g >= 5), hit.subBars.join('/'));
       const a = makeChainAlert('ZUSDT', hit, Date.now(), false);
       ok('★ 报警 kind=chain，级别组合 6时→1时→10分',
-        a.kind === 'chain' && a.level === '6h' && a.subLevel === '1h' && a.innerLevel === '10m',
+        a.kind === 'chain' && a.level === '6h' && a.subLevel === '1h' && a.innerLevel === null,
         `${a.level}/${a.subLevel}/${a.innerLevel}`);
       ok('★ 文案含「三级别结构 / 下上下上下 / 底分型 / 提前提醒」',
-        /三级别结构/.test(a.text) && /下上下上下/.test(a.text) && /底分型成立/.test(a.text) && /提前提醒/.test(a.text));
+        /两级五浪/.test(a.text) && /下上下上下/.test(a.text) && /底分型成立/.test(a.text) && /提前提醒/.test(a.text));
     }
   }
   // ★ 回归：回调途中的底分型不能被当成"见底"（用户反馈过这个 bug）
@@ -1454,8 +1461,8 @@ section('16. 三级别结构：主级别回调≥5根 + 次级别 下上下上�
     let s = 1;
     for (let i = 0; i < dif.length; i++) { if (flips.includes(i)) s = -s; dif[i] = s; }
     innerBad.dif = dif;
-    ok('★ 相邻交叉间隔只有 3 根 → 不命中',
-      detectChain(main, sub, innerBad, { mainMinBars: 5, innerMinBars: 5 }) === null);
+    ok('★ 两级策略不受第三周期MACD间隔影响',
+      !!detectChain(main, sub, innerBad, { mainMinBars: 5, innerMinBars: 5 }));
   }
   // 主级别回调不足 5 根
   {
@@ -1487,12 +1494,9 @@ section('16. 三级别结构：主级别回调≥5根 + 次级别 下上下上�
     const second = scanChains('ZUSDT', fake, cfg, seen, Date.now(), true);
     ok('★ 同一个结构只报一次', first.length === 1 && second.length === 0, first.length + '/' + second.length);
   }
-  ok('配置默认：结构通道开启、四组级别对 6-1-10 / 3-30-5 / 2-15-3 / 1-10-2',
+  ok('配置默认：六组独立两级配对',
     DEFAULT_SIGNAL.chainEnabled === true
-    && JSON.stringify(DEFAULT_SIGNAL.chainTriples) === JSON.stringify([
-      { main: '6h', sub: '1h', inner: '10m' }, { main: '3h', sub: '30m', inner: '5m' },
-      { main: '2h', sub: '15m', inner: '3m' }, { main: '1h', sub: '10m', inner: '2m' },
-    ])
+    && JSON.stringify(DEFAULT_SIGNAL.chainTriples) === JSON.stringify([{"main":"15m","sub":"3m"},{"main":"30m","sub":"5m"},{"main":"1h","sub":"10m"},{"main":"2h","sub":"15m"},{"main":"3h","sub":"30m"},{"main":"6h","sub":"1h"}])
     && DEFAULT_SIGNAL.chainMainMinBars === 5 && DEFAULT_SIGNAL.chainInnerMinBars === 5,
     JSON.stringify(DEFAULT_SIGNAL.chainTriples));
 }

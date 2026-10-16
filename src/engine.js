@@ -476,7 +476,8 @@ export class Engine extends Emitter {
       //   共振信号 → mid（组合里的确认级别）
       //   形态提醒 → level（双阴/双阳只看一个级别）
       //   两阶段盯盘 → base（最小级别）
-      const key = (a.mid && LEVEL_INDEX[a.mid] != null) ? a.mid
+      const key = a.kind === 'chain' ? a.level
+        : (a.mid && LEVEL_INDEX[a.mid] != null) ? a.mid
         : (a.level && LEVEL_INDEX[a.level] != null) ? a.level
           : (a.base && LEVEL_INDEX[a.base] != null) ? a.base
             : (typeof a.group === 'string' && a.group.includes('>') ? a.group.split('>')[1] : null);
@@ -525,6 +526,11 @@ export class Engine extends Emitter {
         chainBars: Number.isFinite(a.chainBars) ? a.chainBars : null,
         chainSeq: a.chainSeq ?? null,
         chainGaps: Array.isArray(a.chainGaps) ? a.chainGaps : null,
+        chainSubBars: Array.isArray(a.chainSubBars) ? a.chainSubBars : null,
+        chainSubPoints: Array.isArray(a.chainSubPoints) ? a.chainSubPoints : [],
+        chainFallbackFrom: a.chainFallbackFrom ?? null,
+        chainFifthBars: a.chainFifthBars ?? null,
+        confirmedAt: a.confirmedAt ?? null,
         chainLow: Number.isFinite(a.chainLow) ? a.chainLow : null,
         alertPrice: a.price ?? null,
         text: a.text ?? '',

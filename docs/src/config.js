@@ -129,17 +129,36 @@ export const DEFAULT_SIGNAL = {
   baseMinIdx: 2,           // auto 模式：允许作为"基准级别"的最小下标（2=3分钟）
   baseMaxIdx: 6,           // auto 模式：允许作为"基准级别"的最大下标（6=30分钟）
 
-  // ============ 三级别嵌套结构（★ 用户 2026-10-15 新定义，唯一开启的策略） ============
-  //   主级别回调(高点→低点 ≥5 根) + 次级别 下上下上下 五笔 + 内部级别 MACD 死金死金死
-  //   （相邻交叉 ≥5 根、且与五笔高低相连）+ 主级别出现底分型 + 收盘成立 → 提前提醒
+  // 两级五浪：每组独立，仅次级别五笔 + 对应主级别底分型确认。
   chainEnabled: true,
   chainTriples: [
-    { main: '6h', sub: '1h', inner: '10m' },     // 6-1-10
-    { main: '3h', sub: '30m', inner: '5m' },     // 3-30-5
-    { main: '2h', sub: '15m', inner: '3m' },     // 2-15-3
-    { main: '1h', sub: '10m', inner: '2m' },     // 1-10-2
-  ],
+  {
+    "main": "15m",
+    "sub": "3m"
+  },
+  {
+    "main": "30m",
+    "sub": "5m"
+  },
+  {
+    "main": "1h",
+    "sub": "10m"
+  },
+  {
+    "main": "2h",
+    "sub": "15m"
+  },
+  {
+    "main": "3h",
+    "sub": "30m"
+  },
+  {
+    "main": "6h",
+    "sub": "1h"
+  }
+],
   chainMainMinBars: 5,      // 主级别回调最少几根K线（用户：不少于5根）
+  chainSubMinBars: 5,       // 次级别每一笔（一浪）至少5根K线，包含首尾端点
   chainInnerMinBars: 5,     // 内部相邻交叉之间最少几根K线（用户：每次内部不少于五根）
   chainLookback: 20,        // 主级别高点在最近几根里找
   chainFractalType: 'any',       // 主级别见底分型口径：any=中间低点最低（默认，实测覆盖最好）| standard/relay/weakest
