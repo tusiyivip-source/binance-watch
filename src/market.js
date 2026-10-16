@@ -392,6 +392,8 @@ export class Market {
     this.revision++;
   }
 
+  get feedStats() { return this.tickFeed?.stats ?? null; }
+
   get stats() {
     const shardInfo = this.shards.map(s => ({
       name: s.name,

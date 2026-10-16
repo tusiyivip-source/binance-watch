@@ -619,6 +619,8 @@ export class Engine extends Emitter {
 
   stats() {
     return {
+      boundary: this.market.feedStats?.boundary ?? null,
+      boundaryAligned: this.market.feedStats?.boundaryAligned ?? null,
       sweepCount: this.sweepCount,
       lastSweepMs: this.lastSweepMs,
       lastSweepAt: this.lastSweepAt,

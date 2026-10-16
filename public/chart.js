@@ -639,6 +639,12 @@ function initCharts() {
   document.querySelector('#tab-wave').addEventListener('click', () => setView('wave'));
   document.querySelector('#tab-top').addEventListener('click', () => setView('top'));
   document.querySelector('#top-refresh').addEventListener('click', () => refreshTopView());
+  document.querySelector('#top-fullscan').addEventListener('click', async () => {
+    const el = document.querySelector('#boundary-live');
+    if (el) el.textContent = '全量补K线中…';
+    try { await fetch('/api/resync'); } catch { /* 忽略 */ }
+    setTimeout(() => refreshTopView(), 4000);
+  });
   document.querySelector('#top-limit').addEventListener('change', () => refreshTopView());
   document.querySelector('#top-sort').addEventListener('change', () => refreshTopView());
   document.querySelector('#top-level').addEventListener('change', () => refreshTopView());

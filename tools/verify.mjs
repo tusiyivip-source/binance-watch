@@ -20,6 +20,7 @@ import { detectFirstBottom, makeFirstBottomAlert, scanFirstBottoms } from '../sr
 import { isBottomFractal, findFirstBottomFractal } from '../src/fractal.js';
 import { detectChain, makeChainAlert, scanChains, chainView } from '../src/chain.js';
 import { detectTop5, makeTop5Alert, scanTop5, top5View, isEngulf } from '../src/top5.js';
+import { nextBoundary, groupPeriodMs, BoundaryScheduler, levelPeriodMs } from '../src/boundary.js';
 
 // 验证脚本自己控制序列保留上限，避免受实盘 maxCandlesKept 影响导致对比样本数漂移
 APP.maxCandlesKept = 3000;
@@ -1612,6 +1613,34 @@ section('17. 顶部/底部结构：五根形态 + 反转点 + 收盘站上/跌�
     && DEFAULT_SIGNAL.top5NeedMa === true && DEFAULT_SIGNAL.top5AllowWarn === false
     && JSON.stringify(DEFAULT_SIGNAL.top5Levels) === JSON.stringify(['15m', '30m', '1h', '2h', '3h', '6h']),
     JSON.stringify({ needMa: DEFAULT_SIGNAL.top5NeedMa, warn: DEFAULT_SIGNAL.top5AllowWarn }));
+}
+
+/* ============ 18. 整点（收线）调度 ============ */
+section('18. 整点调度：各周期收线时刻扫描（5分/15分/30分/1时 + 组间错峰）');
+{
+  const T = Date.UTC(2026, 9, 16, 12, 37, 20);           // 12:37:20
+  ok('★ 5分钟：下一个整点是 12:40:00', nextBoundary(5 * 60_000, T) === Date.UTC(2026, 9, 16, 12, 40, 0));
+  ok('★ 15分钟：下一个整点是 12:45:00', nextBoundary(15 * 60_000, T) === Date.UTC(2026, 9, 16, 12, 45, 0));
+  ok('★ 30分钟：下一个整点是 13:00:00', nextBoundary(30 * 60_000, T) === Date.UTC(2026, 9, 16, 13, 0, 0));
+  ok('★ 1小时：下一个整点是 13:00:00', nextBoundary(60 * 60_000, T) === Date.UTC(2026, 9, 16, 13, 0, 0));
+  ok('★ 正好在整点上时，取下一个（不会重复扫同一根）',
+    nextBoundary(5 * 60_000, Date.UTC(2026, 9, 16, 12, 40, 0)) === Date.UTC(2026, 9, 16, 12, 45, 0));
+  ok('★ 组的节奏取组内最小周期（2时+4时 → 2时）', groupPeriodMs(['2h', '4h']) === 2 * 3600_000);
+  ok('★ 组的节奏取组内最小周期（6时+12时+1天+1周 → 6时）', groupPeriodMs(['6h', '12h', '1d', '1w']) === 6 * 3600_000);
+  {
+    const sch = new BoundaryScheduler(['5m'], { graceMs: 4000, staggerMs: 10_000, spreadMs: 20_000 });
+    const nb = sch.nextAt;
+    ok('★ 调度器把下次时间定在「整点 + grace + 错峰」上',
+      nb % (5 * 60_000) === 14_000 % (5 * 60_000), 'nextAt 余数=' + (nb % (5 * 60_000)));
+    ok('★ 到点前不开始新一轮', sch.shouldStart(nb - 1000, true) === false);
+    ok('★ 到点且上一轮跑完才开新一轮', sch.shouldStart(nb + 1, true) === true && sch.shouldStart(nb + 1, false) === false);
+    sch.beginRound(nb + 1);
+    ok('★ 开轮后 nextAt 推到下一个整点', sch.nextAt > nb + 1 && sch.nextAt % (5 * 60_000) === 14_000 % (5 * 60_000));
+    ok('★ 一轮在 spread 窗口内摊开发送（不是瞬间打 200 条）', sch.batchSize(200, 0, nb + 1) <= 20, '首批=' + sch.batchSize(200, 0, nb + 1));
+    ok('★ 窗口末尾能把剩余的全部发完', sch.batchSize(200, 150, nb + 1 + 20_000) >= 50);
+  }
+  ok('配置默认：整点模式开启、收线后 4 秒拉、25 秒内打完一轮',
+    APP.boundaryAligned === true && APP.boundaryGraceMs === 4000 && APP.boundarySpreadMs === 25_000);
 }
 
 /* ============ 15. 双阴/双阳判定修正：窗口右移 + 两条前置条件 ============ */

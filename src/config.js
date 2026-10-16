@@ -337,6 +337,10 @@ export const APP = {
   tickerRefreshMs: 60_000,   // 涨幅榜刷新
   exchangeInfoRefreshMs: 30 * 60_000,
   resyncMs: 15 * 60_000,     // 全量对账，修复丢包
+  // ===== 整点扫描（用户要求：每个整点刷新，以防被接口屏蔽）=====
+  boundaryAligned: true,     // true=只在该周期收线时刻集中扫一轮；false=旧的固定间隔持续轮询
+  boundaryGraceMs: 4000,     // 收线后等几秒再拉（等交易所定稿）
+  boundarySpreadMs: 25_000,  // 一轮标的在这个窗口内均匀打完
   broadcastMs: 1000,
   cacheSaveMs: 300_000,       // K线缓存写盘间隔（5 分钟）
   cacheFile: 'data/klines-cache.json',         // 前端表格推送频率
