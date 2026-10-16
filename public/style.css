@@ -147,15 +147,20 @@ body.chartmode .viewtabs{background:#0b1620}
 #view-chart{display:none}
 body.chartmode #chartgrid{display:grid}
 body.chartmode #tablewrap{display:none}
-#alertchartwrap,#wavechartwrap{display:none;flex:1;min-width:0;flex-direction:column;min-height:0}
+#alertchartwrap,#wavechartwrap,#topchartwrap{display:none;flex:1;min-width:0;flex-direction:column;min-height:0}
 body.alertchartmode #alertchartwrap{display:flex}
 body.wavemode #wavechartwrap{display:flex}
+body.topmode #topchartwrap{display:flex}
+body.topmode #tablewrap{display:none}
+body.topmode #chartgrid{display:none}
+body.topmode #wavechartwrap{display:none}
+body.topmode #alertchartwrap{display:none}
 body.wavemode #tablewrap{display:none}
 body.wavemode #alertchartwrap{display:none}
 body.wavemode #chartgrid{display:none}
 body.wavemode #tablewrap{display:none}
 
-#alertchartgrid,#wavechartgrid{
+#alertchartgrid,#wavechartgrid,#topchartgrid{
   flex:1;min-width:0;overflow-y:auto;overflow-x:hidden;padding:10px;display:grid;
   grid-template-columns:repeat(var(--cols,2),minmax(0,1fr));
   grid-auto-rows:max-content;

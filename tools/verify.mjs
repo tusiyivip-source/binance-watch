@@ -19,6 +19,7 @@ import { detectBreakout, makeBreakoutAlert, scanBreakouts, brkView } from '../sr
 import { detectFirstBottom, makeFirstBottomAlert, scanFirstBottoms } from '../src/firstbottom.js';
 import { isBottomFractal, findFirstBottomFractal } from '../src/fractal.js';
 import { detectChain, makeChainAlert, scanChains, chainView } from '../src/chain.js';
+import { detectTop5, makeTop5Alert, scanTop5, top5View } from '../src/top5.js';
 
 // 验证脚本自己控制序列保留上限，避免受实盘 maxCandlesKept 影响导致对比样本数漂移
 APP.maxCandlesKept = 3000;
@@ -1499,6 +1500,54 @@ section('16. 三级别结构：主级别回调≥5根 + 次级别 下上下上�
     && JSON.stringify(DEFAULT_SIGNAL.chainTriples) === JSON.stringify([{"main":"15m","sub":"3m"},{"main":"30m","sub":"5m"},{"main":"1h","sub":"10m"},{"main":"2h","sub":"15m"},{"main":"3h","sub":"30m"},{"main":"6h","sub":"1h"}])
     && DEFAULT_SIGNAL.chainMainMinBars === 5 && DEFAULT_SIGNAL.chainInnerMinBars === 5,
     JSON.stringify(DEFAULT_SIGNAL.chainTriples));
+}
+
+/* ============ 17. 1小时顶部结构 ============ */
+section('17. 1小时顶部结构：第1根高点 → 第2根不创新高 → 第3根不超第1根 → 第4根不超第2根 → 第5根创新低 + 向下≥6根');
+{
+  const H = 3_600_000;
+  /** 造一段：hf 为各根高点数组、lf 为各根低点数组（第1根为这段高点） */
+  const mk = (hs, ls) => ({ key: '1h', ms: H, t: hs.map((_, i) => i * H), h: hs, l: ls, c: hs.map((x, i) => (x + ls[i]) / 2), closed: hs.length });
+  // 正例：1高点 → 2不创新高 → 3不超1 → 4不超2 → 5创新低，且向下 6 根
+  const okBars = mk(
+    [100, 96, 94, 95, 93, 92, 91, 90],
+    [95, 92, 90, 91, 88, 87, 86, 85]);
+  {
+    const hit = detectTop5(okBars, { minBars: 6, lookback: 20 });
+    ok('★ 五根形态成立 + 向下≥6根 → 命中', !!hit, hit ? `向下${hit.bars}根 高点${hit.high} 第5根低${hit.low5}` : 'null');
+    if (hit) {
+      ok('★ 第1根是这段高点', hit.high === 100, 'high=' + hit.high);
+      ok('★ 第2根不创新高（96 ≤ 100）', hit.h2 <= 100, 'h2=' + hit.h2);
+      ok('★ 第4根高点不超过第2根（95 ≤ 96）', hit.h4 <= hit.h2, `h4=${hit.h4} h2=${hit.h2}`);
+      ok('★ 第5根低点低于前四根', hit.low5 < Math.min(hit.low1, hit.low2, hit.low3, hit.low4v), 'low5=' + hit.low5);
+      const a = makeTop5Alert('ZUSDT', hit, Date.now(), false);
+      ok('★ 报警 kind=top5、文案含五根关键价', a.kind === 'top5' && /第2根不创新高/.test(a.text) && /第5根创新低/.test(a.text));
+    }
+  }
+  // 说明：第1根取的是"最近窗口内最高"，所以第2/3根不可能超过它（超了锚点就移过去），
+  // 因此②③两条是天然成立的，无需反例。
+  // 反例3：第4根高点超过第2根
+  ok('★ 第4根高点超过第2根（97 > 96）→ 不命中',
+    detectTop5(mk([100, 96, 94, 97, 93, 92, 91, 90], [95, 92, 90, 91, 88, 87, 86, 85]), { minBars: 6 }) === null);
+  // 反例4：第5根没有创新低
+  ok('★ 第5根没有低于前四根 → 不命中',
+    detectTop5(mk([100, 96, 94, 95, 93, 92, 91, 90], [95, 92, 90, 91, 91.5, 87, 86, 85]), { minBars: 6 }) === null);
+  // 反例5：向下不足 6 根
+  ok('★ 高点向下只有 4 根（<6）→ 不命中',
+    detectTop5(mk([100, 96, 94, 95, 93], [95, 92, 90, 91, 88]), { minBars: 6 }) === null);
+  // 去重
+  {
+    const cfg = { top5Levels: ['1h'], top5MinBars: 6, top5Lookback: 20 };
+    const fake = { '1h': { t: okBars.t, h: okBars.h, l: okBars.l, c: okBars.c, ms: H, closedCount: okBars.closed } };
+    const seen = new Map();
+    const first = scanTop5('ZUSDT', fake, cfg, seen, Date.now(), false);
+    const second = scanTop5('ZUSDT', fake, cfg, seen, Date.now(), true);
+    ok('★ 同一段高点只报一次', first.length === 1 && second.length === 0, first.length + '/' + second.length);
+  }
+  ok('配置默认：顶部结构开启、级别 1小时、向下≥6根',
+    DEFAULT_SIGNAL.top5Enabled === true && DEFAULT_SIGNAL.top5MinBars === 6
+    && JSON.stringify(DEFAULT_SIGNAL.top5Levels) === JSON.stringify(['1h']),
+    JSON.stringify(DEFAULT_SIGNAL.top5Levels));
 }
 
 /* ============ 15. 双阴/双阳判定修正：窗口右移 + 两条前置条件 ============ */

@@ -44,7 +44,24 @@
   <div class="viewtabs">
     <button id="tab-alert" class="vt">🔔 报警级别K线</button>
     <button id="tab-wave" class="vt on">🧩 两级五浪</button>
+    <button id="tab-top" class="vt">⚠ 1时顶部结构</button>
     <span class="vtsep"></span>
+    <span id="top-symbar" style="display:none">
+      <span class="chartsym">每条顶部结构的<b style="color:#f0b90b">1小时</b>K线 · 按时间倒序</span>
+      <select id="top-limit" class="vtsel" title="最多展示多少条">
+        <option value="12">最近 12 条</option>
+        <option value="24" selected>最近 24 条</option>
+        <option value="40">最近 40 条</option>
+        <option value="60">最近 60 条</option>
+      </select>
+      <select id="top-size" class="vtsel" title="每张图的尺寸">
+        <option value="compact">紧凑（塞进一屏）</option>
+        <option value="normal" selected>标准</option>
+        <option value="large">大</option>
+        <option value="xl">特大</option>
+      </select>
+      <button id="top-refresh" class="vt mini" title="立即刷新">↻</button>
+    </span>
     <span id="wave-symbar" style="display:none">
       <span class="chartsym">每条两级五浪的<b style="color:#f0b90b">主级别</b>K线 · 按时间倒序</span>
       <select id="wave-limit" class="vtsel" title="最多展示多少条">
@@ -84,6 +101,7 @@
       <option value="all" selected>全部通道</option>
       <option value="watch">回调靠零轴</option>
       <option value="chain">两级五浪（当前策略）</option>
+      <option value="top5">1时顶部结构</option>
       <option value="wave,wavefirst">五浪反弹（含首底预警）</option>
       <option value="wave">仅五浪完成</option>
       <option value="wavefirst">仅五浪首底预警</option>
@@ -116,6 +134,7 @@
     <span id="chart-live" class="chartlive">—</span>
     <span id="alert-live" class="chartlive"></span>
     <span id="wave-live" class="chartlive"></span>
+    <span id="top-live" class="chartlive"></span>
   </div>
 
   <div id="mainbody">
@@ -123,6 +142,10 @@
     <div id="wavechartwrap" style="display:none">
       <div id="wavechartgrid"></div>
       <div id="wave-empty" class="empty">暂无两级五浪信号。条件：<b>主级别</b>回调高点→低点 ≥5 根 → <b>次级别</b>走出 <b>下上下上下 五笔</b> → <b>主级别出现底分型</b>且第三根收盘成立 → 提前提醒。</div>
+    </div>
+    <div id="topchartwrap" style="display:none">
+      <div id="topchartgrid"></div>
+      <div id="top-empty" class="empty">暂无1小时顶部结构。条件：第1根=高点 → 第2根不创新高 → 第3根不超第1根 → 第4根不超第2根 → 第5根创这段新低，且高点向下 ≥6 根。</div>
     </div>
     <div id="alertchartwrap">
       <div id="alertchartgrid"></div>
@@ -157,6 +180,25 @@
 
     
     
+    <div class="groupbox">
+      <div class="gtitle">
+        <b>1小时顶部结构（独立界面）</b>
+        <span class="gsub">第1根=高点 → 第2根不创新高 → 第3根不超第1根 → 第4根不超第2根 → 第5根创这段新低 + 向下 ≥6 根</span>
+        <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-top5Enabled"> 启用</label>
+      </div>
+      <div class="prow">
+        <label>级别 <code>1小时</code></label>
+        <label>高点向下最少根数 <input id="c-top5MinBars" type="number" min="3" max="30" step="1"></label>
+        <label>高点回看根数 <input id="c-top5Lookback" type="number" min="5" max="100" step="1"></label>
+      </div>
+      <div class="gnote">
+        五根K线的形态（级别：<b>1小时</b>）：<br>
+        &nbsp;&nbsp;第1根 = 这段<b>高点</b>；第2根<b>不创新高</b>（高点 ≤ 第1根），收盘形态随意；<br>
+        &nbsp;&nbsp;第3根形态随意，但<b>高点不超第1根</b>；第4根形态随意，但<b>高点不超第2根</b>；<br>
+        &nbsp;&nbsp;第5根<b>价格低于前四根</b>（创这段新低）。<br>
+        另加：高点向下 <b>≥「高点向下最少根数」</b>（用户口径"大于5根以上"，默认 6）。全部满足即提醒（同一段高点只报一次）。
+      </div>
+    </div>
     <div class="groupbox">
       <div class="gtitle">
         <b>两级五浪（当前策略）</b>

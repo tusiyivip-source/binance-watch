@@ -129,6 +129,14 @@ export const DEFAULT_SIGNAL = {
   baseMinIdx: 2,           // auto 模式：允许作为"基准级别"的最小下标（2=3分钟）
   baseMaxIdx: 6,           // auto 模式：允许作为"基准级别"的最大下标（6=30分钟）
 
+  // ============ 1小时顶部结构（★ 用户 2026-10-15 第 2 条策略，独立界面） ============
+  //   第1根=高点 → 第2根不创新高 → 第3根不超第1根 → 第4根不超第2根 → 第5根创这段新低
+  //   且 高点向下 ≥ top5MinBars 根（用户口径"大于5根以上" → 默认 6）
+  top5Enabled: true,
+  top5Levels: ['1h'],
+  top5MinBars: 6,          // 高点向下至少几根（>5 → 6）
+  top5Lookback: 20,        // 高点在最近几根里找
+
   // 两级五浪：每组独立，仅次级别五笔 + 对应主级别底分型确认。
   chainEnabled: true,
   chainTriples: [

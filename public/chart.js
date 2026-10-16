@@ -42,6 +42,7 @@ const VIEWS = {
   // ⚠ 必须和 alert 同构（entries/items 都不能少）：卡片渲染复用同一套 ensureCards，
   //   少了 entries 就会在 view.entries.push 处抛异常，界面表现为状态栏/空态不更新。
   wave: { kind: 'wave', grid: null, entries: [], items: [], roles: {}, cols: 4 },
+  top: { kind: 'top', grid: null, entries: [], items: [], roles: {}, cols: 4 },
 };
 let activeView = 'wave';         // 'matrix' | 'multi' | 'alert'
 /**
@@ -70,16 +71,21 @@ let viewTimer = null;
 
 /* ---------------- 视图切换（只剩「报警级别K线」+「五浪反弹」） ---------------- */
 function setView(mode) {
-  if (mode !== 'alert' && mode !== 'wave') mode = 'wave';
+  if (mode !== 'alert' && mode !== 'wave' && mode !== 'top') mode = 'wave';
   activeView = mode;
   document.body.classList.toggle('chartmode', mode === 'alert');
   document.body.classList.toggle('alertchartmode', mode === 'alert');
   // 五浪视图用**独立** body class：复用 alertchartmode 会让多个容器同时显示、各占 1/3 宽
   document.body.classList.toggle('wavemode', mode === 'wave');
+  document.body.classList.toggle('topmode', mode === 'top');
   document.querySelector('#tab-wave')?.classList.toggle('on', mode === 'wave');
   document.querySelector('#tab-alert')?.classList.toggle('on', mode === 'alert');
+  document.querySelector('#tab-top')?.classList.toggle('on', mode === 'top');
   document.querySelector('#alert-symbar').style.display = mode === 'alert' ? '' : 'none';
   document.querySelector('#wave-symbar').style.display = mode === 'wave' ? '' : 'none';
+  document.querySelector('#top-symbar').style.display = mode === 'top' ? '' : 'none';
+  const tw = document.querySelector('#topchartwrap');
+  if (tw) tw.style.display = mode === 'top' ? '' : 'none';
   const wl = document.querySelector('#wave-level');
   if (wl) wl.style.display = mode === 'wave' ? '' : 'none';
   document.querySelector('#wavechartwrap').style.display = mode === 'wave' ? '' : 'none';
@@ -101,6 +107,7 @@ function stopLoop() {
 }
 function refreshActive() {
   if (activeView === 'alert') refreshAlertView();
+  else if (activeView === 'top') refreshTopView();
   else refreshWaveView();
 }
 
@@ -349,7 +356,9 @@ function paintCard(view, i, it) {
 
   if (isAlert) {
     head.querySelector('.lv').innerHTML = `<span class="sym">${it.symbol}</span>`;
-    head.querySelector('.roles').innerHTML = it.kind === 'chain'
+    head.querySelector('.roles').innerHTML = it.kind === 'top5'
+      ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span><span class="rb">顶部结构</span>`
+      : it.kind === 'chain'
       ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span>`
         + (it.subLevelLabel ? `<span class="rb">→${it.subLevelLabel}</span>` : '')
         + (it.innerLevelLabel ? `<span class="rb">→${it.innerLevelLabel}</span>` : '')
@@ -361,7 +370,11 @@ function paintCard(view, i, it) {
     st.className = 'st ' + (it.mode === 'closed' ? 's1' : 's3');
     // 形态提醒没有评分，用方向标签代替；共振信号仍显示组合与评分
     const isDual = it.kind === 'dual';
-    if (it.kind === 'chain') {
+    if (it.kind === 'top5') {
+      head.querySelector('.sp').innerHTML =
+        `<span class="grp">高点${fmtPrice(it.topHigh)} · 向下${it.topBars ?? '?'}根</span>`
+        + `<span class="sc">第5根新低 ${fmtPrice(it.topLow5)}</span>` + divBadge;
+    } else if (it.kind === 'chain') {
       head.querySelector('.sp').innerHTML =
         `<span class="grp">回调${it.chainBars ?? '?'}根 · 下上下上下</span>`
         + (Array.isArray(it.chainSubBars) ? `<span class="sc">每笔 ${it.chainSubBars.join('/')}根</span>` : '')
@@ -489,6 +502,25 @@ function paintView(view) {
   });
 }
 
+async function refreshTopView() {
+  const view = VIEWS.top;
+  if (!view.grid) return;
+  applyCols(view);
+  const bars = currentBars(view);
+  const limit = +document.querySelector('#top-limit').value || 24;
+  try {
+    const d = await fetch(`/api/alertchart?kind=top5&bars=${bars}&limit=${limit}`).then(r => r.json());
+    view.items = d.items ?? [];
+    ensureCards(view, view.items);
+    paintView(view);
+    applyCols(view);
+    document.querySelector('#top-empty').style.display = view.items.length ? 'none' : '';
+    document.querySelector('#top-live').textContent = view.items.length
+      ? `共 ${d.total ?? view.items.length} 条顶部结构 · ${bars} 根 · ` + new Date().toLocaleTimeString('zh-CN', { hour12: false })
+      : '暂无1小时顶部结构';
+  } catch (e) { console.warn('[top] 刷新失败：' + (e && e.message)); }
+}
+
 async function refreshWaveView() {
   const view = VIEWS.wave;
   if (!view.grid) return;
@@ -585,9 +617,14 @@ function fmtCandleTime(ts, minutes) {
 function initCharts() {
   VIEWS.alert.grid = document.querySelector('#alertchartgrid');
   VIEWS.wave.grid = document.querySelector('#wavechartgrid');
+  VIEWS.top.grid = document.querySelector('#topchartgrid');
 
   document.querySelector('#tab-alert').addEventListener('click', () => setView('alert'));
   document.querySelector('#tab-wave').addEventListener('click', () => setView('wave'));
+  document.querySelector('#tab-top').addEventListener('click', () => setView('top'));
+  document.querySelector('#top-refresh').addEventListener('click', () => refreshTopView());
+  document.querySelector('#top-limit').addEventListener('change', () => refreshTopView());
+  document.querySelector('#top-size').addEventListener('change', () => { applyCols(VIEWS.top); refreshTopView(); });
   document.querySelector('#chart-cols').addEventListener('change', () => { applyCols(VIEWS.alert); applyCols(VIEWS.wave); refreshActive(); });
   document.querySelector('#chart-bars').addEventListener('change', () => refreshActive());
   document.querySelector('#alert-level').addEventListener('change', e => { e.target.dataset.__v = e.target.value; refreshAlertView(); });
@@ -596,7 +633,7 @@ function initCharts() {
   document.querySelector('#alert-size').addEventListener('change', () => { applyCols(VIEWS.alert); refreshAlertView(); });
   ['#chart-ma', '#chart-mark', '#chart-macd'].forEach(s =>
     document.querySelector(s).addEventListener('change', () => {
-      paintView(activeView === 'alert' ? VIEWS.alert : VIEWS.wave);
+      paintView(activeView === 'alert' ? VIEWS.alert : (activeView === 'top' ? VIEWS.top : VIEWS.wave));
     }));
   document.querySelector('#alert-refresh').addEventListener('click', () => refreshAlertView());
   document.querySelector('#wave-refresh').addEventListener('click', () => refreshWaveView());
@@ -612,6 +649,7 @@ function initCharts() {
   });
   applyCols(VIEWS.alert);
   applyCols(VIEWS.wave);
+  applyCols(VIEWS.top);
   setView('wave');   // 默认打开五浪反弹
 }
 

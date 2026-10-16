@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { DEFAULT_SIGNAL } from '../src/config.js';
+const root='http://127.0.0.1:8860';
+const response=await fetch(root+'/api/config',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chainTriples:DEFAULT_SIGNAL.chainTriples,chainEnabled:true})});
+assert.ok(response.ok);
+const config=await response.json();
+assert.ok(Array.isArray(config.chainTriples));
+assert.deepEqual(config.chainTriples,DEFAULT_SIGNAL.chainTriples);
+const stats=await(await fetch(root+'/api/stats')).json();
+console.log(JSON.stringify({pairs:config.chainTriples,symbols:stats.market.symbols,wsState:stats.market.wsState,enabled:config.chainEnabled}));
