@@ -336,7 +336,7 @@ function paintCard(view, i, it) {
   if (!e) return;
   const card = e.card;
   // 五浪信号的卡片也用「信号卡片」头部（显示币种/级别/五浪序列/EMA7）
-  const isAlert = view.kind === 'alert' || view.kind === 'wave';
+  const isAlert = view.kind === 'alert' || view.kind === 'wave' || view.kind === 'top';   // 信号卡片样式
 
   // 不能覆盖 className，否则会抹掉用户的放大状态
   const cls = ['chartcard'];
