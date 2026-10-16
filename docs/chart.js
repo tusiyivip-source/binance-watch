@@ -574,7 +574,7 @@ async function refreshTopView() {
   const bars = currentBars(view);
   const limit = +document.querySelector('#top-limit').value || 24;
   try {
-    const d = await fetch(`/api/alertchart?kind=top5&bars=${bars}&limit=${limit}${alertQuery()}`).then(r => r.json());
+    const d = await fetch(`/api/alertchart?kind=fib&bars=${bars}&limit=${limit}${alertQuery()}`).then(r => r.json());
     const lvSel = document.querySelector('#top-level');
     const lv = lvSel ? lvSel.value : 'all';
     view.items = (d.items ?? []).filter(it => lv === 'all' || it.key === lv);
@@ -593,7 +593,7 @@ async function refreshTopView() {
     applyCols(view);
     document.querySelector('#top-empty').style.display = view.items.length ? 'none' : '';
     document.querySelector('#top-live').textContent = view.items.length
-      ? `共 ${d.total ?? view.items.length} 条顶部结构 · ${bars} 根 · ` + new Date().toLocaleTimeString('zh-CN', { hour12: false })
+      ? `共 ${d.total ?? view.items.length} 条斐波那契回调 · ${bars} 根 · ` + new Date().toLocaleTimeString('zh-CN', { hour12: false })
       : '暂无斐波那契回调信号';
   } catch (e) { console.warn('[top] 刷新失败：' + (e && e.message)); }
 }
