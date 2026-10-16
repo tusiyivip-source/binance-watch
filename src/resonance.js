@@ -12,6 +12,7 @@
  * 因此可以在「报警级别K线」视图里直接画出来。
  */
 import { LEVELS, LEVEL_INDEX } from './config.js';
+import { alertTiming } from './alert-timing.js';
 
 const label = k => (LEVELS[LEVEL_INDEX[k]]?.label ?? k);
 const fmt = v => (Number.isFinite(v) ? (Math.abs(v) >= 100 ? v.toFixed(4) : v.toPrecision(6)) : '—');
@@ -74,6 +75,8 @@ function makeResonanceAlert(c, t, gapBars, now) {
     candleT: after ? (t.barT ?? t.signalT) : (c.barT ?? c.signalT),
     ts: now,
     initial: !!(c.initial || t.initial),
+    ...alertTiming(Math.max(c.barT ?? c.signalT, t.barT ?? t.signalT) + levelMs(c.level), now, !!(c.initial && t.initial)),
+    confirmationKind: 'resonance',
     chainT: c.barT ?? c.signalT,
     topT: t.barT ?? t.signalT,
     gapBars,

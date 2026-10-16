@@ -19,6 +19,7 @@
  * 全部满足 → 报警（同一段高点只报一次）。
  */
 import { LEVELS, LEVEL_INDEX } from './config.js';
+import { alertTiming } from './alert-timing.js';
 
 const label = k => (LEVELS[LEVEL_INDEX[k]]?.label ?? k);
 const fmt = v => (Number.isFinite(v) ? (Math.abs(v) >= 100 ? v.toFixed(4) : v.toPrecision(6)) : '—');
@@ -209,7 +210,7 @@ export function makeTop5Alert(symbol, hit, now, initial = false) {
       + `**等${bot ? '阴包阳' : '阳包阴'}确认**（本根收 ${f(hit.lastClose)}）`
     : hit.reason === 'ma-reclaim'
       ? `${common}；反转点在 ${new Date(hit.lastRevT).toLocaleString('zh-CN', { hour12: false })}${maTxt}`
-        + ` → **${bot ? '顶' : '底'}分型确认成立**（收盘成立，不提前提醒）`
+        + ` → **结构收盘确认成立**（均线条件成立，不是三根K线分型的确认时刻）`
       : hit.reason === 'ext-revert'
         ? `${common}；本根**创${bot ? '新高' : '新低'} ${f(bot ? hit.lastHigh : hit.lastLow)} 但收${bot ? '阴' : '阳'}**`
           + `（开 ${f(hit.lastOpen)} → 收 ${f(hit.lastClose)}） → **${bot ? '高点' : '低点'}反包成立（这根就是${bot ? '高点' : '低点'}）**${maTxt}`
@@ -232,6 +233,8 @@ export function makeTop5Alert(symbol, hit, now, initial = false) {
     candleT: hit.lastT,
     ts: now,
     initial: !!initial,
+    ...alertTiming((hit.barT ?? hit.lastT) + (LEVELS[LEVEL_INDEX[hit.level]]?.minutes ?? 1) * 60_000, now, initial),
+    confirmationKind: 'structure',
     topBars: hit.bars,
     topHigh: hit.high,
     topH2: hit.h2,

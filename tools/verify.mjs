@@ -1541,8 +1541,8 @@ section('17. 顶部/底部结构：五根形态 + 反转点 + 收盘站上/跌�
         makeTop5Alert('ZUSDT', hit, Date.now(), false).kind === 'top5'
         && makeTop5Alert('ZUSDT', hit, Date.now(), false).mode === 'closed');
       const a = makeTop5Alert('ZUSDT', hit, Date.now(), false);
-      ok('★ 文案含「站上 MA7 … 与 EMA7 … → 底分型确认成立（收盘成立，不提前提醒）」',
-        /站上 MA7/.test(a.text) && /底分型确认成立/.test(a.text) && /不提前提醒/.test(a.text));
+      ok('★ 均线结构确认不误标成三根K线底分型确认',
+        /站上 MA7/.test(a.text) && /结构收盘确认成立/.test(a.text) && !/底分型确认成立/.test(a.text));
     }
     // 反转点已出现但收盘还在均线下方 → 不报
     ok('★ 反转点已出现但尚未站上均线 → 不报（不提前提醒）',

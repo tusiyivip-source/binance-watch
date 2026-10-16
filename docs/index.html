@@ -49,10 +49,12 @@
 
 <main>
   <div class="viewtabs">
-    <button id="tab-alert" class="vt">🔔 报警级别K线</button>
-    <button id="tab-wave" class="vt on">🧩 两级五浪</button>
+    <button id="tab-alert" class="vt on">🔔 全部提醒K线</button>
+    <button id="tab-wave" class="vt">🧩 两级五浪</button>
     <button id="tab-top" class="vt">⚠ 顶部结构</button>
     <span class="vtsep"></span>
+    <label class="chartsym"><input id="show-alert-history" type="checkbox">显示历史补载</label>
+    <button id="alert-unfocus" class="vt mini" hidden>返回提醒列表</button>
     <span id="top-symbar" style="display:none">
       <select id="top-level" class="vtsel" title="只看某个级别">
         <option value="all" selected>全部级别</option>
@@ -184,7 +186,7 @@
 
   <aside id="alerts">
     <div class="ahead">
-      <h2>🔔 共振报警</h2>
+      <h2>🔔 同步提醒</h2>
       <span id="alert-count" class="badge">0</span>
       <button id="btn-clear" class="btn tiny">清空</button>
     </div>
@@ -228,7 +230,7 @@
         &nbsp;&nbsp;第5根<b>价格低于前四根</b>（创这段新低）。<br>
         <b>收盘确认（默认，不提前提醒）</b>：<br>
         &nbsp;&nbsp;• 五根形态成立后出现<b>反转点</b>（创新低收阳 / 阳包阴）<br>
-        &nbsp;&nbsp;• 之后**等到某一根收盘同时站上 MA7 与 EMA7** → <b>底分型确认成立，那根才提醒</b><br>
+        &nbsp;&nbsp;• 之后等到某一根收盘同时站上 MA7 与 EMA7 → <b>结构确认提醒</b>（与三根K线底分型确认是不同事件）<br>
         &nbsp;&nbsp;• 底部结构为镜像：<b>收盘同时跌破 MA7 与 EMA7</b> 才确认<br>
         <br><b>若勾选「提前预警」</b>：<br>
         &nbsp;&nbsp;• 第5根<b>创新低</b> → <b>预警</b>（先提示）<br>

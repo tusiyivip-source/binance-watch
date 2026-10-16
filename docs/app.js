@@ -111,6 +111,7 @@ function connect() {
   sse.addEventListener('alerts', e => {
     alerts = JSON.parse(e.data);
     renderAlerts();
+    document.dispatchEvent(new Event('monitor-alerts-updated'));
   });
   sse.addEventListener('alert', e => {
     const a = JSON.parse(e.data);
@@ -127,6 +128,8 @@ function connect() {
         const isDual = a.kind === 'dual';
         const tag = isDual
           ? (a.side === 'long' ? '🔴 双阴不破 · 看多' : '🟢 双阳不穿 · 看空')
+          : a.kind === 'frac' ? '✅ 底分型收盘确认'
+          : a.kind === 'top5' || a.kind === 'bot5' ? '✅ 结构收盘确认'
           : (a.confirmed ? '✅ 共振确认' : '⚡ 共振预警');
         const tail = isDual ? '' : ` · ${a.score}分`;
         toast(`<b>${base(a.symbol)}</b> ${a.levelLabel ? '· ' + a.levelLabel : ''} · ${tag}${tail}<br>
@@ -139,8 +142,9 @@ function connect() {
     }
 
     alerts.unshift(a);
-    if (alerts.length > 300) alerts.pop();
+    if (alerts.length > 500) alerts.pop();
     try { renderAlerts(); } catch (err) { console.warn('[alert] 面板渲染失败', err); }
+    document.dispatchEvent(new Event('monitor-alerts-updated'));
   });
 }
 function setWs(kind, text) {
@@ -161,11 +165,15 @@ function setWs(kind, text) {
 /* ---------------- 报警列表 ---------------- */
 function renderAlerts() {
   const box = $('#alertlist');
-  $('#alert-count').textContent = alerts.length;
+  const visible = alerts.filter(a =>
+    ($('#show-alert-history')?.checked || !(a.initial || a.historical))
+    && (!window.matchesAlertView || window.matchesAlertView(a)));
+  $('#alert-count').textContent = visible.length;
   const frag = document.createDocumentFragment();
-  for (const a of alerts.slice(0, 120)) {
+  for (const a of visible.slice(0, 120)) {
     const el = document.createElement('div');
     el.className = 'acard ' + (a.confirmed ? 'confirmed' : 'pre');
+    el.dataset.alertId = a.id;
     const extra = (a.matchCount ?? (a.combos ? a.combos.length : 1)) - 1;
     // 防御：不同来源的报警字段并不一致（形态提醒没有 bullCount / distBaseMa7Pct），
     // 直接 .toFixed() 会抛异常并让整个面板渲染中断 —— 这里全部做存在性判断。
@@ -199,13 +207,13 @@ function renderAlerts() {
         <span>${a.confirmedAt ? '确认 ' + hhmmss(a.confirmedAt) + ' · 发现 ' : ''}${hhmmss(a.ts)}</span>
         ${sinceTxt}
       </div>`;
-    el.addEventListener('click', () => openDetail(a.symbol));
+    el.addEventListener('click', () => document.dispatchEvent(new CustomEvent('monitor-select-alert', { detail: a })));
     frag.appendChild(el);
   }
-  if (!alerts.length) {
+  if (!visible.length) {
     const p = document.createElement('div');
     p.style.cssText = 'color:#5b6f8c;font-size:12px;padding:14px;text-align:center;line-height:1.8';
-    p.innerHTML = '暂无共振信号<br><span style="font-size:11px">系统正持续扫描涨幅榜前 200 个标的 × 7 组级别</span>';
+    p.innerHTML = '当前筛选下暂无新提醒<br><span style="font-size:11px">历史补载默认隐藏，可勾选上方“显示历史补载”查看。</span>';
     frag.appendChild(p);
   }
   box.textContent = '';

@@ -44,7 +44,21 @@ const VIEWS = {
   wave: { kind: 'wave', grid: null, entries: [], items: [], roles: {}, cols: 4 },
   top: { kind: 'top', grid: null, entries: [], items: [], roles: {}, cols: 4 },
 };
-let activeView = 'wave';         // 'matrix' | 'multi' | 'alert'
+let activeView = 'alert';
+let focusedAlertId = null;
+let alertRequestSeq = 0;
+function syncSidebarFilter() {
+  const kind = activeView === 'wave' ? 'chain' : activeView === 'top' ? 'top5' : document.querySelector('#alert-kind')?.value;
+  const level = document.querySelector(activeView === 'wave' ? '#wave-level' : activeView === 'top' ? '#top-level' : '#alert-level')?.value;
+  window.matchesAlertView = a => (!kind || kind === 'all' || kind.split(',').includes(a.kind ?? 'resonance'))
+    && (!level || level === 'all' || (a.level ?? a.mid ?? a.base) === level);
+  if (typeof renderAlerts === 'function') renderAlerts();
+}
+function alertQuery() {
+  const level = document.querySelector(activeView === 'wave' ? '#wave-level' : activeView === 'top' ? '#top-level' : '#alert-level')?.value ?? 'all';
+  return `&history=${document.querySelector('#show-alert-history')?.checked ? 1 : 0}&level=${encodeURIComponent(level)}`
+    + (activeView === 'alert' && focusedAlertId !== null ? `&alertId=${encodeURIComponent(focusedAlertId)}` : '');
+}
 /**
  * 级别下拉：把「全部 + 各报警/各展示级别」填进 select，并保持当前选择不丢。
  * 只在选项集合发生变化时才重建，避免每 3 秒刷新把用户的选择打回去。
@@ -73,6 +87,7 @@ let viewTimer = null;
 function setView(mode) {
   if (mode !== 'alert' && mode !== 'wave' && mode !== 'top') mode = 'wave';
   activeView = mode;
+  if (mode !== 'alert') focusedAlertId = null;
   document.body.classList.toggle('chartmode', mode === 'alert');
   document.body.classList.toggle('alertchartmode', mode === 'alert');
   // 五浪视图用**独立** body class：复用 alertchartmode 会让多个容器同时显示、各占 1/3 宽
@@ -94,6 +109,7 @@ function setView(mode) {
   if (al) al.style.display = mode === 'alert' ? '' : 'none';
   const ak = document.querySelector('#alert-kind');
   if (ak) ak.style.display = mode === 'alert' ? '' : 'none';
+  syncSidebarFilter();
   startLoop();
 }
 
@@ -106,6 +122,7 @@ function stopLoop() {
   if (viewTimer) { clearInterval(viewTimer); viewTimer = null; }
 }
 function refreshActive() {
+  syncSidebarFilter();
   if (activeView === 'alert') refreshAlertView();
   else if (activeView === 'top') refreshTopView();
   else refreshWaveView();
@@ -419,7 +436,7 @@ function paintCard(view, i, it) {
     const t = new Date(it.confirmedAt || it.at || Date.now());
     const p = n => String(n).padStart(2, '0');
     head.querySelector('.px').textContent =
-      `${fmtPrice(it.price)}　${p(t.getHours())}:${p(t.getMinutes())}`
+      `${fmtPrice(it.price)}　${p(t.getMonth()+1)}/${p(t.getDate())} ${p(t.getHours())}:${p(t.getMinutes())}`
       + (it.kind === 'wave' && Number.isFinite(it.ema7) ? `　EMA7 ${fmtPrice(it.ema7)}` : '');
     if (Number.isFinite(it.confirmedAt)) {
       const stamp = v => new Date(v).toLocaleString('zh-CN', { hour12: false });
@@ -427,6 +444,7 @@ function paintCard(view, i, it) {
       head.querySelector('.px').textContent += it.historical || it.initial ? ' · 补载' : ` · 延迟${lag}秒`;
       head.querySelector('.px').title = `确认：${stamp(it.confirmedAt)}\n发现：${stamp(it.at ?? it.confirmedAt)}\n相差：${lag}秒`
         + (it.fractalConfirmedAt ? `\n底分型确认：${stamp(it.fractalConfirmedAt)}` : '');
+      if (it.snapshotOnly) head.querySelector('.px').textContent += ' · 报警快照';
     }
   } else {
     // K线图（多级别）：同一个币种的所有级别 —— 每张卡片也标出**币种名称**，
@@ -481,10 +499,10 @@ function paintCard(view, i, it) {
   const markers = points.map(p => ({ time: Math.floor(p.t / 1000),
     position: p.type === 'top' ? 'aboveBar' : 'belowBar', color: '#0ecb81', shape: 'circle',
     text: String(it.chainSubPoints.indexOf(p)) }));
-  if ((it.kind === 'chain' || it.kind === 'frac') && Number.isFinite(it.confirmedAt)) {
+  if (Number.isFinite(it.confirmedAt)) {
     const at = cs.findIndex(c => c[0] + it.ms === it.confirmedAt);
     if (at >= 0) markers.push({ time: T(at), position: 'belowBar', color: '#f0b90b',
-      shape: 'arrowUp', text: `${it.levelLabel}${it.confirmationKind === 'structure' ? '结构收盘确认' : '底分型收盘确认'}` });
+      shape: 'arrowUp', text: `${it.levelLabel}${it.confirmationKind === 'structure' ? '结构收盘确认' : it.confirmationKind === 'resonance' ? '共振收盘确认' : '底分型收盘确认'} ${new Date(it.confirmedAt).toLocaleTimeString('zh-CN',{hour12:false,hour:'2-digit',minute:'2-digit'})}` });
   }
   if (Number.isFinite(it.fractalConfirmedAt) && it.fractalConfirmedAt !== it.confirmedAt) {
     const at = cs.findIndex(c => c[0] + it.ms === it.fractalConfirmedAt);
@@ -523,6 +541,12 @@ function paintCard(view, i, it) {
   if (e._w !== w || e._h !== h) { e.chart.applyOptions({ width: w, height: h }); e._w = w; e._h = h; }
   const fitKey = cs.length + '|' + w;
   if (e._fitFor !== fitKey) { e.chart.timeScale().fitContent(); e._fitFor = fitKey; }
+  if (view.kind === 'alert' && focusedAlertId !== null && e._focusedId !== it.alertId) {
+    const anchor = (it.confirmedAt ?? it.at) - it.ms;
+    const at = cs.findIndex(c => c[0] === anchor);
+    if (at >= 0) e.chart.timeScale().setVisibleLogicalRange({from:Math.max(0,at-20),to:Math.min(cs.length+2,at+8)});
+    e._focusedId = it.alertId;
+  } else if (focusedAlertId === null) e._focusedId = null;
 }
 
 function paintView(view) {
@@ -535,13 +559,14 @@ function paintView(view) {
 }
 
 async function refreshTopView() {
+  syncSidebarFilter();
   const view = VIEWS.top;
   if (!view.grid) return;
   applyCols(view);
   const bars = currentBars(view);
   const limit = +document.querySelector('#top-limit').value || 24;
   try {
-    const d = await fetch(`/api/alertchart?kind=top5&bars=${bars}&limit=${limit}`).then(r => r.json());
+    const d = await fetch(`/api/alertchart?kind=top5&bars=${bars}&limit=${limit}${alertQuery()}`).then(r => r.json());
     const lvSel = document.querySelector('#top-level');
     const lv = lvSel ? lvSel.value : 'all';
     view.items = (d.items ?? []).filter(it => lv === 'all' || it.key === lv);
@@ -566,13 +591,14 @@ async function refreshTopView() {
 }
 
 async function refreshWaveView() {
+  syncSidebarFilter();
   const view = VIEWS.wave;
   if (!view.grid) return;
   applyCols(view);
   const bars = currentBars(view);
   const limit = +document.querySelector('#wave-limit').value || 24;
   try {
-    const d = await fetch(`/api/alertchart?kind=chain&bars=${bars}&limit=${limit}`).then(r => r.json());
+    const d = await fetch(`/api/alertchart?kind=chain&bars=${bars}&limit=${limit}${alertQuery()}`).then(r => r.json());
     const all = d.items ?? [];
     const pairs = [...new Map(all.map(it => [it.key, { key: it.key, label: it.label ?? it.key }])).values()];
     const pickW = fillLevelSel('#wave-level', pairs, '全部主级别');
@@ -588,15 +614,18 @@ async function refreshWaveView() {
 }
 
 async function refreshAlertView() {
+  syncSidebarFilter();
+  const requestSeq = ++alertRequestSeq;
   const view = VIEWS.alert;
   if (!view.grid) return;
   applyCols(view);
-  const bars = currentBars(view);
+  const bars = focusedAlertId !== null ? 320 : currentBars(view);
   const limit = +document.querySelector('#alert-limit').value || 24;
   try {
     const kindSel = document.querySelector('#alert-kind');
     const kind = kindSel && kindSel.value !== 'all' ? '&kind=' + encodeURIComponent(kindSel.value) : '';
-    const d = await fetch(`/api/alertchart?bars=${bars}&limit=${limit}${kind}`).then(r => r.json());
+    const d = await fetch(`/api/alertchart?bars=${bars}&limit=${limit}${kind}${alertQuery()}`).then(r => r.json());
+    if (requestSeq !== alertRequestSeq) return;
     const all = d.items ?? [];
     const pairs = [...new Map(all.map(it => [it.key, { key: it.key, label: it.label ?? it.key }])).values()];
     const pickA = fillLevelSel('#alert-level', pairs, '全部报警级别');
@@ -659,6 +688,26 @@ function fmtCandleTime(ts, minutes) {
 
 /* ---------------- 绑定 ---------------- */
 function initCharts() {
+  ['#alert-kind','#alert-level','#wave-level','#top-level'].forEach(id => document.querySelector(id)?.addEventListener('change',()=>{
+    focusedAlertId = null; document.querySelector('#alert-unfocus').hidden = true;
+  }));
+  let alertRefreshTimer;
+  document.addEventListener('monitor-alerts-updated', () => {
+    clearTimeout(alertRefreshTimer);
+    alertRefreshTimer = setTimeout(refreshActive, 150);
+  });
+  document.querySelector('#show-alert-history').addEventListener('change', () => { focusedAlertId = null; refreshActive(); });
+  document.querySelector('#alert-unfocus').addEventListener('click', e => { focusedAlertId = null; e.target.hidden = true; setView('alert'); });
+  document.addEventListener('monitor-select-alert', e => {
+    const a = e.detail;
+    focusedAlertId = a.id;
+    document.querySelector('#alert-kind').value = 'all';
+    const level = document.querySelector('#alert-level');
+    level.value = 'all'; level.dataset.__v = 'all';
+    if (a.initial || a.historical) document.querySelector('#show-alert-history').checked = true;
+    document.querySelector('#alert-unfocus').hidden = false;
+    setView('alert');
+  });
   VIEWS.alert.grid = document.querySelector('#alertchartgrid');
   VIEWS.wave.grid = document.querySelector('#wavechartgrid');
   VIEWS.top.grid = document.querySelector('#topchartgrid');
@@ -702,7 +751,7 @@ function initCharts() {
   applyCols(VIEWS.alert);
   applyCols(VIEWS.wave);
   applyCols(VIEWS.top);
-  setView('wave');   // 默认打开五浪反弹
+  setView('alert');   // 与右侧提醒使用全部通道，默认排除历史补载
 }
 
 if (typeof LC === 'undefined') {

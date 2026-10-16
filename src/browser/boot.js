@@ -103,7 +103,7 @@ class LocalEventSource extends EventTarget {
       this.dispatchEvent(new MsgEvent('open', {}));
       this._emit('hello', helloPayload());
       this._emit('snapshot', safe(() => engine.snapshot(), {}));
-      this._emit('alerts', engine.alerts.slice(-100).reverse());
+      this._emit('alerts', engine.alerts.slice(-500).reverse());
     }, 0);
   }
   _emit(type, data) { try { this.dispatchEvent(new MsgEvent(type, data)); } catch { } }
@@ -167,7 +167,7 @@ function routeApi(pathname, search) {
         },
       };
     }
-    case '/api/alerts': return { body: engine.alerts.slice(-200).reverse() };
+    case '/api/alerts': return { body: engine.alerts.slice(-500).reverse() };
     case '/api/push': return {
       body: {
         config: pushStub.publicConfig(),
@@ -197,7 +197,9 @@ function routeApi(pathname, search) {
     case '/api/alertchart': {
       const bars = Math.max(40, Math.min(400, Number(q.get('bars')) || 150));
       const limit = Math.max(1, Math.min(60, Number(q.get('limit')) || 24));
-      return { body: safe(() => engine.alertCharts(bars, limit, q.get('kind')), { items: [], total: 0, shown: 0 }) };
+      return { body: safe(() => engine.alertCharts(bars, limit, q.get('kind'), {
+        includeHistorical: q.get('history') !== '0', alertId: q.get('alertId'), level: q.get('level'),
+      }), { items: [], total: 0, shown: 0 }) };
     }
     case '/api/config': return { body: engine.cfg };
     case '/api/resync': {

@@ -23,6 +23,17 @@ export class Engine extends Emitter {
     this.log = log;
     this.cfg = defaultSignalConfig();
     this.alerts = [];
+    this.alertChartSnapshots = new Map();
+    this.on('alert', a => {
+      try {
+        const st = this.market.symbols.get(a.symbol);
+        const key = ['chain','res2','frac','top5','bot5'].includes(a.kind) ? a.level : (a.mid ?? a.level ?? a.base);
+        if (!st || !key) return;
+        const snapshot = this.levelPayload(st, key, 320);
+        if (snapshot) this.alertChartSnapshots.set(`${a.id}|${a.symbol}|${a.ts}`, snapshot);
+        while (this.alertChartSnapshots.size > 500) this.alertChartSnapshots.delete(this.alertChartSnapshots.keys().next().value);
+      } catch (e) { this.log.warn('报警图表快照失败：' + e.message); }
+    });
     this.seenKeys = new Map();
     this.activeBySymbol = new Map();
     this.alertSeq = 0;
@@ -196,10 +207,9 @@ export class Engine extends Emitter {
     if (this.cfg.top5Enabled || this.cfg.bot5Enabled) {
       try {
         const fired = scanTop5(st.symbol, st.series, this.cfg, this.top5Seen, Date.now(),
-          !!this.initialPhase && !forceNew);
+          firstSymbolScan || (!!this.initialPhase && !forceNew));
         for (const a of fired) {
           a.id = ++this.alertSeq;
-          a.initial = forceNew ? false : !!this.initialPhase;
           this.top5Count++;
           this.res2Recent.push(a);
           if (this.res2Recent.length > 400) this.res2Recent.splice(0, this.res2Recent.length - 400);
@@ -256,7 +266,6 @@ export class Engine extends Emitter {
       try {
         for (const a of scanResonance(this.res2Recent, this.res2Seen, this.cfg, Date.now())) {
           a.id = ++this.alertSeq;
-          a.initial = forceNew ? false : !!this.initialPhase;
           this.res2Count++;
           this.alerts.push(a);
           this.signalCount++;
@@ -530,33 +539,40 @@ export class Engine extends Emitter {
    * 报警视图：每条报警取它**组合里的确认级别**（如 3m>15m>2h 取 15m）画一张K线。
    * 顺序与右侧报警面板一致（最新在前）。
    */
-  alertCharts(bars = 150, limit = 24, kind = null) {
+  alertCharts(bars = 150, limit = 24, kind = null, options = {}) {
     const items = [];
     const skipped = [];
-    for (let k = this.alerts.length - 1; k >= 0 && items.length < limit; k--) {
-      const a = this.alerts[k];
+    const candidates = this.alerts.filter(a =>
+      (options.includeHistorical !== false || !(a.initial || a.historical))
+      && (options.alertId == null || String(a.id) === String(options.alertId))
+      && (!options.level || options.level === 'all' || (a.level ?? a.mid ?? a.base) === options.level)
+      && (!kind || String(kind).split(',').includes(a.kind ?? 'resonance')));
+    for (let k = candidates.length - 1; k >= 0 && items.length < limit; k--) {
+      const a = candidates[k];
       if (kind) {                                            // 视图可按通道过滤，支持逗号分隔多通道
         const want = String(kind).split(',').map(x => x.trim()).filter(Boolean);
         if (want.length && !want.includes(a.kind ?? 'resonance')) continue;
       }
       const st = this.market.symbols.get(a.symbol);
-      if (!st) { skipped.push({ symbol: a.symbol, why: 'no-symbol' }); continue; }
+      const snapshot = this.alertChartSnapshots.get(`${a.id}|${a.symbol}|${a.ts}`);
+      if (!st && !snapshot) { skipped.push({ symbol: a.symbol, why: 'no-symbol' }); continue; }
       // 取级别，三类报警分别处理：
       //   共振信号 → mid（组合里的确认级别）
       //   形态提醒 → level（双阴/双阳只看一个级别）
       //   两阶段盯盘 → base（最小级别）
-      const key = a.kind === 'chain' ? a.level
+      const key = ['chain','res2','frac','top5','bot5'].includes(a.kind) ? a.level
         : (a.mid && LEVEL_INDEX[a.mid] != null) ? a.mid
         : (a.level && LEVEL_INDEX[a.level] != null) ? a.level
           : (a.base && LEVEL_INDEX[a.base] != null) ? a.base
             : (typeof a.group === 'string' && a.group.includes('>') ? a.group.split('>')[1] : null);
       if (!key || LEVEL_INDEX[key] == null) { skipped.push({ symbol: a.symbol, why: 'no-level-key', group: a.group }); continue; }
-      const lvl = this.levelPayload(st, key, bars);
+      const lvl = st ? this.levelPayload(st, key, bars) : snapshot;
       if (!lvl) { skipped.push({ symbol: a.symbol, why: 'no-level' }); continue; }
       items.push({
         ...lvl,
         symbol: a.symbol,
         alertId: a.id,
+        snapshotOnly: !st,
         kind: a.kind ?? 'resonance',
         side: a.side ?? null,
         // 形态提醒是「K线已收盘」的确认信号，用 closed 让卡片按已确认样式渲染
@@ -634,9 +650,7 @@ export class Engine extends Emitter {
     return {
       generatedAt: Date.now(),
       // 按通道过滤时，total 给「该通道的条数」，否则状态栏会显示所有通道的总数，看着矛盾
-      total: kind
-        ? this.alerts.filter(a => String(kind).split(',').map(x => x.trim()).includes(a.kind ?? 'resonance')).length
-        : this.alerts.length,
+      total: candidates.length,
       totalAll: this.alerts.length,
       shown: items.length,
       limit,

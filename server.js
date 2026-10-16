@@ -111,7 +111,7 @@ async function handleRequest(req, res) {
     res.write(': connected\n\n');
     clients.add(res);
     sseSend(res, 'snapshot', engine.snapshot());
-    sseSend(res, 'alerts', engine.alerts.slice(-100).reverse());
+    sseSend(res, 'alerts', engine.alerts.slice(-500).reverse());
     sseSend(res, 'hello', {
       serverTime: Date.now(), levels: VISIBLE_LEVELS, allLevels: LEVELS, cfg: engine.cfg,
       app: { port: APP.port, topN: APP.topN, market: APP.market, marketName: APP.profile.name, feed: APP.feed },
@@ -146,7 +146,7 @@ async function handleRequest(req, res) {
     return;
   }
   if (url.pathname === '/api/stats') return json(res, { market: market.stats, engine: engine.stats(), push: pusher.statsOut, clients: clients.size });
-  if (url.pathname === '/api/alerts') return json(res, engine.alerts.slice(-200).reverse());
+  if (url.pathname === '/api/alerts') return json(res, engine.alerts.slice(-500).reverse());
   if (url.pathname === '/api/performance') {
     try { tracker.resolve(market, true); } catch { /* 结算失败不影响读取 */ }
     return json(res, tracker.stats());
@@ -171,7 +171,10 @@ async function handleRequest(req, res) {
     const limit = Math.max(1, Math.min(60, Number(url.searchParams.get('limit')) || 24));
     // kind：按通道过滤（watch / wave / breakout / dual / resonance），视图的「通道筛选」用
     const kind = url.searchParams.get('kind') || null;
-    return json(res, engine.alertCharts(bars, limit, kind));
+    return json(res, engine.alertCharts(bars, limit, kind, {
+      includeHistorical: url.searchParams.get('history') !== '0',
+      alertId: url.searchParams.get('alertId'), level: url.searchParams.get('level'),
+    }));
   }
   if (url.pathname === '/api/config') {
     if (req.method === 'POST') {
