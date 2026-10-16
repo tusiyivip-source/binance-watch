@@ -11,6 +11,7 @@ import { scanChains } from './chain.js';
 import { scanTop5 } from './top5.js';
 import { scanResonance } from './resonance.js';
 import { scanFractalAlerts } from './fractalalert.js';
+import { scanFib } from './fib.js';
 
 
 const SWEEP_MS = 1000;
@@ -66,6 +67,8 @@ export class Engine extends Emitter {
     this.res2Seen = new Map();
     this.fracSeen = new Map();
     this.fracCount = 0;
+    this.fibSeen = new Map();
+    this.fibCount = 0;
     this.res2Recent = [];      // 最近的 chain/top5 报警（跨轮，供共振判定）
     this.res2Count = 0;
     this.chainCount = 0;
@@ -240,6 +243,25 @@ export class Engine extends Emitter {
         }
       } catch (e) {
         this.log.warn(`结构判定 ${st.symbol} 失败：${e.message}`);
+      }
+    }
+
+    // —— 斐波那契回调（用户新策略，替代顶部结构）——
+    if (this.cfg.fibEnabled) {
+      try {
+        const initPhase = !!this.initialPhase && !forceNew;
+        const fibCfg = initPhase ? { ...this.cfg, fibFreshBars: 0 } : this.cfg;
+        for (const a of scanFib(st.symbol, st.series, fibCfg, this.fibSeen, Date.now(), initPhase)) {
+          a.id = ++this.alertSeq;
+          a.initial = forceNew ? false : !!this.initialPhase;
+          this.fibCount++;
+          this.alerts.push(a);
+          this.signalCount++;
+          this.emit('alert', a);
+          this.log.signal('🌀 ' + a.symbol + ' ' + a.text);
+        }
+      } catch (e) {
+        this.log.warn(`斐波那契判定 ${st.symbol} 失败：${e.message}`);
       }
     }
 
@@ -638,6 +660,11 @@ export class Engine extends Emitter {
         resPct: Number.isFinite(a.resPct) ? a.resPct : (Number.isFinite(a.barPct) ? a.barPct : null),
         chainSubStrokes: Number.isFinite(a.chainSubStrokes) ? a.chainSubStrokes : null,
         fracLow: Number.isFinite(a.fracLow) ? a.fracLow : null,
+        fibHigh: Number.isFinite(a.fibHigh) ? a.fibHigh : null,
+        fibLow: Number.isFinite(a.fibLow) ? a.fibLow : null,
+        fibRetrace: Number.isFinite(a.fibRetrace) ? a.fibRetrace : null,
+        fibRisePct: Number.isFinite(a.fibRisePct) ? a.fibRisePct : null,
+        fibTrigger: a.fibTrigger ?? null,
         fracLows: Array.isArray(a.fracLows) ? a.fracLows : null,
         aboveMa: typeof a.aboveMa === 'boolean' ? a.aboveMa : null,
         barBodyPct: Number.isFinite(a.barBodyPct) ? a.barBodyPct : null,
@@ -695,7 +722,7 @@ export class Engine extends Emitter {
     return {
       boundary: this.market.feedStats?.boundary ?? null,
       boundaryAligned: this.market.feedStats?.boundaryAligned ?? null,
-      chainCount: this.chainCount, fracCount: this.fracCount, top5Count: this.top5Count, res2Count: this.res2Count,
+      chainCount: this.chainCount, fracCount: this.fracCount, fibCount: this.fibCount, top5Count: this.top5Count, res2Count: this.res2Count,
       res2Recent: this.res2Recent.length,
       seenSizes: { chain: this.chainSeen.size, top5: this.top5Seen.size, res2: this.res2Seen.size, fb: this.fbSeen.size, brk: this.brkSeen.size },
       alertsLen: this.alerts.length,

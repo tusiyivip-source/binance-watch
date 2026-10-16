@@ -22,6 +22,7 @@ import { detectChain, makeChainAlert, scanChains, chainView } from '../src/chain
 import { detectTop5, makeTop5Alert, scanTop5, top5View, isEngulf } from '../src/top5.js';
 import { scanResonance } from '../src/resonance.js';
 import { detectFractalAlert, makeFractalAlert, scanFractalAlerts, fracView } from '../src/fractalalert.js';
+import { detectFibPullback, makeFibAlert, scanFib, fibView, fibLevels } from '../src/fib.js';
 import { nextBoundary, groupPeriodMs, BoundaryScheduler, levelPeriodMs } from '../src/boundary.js';
 
 // 验证脚本自己控制序列保留上限，避免受实盘 maxCandlesKept 影响导致对比样本数漂移
@@ -1613,11 +1614,11 @@ section('17. 顶部/底部结构：五根形态 + 反转点 + 收盘站上/跌�
       ok('★ 报警对象带 barPct（供前端按涨幅排序）', Number.isFinite(a.barPct) && a.barPct > 0, String(a.barPct?.toFixed(2)));
     }
   }
-  ok('配置默认：顶部结构开启、底部结构已按用户要求关闭、级别 30分/1时/2时/3时/6时、要均线确认、不提前预警',
-    DEFAULT_SIGNAL.top5Enabled === true && DEFAULT_SIGNAL.bot5Enabled === false
+  ok('配置默认：顶部结构已停用（被斐波那契回调替代）、底部结构关闭、级别 30分~6时',
+    DEFAULT_SIGNAL.top5Enabled === false && DEFAULT_SIGNAL.bot5Enabled === false
     && DEFAULT_SIGNAL.top5NeedMa === true && DEFAULT_SIGNAL.top5AllowWarn === false
     && JSON.stringify(DEFAULT_SIGNAL.top5Levels) === JSON.stringify(['30m', '1h', '2h', '3h', '6h']),
-    JSON.stringify({ needMa: DEFAULT_SIGNAL.top5NeedMa, warn: DEFAULT_SIGNAL.top5AllowWarn }));
+    JSON.stringify({ top5: DEFAULT_SIGNAL.top5Enabled, needMa: DEFAULT_SIGNAL.top5NeedMa }));
 }
 
 /* ============ 18. 整点（收线）调度 ============ */
@@ -1747,6 +1748,71 @@ section('20. 底分型即报：最低点那根是底分型中间根 + 第三根�
     DEFAULT_SIGNAL.fracEnabled === true && DEFAULT_SIGNAL.fracFreshBars === 0
     && JSON.stringify(DEFAULT_SIGNAL.fracLevels) === JSON.stringify(['30m', '1h', '2h', '3h', '6h']),
     JSON.stringify(DEFAULT_SIGNAL.fracLevels));
+}
+
+/* ============ 21. 斐波那契回调（10分钟） ============ */
+section('21. 斐波那契回调：金叉→死叉上涨段 → 回调 ≤50% 有效（再次金叉 / 底分型触发）');
+{
+  const M = 600_000;                       // 10分钟
+  /** 造一段：低点→上涨→高点→回调，dif/dea 造出金叉死叉的位置 */
+  const build = (opts) => {
+    const n = 30;
+    const l = [], h = [], c = [], dif = [], dea = [];
+    for (let i = 0; i < n; i++) { l.push(100); h.push(101); c.push(100.5); dif.push(-1); dea.push(0); }
+    // 金叉在 i=4，死叉在 i=14
+    for (let i = 4; i < 14; i++) dif[i] = 1;
+    for (let i = 14; i < n; i++) dif[i] = -1;
+    // 上涨段 i=4..14：低点 100 → 高点 110
+    for (let i = 4; i <= 14; i++) { const p = 100 + (i - 4); l[i] = p; h[i] = p + 0.2; c[i] = p; }
+    h[14] = 110;                             // 死叉那根 = 高点
+    // 回调段 i=15..：最低到 lowPull
+    for (let i = 15; i < n; i++) {
+      const t2 = Math.min(1, (i - 14) / opts.pullBars);
+      let p = 110 - (110 - opts.pull) * t2;
+      if (i > 14 + opts.pullBars) p = opts.pull + (i - 14 - opts.pullBars) * 0.15;   // 见底后小反弹 → 最低点那根成底分型
+      l[i] = p; h[i] = p + 0.2; c[i] = p;
+    }
+    return { key: '10m', ms: M, t: l.map((_, i) => i * M), o: c.slice(), h, l, c,
+      dif: Float64Array.from(dif), dea: Float64Array.from(dea), closed: n };
+  };
+  {
+    // 回调到 105 → 回撤 (110-105)/(110-100) = 50% → 有效
+    const v = build({ pull: 105, pullBars: 6 });
+    const hit = detectFibPullback(v, { maxRetrace: 50, freshBars: 20, lookback: 40 });
+    ok('★ 回撤正好 50% → 有效（命中）', !!hit && Math.abs(hit.retrace - 50) < 0.01,
+      hit ? `retrace=${hit.retrace.toFixed(2)}% rise=${hit.rise.toFixed(2)}` : 'null');
+    if (hit) {
+      const a = makeFibAlert('ZUSDT', hit, Date.now(), false);
+      ok('★ 报警 kind=fib、文案含「斐波那契回调 / 回撤 / ≤50% 有效」',
+        a.kind === 'fib' && /斐波那契回调/.test(a.text) && /回撤/.test(a.text) && /有效/.test(a.text));
+      ok('★ 斐波那契位齐全（0/23.6/38.2/50/61.8/78.6/100）',
+        hit.fib.length === 7 && Math.abs(hit.fib[0].v - 110) < 1e-9 && Math.abs(hit.fib.at(-1).v - 100) < 1e-9);
+    }
+  }
+  {
+    // 回调到 104 → 回撤 60% → 无效
+    const v = build({ pull: 104, pullBars: 8 });
+    const hit = detectFibPullback(v, { maxRetrace: 50, freshBars: 20, lookback: 40 });
+    ok('★ 回撤 60% → 超过 50%，判定为无效（valid=false）', !!hit && hit.retrace > 50 && hit.valid === false,
+      hit ? `retrace=${hit.retrace.toFixed(1)}%` : 'null');
+    const out = scanFib('ZUSDT', { '10m': { t: v.t, o: v.o, h: v.h, l: v.l, c: v.c, ms: M, closedCount: v.closed,
+      ensure: () => ({ ema7: v.c.map(() => 0) }), macd: () => ({ dif: v.dif, dea: v.dea }) } },
+      { fibEnabled: true, fibLevels: ['10m'], fibMaxRetrace: 50, fibLookback: 40, fibFreshBars: 20 }, new Map(), Date.now(), false);
+    ok('★ 扫描器会把 >50% 的过滤掉（不报警）', out.length === 0, String(out.length));
+  }
+  {
+    // 回调创了新高 → 趋势继续，不算回调
+    const v = build({ pull: 108, pullBars: 20 });
+    for (let i = 20; i < 30; i++) { v.h[i] = 112; v.l[i] = 111; v.c[i] = 111.5; }
+    ok('★ 回调中又创新高（趋势继续）→ 不报', detectFibPullback(v, { maxRetrace: 90, freshBars: 20 }) === null);
+  }
+  ok('★ 只有金叉没有死叉（还没到高点）→ 不报',
+    detectFibPullback(build({ pull: 105, pullBars: 6 }), { maxRetrace: 90, freshBars: 20, lookback: 3 }) === null);
+  ok('配置默认：斐波那契开启、级别 10分钟、最大回撤 50%、顶部结构已停用',
+    DEFAULT_SIGNAL.fibEnabled === true && DEFAULT_SIGNAL.fibMaxRetrace === 50
+    && JSON.stringify(DEFAULT_SIGNAL.fibLevels) === JSON.stringify(['10m'])
+    && DEFAULT_SIGNAL.top5Enabled === false,
+    JSON.stringify(DEFAULT_SIGNAL.fibLevels));
 }
 
 /* ============ 15. 双阴/双阳判定修正：窗口右移 + 两条前置条件 ============ */

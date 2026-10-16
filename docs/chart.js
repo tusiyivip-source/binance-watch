@@ -373,7 +373,9 @@ function paintCard(view, i, it) {
 
   if (isAlert) {
     head.querySelector('.lv').innerHTML = `<span class="sym">${it.symbol}</span>`;
-    head.querySelector('.roles').innerHTML = it.kind === 'frac'
+    head.querySelector('.roles').innerHTML = it.kind === 'fib'
+      ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span><span class="rb" style="color:#f0b90b">🌀 斐波回调</span>`
+      : it.kind === 'frac'
       ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span><span class="rb" style="color:#0ecb81">📐 底分型</span>`
       : it.kind === 'res2'
       ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span><span class="rb" style="color:#f0b90b">🎯 共振</span>`
@@ -391,7 +393,13 @@ function paintCard(view, i, it) {
     st.className = 'st ' + (it.mode === 'closed' ? 's1' : 's3');
     // 形态提醒没有评分，用方向标签代替；共振信号仍显示组合与评分
     const isDual = it.kind === 'dual';
-    if (it.kind === 'frac') {
+    if (it.kind === 'fib') {
+      const r = it.fibRetrace;
+      head.querySelector('.sp').innerHTML =
+        `<span class="grp">回撤 ${Number.isFinite(r) ? r.toFixed(1) + '%' : '?'} · 前段涨幅 ${Number.isFinite(it.fibRisePct) ? it.fibRisePct.toFixed(2) + '%' : '?'}</span>`
+        + `<span class="sc">${it.fibTrigger === 'cross' ? '再次金叉' : '底分型确认'}</span>`
+        + `<span class="sc">${fmtPrice(it.fibHigh)} → ${fmtPrice(it.fibPullLow)}</span>` + divBadge;
+    } else if (it.kind === 'frac') {
       head.querySelector('.sp').innerHTML =
         `<span class="grp">低点 ${fmtPrice(it.fracLow)} · 三根 ${(it.fracLows ?? []).map(fmtPrice).join('/')}</span>`
         + `<span class="sc" style="color:${it.aboveMa ? '#0ecb81' : '#f6461d'}">${it.aboveMa ? '已站上 MA7/EMA7' : '仍在均线下'}</span>` + divBadge;
@@ -586,7 +594,7 @@ async function refreshTopView() {
     document.querySelector('#top-empty').style.display = view.items.length ? 'none' : '';
     document.querySelector('#top-live').textContent = view.items.length
       ? `共 ${d.total ?? view.items.length} 条顶部结构 · ${bars} 根 · ` + new Date().toLocaleTimeString('zh-CN', { hour12: false })
-      : '暂无顶部结构';
+      : '暂无斐波那契回调信号';
   } catch (e) { console.warn('[top] 刷新失败：' + (e && e.message)); }
 }
 

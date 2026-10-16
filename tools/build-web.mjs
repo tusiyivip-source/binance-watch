@@ -25,7 +25,7 @@ const CORE = [
   'config.js', 'indicators.js', 'chan.js', 'series.js', 'signals.js',
   'rest.js', 'market.js', 'tickfeed.js', 'engine.js',
   'emitter.js', 'logger.js', 'tracker.js', 'push-meta.js',
-  'watch.js', 'wave.js', 'breakout.js', 'firstbottom.js', 'fractal.js', 'chain.js', 'top5.js', 'resonance.js', 'fractalalert.js', 'alert-timing.js', 'boundary.js',
+  'watch.js', 'wave.js', 'breakout.js', 'firstbottom.js', 'fractal.js', 'chain.js', 'top5.js', 'resonance.js', 'fractalalert.js', 'fib.js', 'alert-timing.js', 'boundary.js',
 ];
 const BROWSER = ['boot.js'];
 const PUBLIC_FILES = ['app.js', 'chart.js', 'style.css'];
