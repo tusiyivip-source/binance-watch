@@ -517,7 +517,7 @@ async function refreshTopView() {
     document.querySelector('#top-empty').style.display = view.items.length ? 'none' : '';
     document.querySelector('#top-live').textContent = view.items.length
       ? `共 ${d.total ?? view.items.length} 条顶部结构 · ${bars} 根 · ` + new Date().toLocaleTimeString('zh-CN', { hour12: false })
-      : '暂无1小时顶部结构';
+      : '暂无顶部结构';
   } catch (e) { console.warn('[top] 刷新失败：' + (e && e.message)); }
 }
 

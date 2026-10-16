@@ -1,5 +1,5 @@
 /**
- * 1小时顶部结构（用户 2026-10-15 新定义的第 2 条策略）
+ * 顶部结构（用户 2026-10-15 新定义的第 2 条策略；级别：15分/30分/1时/2时/3时/6时）
  *
  * 用户原话逐条落地（级别：1小时）：
  *   「当1小时高点 第二根K线不创新高为准后 向下的大于5根K线以上
@@ -139,7 +139,7 @@ export function makeTop5Alert(symbol, hit, now, initial = false) {
     topLow5: hit.low5,
     topStage: hit.stage,
     topEngulf: !!hit.engulf,
-    text: `【1小时顶部结构·${warn ? '预警' : '反包确认'}】${body}`,
+    text: `【顶部结构·${warn ? '预警' : '反包确认'}】${body}`,
   };
 }
 

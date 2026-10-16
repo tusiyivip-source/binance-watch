@@ -1580,10 +1580,10 @@ section('17. 1小时顶部结构：五根形态 + 第5根新低预警 → 反包
     const second = scanTop5('ZUSDT', fake, cfg, seen, Date.now(), true);
     ok('★ 同一阶段同一根K线只报一次', first.length === 1 && second.length === 0, first.length + '/' + second.length);
   }
-  ok('配置默认：顶部结构开启、级别 1小时、第5根起预警、严格反包口径',
+  ok('配置默认：顶部结构开启、级别 15分/30分/1时/2时/3时/6时、第5根起预警、严格反包口径',
     DEFAULT_SIGNAL.top5Enabled === true && DEFAULT_SIGNAL.top5WarnBars === 5
     && DEFAULT_SIGNAL.top5StrictEngulf === true
-    && JSON.stringify(DEFAULT_SIGNAL.top5Levels) === JSON.stringify(['1h']),
+    && JSON.stringify(DEFAULT_SIGNAL.top5Levels) === JSON.stringify(['15m','30m','1h','2h','3h','6h']),
     JSON.stringify({ warn: DEFAULT_SIGNAL.top5WarnBars, strict: DEFAULT_SIGNAL.top5StrictEngulf }));
 }
 

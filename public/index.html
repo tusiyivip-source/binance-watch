@@ -44,10 +44,10 @@
   <div class="viewtabs">
     <button id="tab-alert" class="vt">🔔 报警级别K线</button>
     <button id="tab-wave" class="vt on">🧩 两级五浪</button>
-    <button id="tab-top" class="vt">⚠ 1时顶部结构</button>
+    <button id="tab-top" class="vt">⚠ 顶部结构</button>
     <span class="vtsep"></span>
     <span id="top-symbar" style="display:none">
-      <span class="chartsym">每条顶部结构的<b style="color:#f0b90b">1小时</b>K线 · 按时间倒序</span>
+      <span class="chartsym">每条顶部结构的<b style="color:#f0b90b">对应级别</b>K线 · 按时间倒序</span>
       <select id="top-limit" class="vtsel" title="最多展示多少条">
         <option value="12">最近 12 条</option>
         <option value="24" selected>最近 24 条</option>
@@ -101,7 +101,7 @@
       <option value="all" selected>全部通道</option>
       <option value="watch">回调靠零轴</option>
       <option value="chain">两级五浪（当前策略）</option>
-      <option value="top5">1时顶部结构</option>
+      <option value="top5">顶部结构（15分~6时）</option>
       <option value="wave,wavefirst">五浪反弹（含首底预警）</option>
       <option value="wave">仅五浪完成</option>
       <option value="wavefirst">仅五浪首底预警</option>
@@ -145,7 +145,7 @@
     </div>
     <div id="topchartwrap" style="display:none">
       <div id="topchartgrid"></div>
-      <div id="top-empty" class="empty">暂无1小时顶部结构。条件：第1根=高点 → 第2根不创新高 → 第3根不超第1根 → 第4根不超第2根 → 第5根创这段新低，且高点向下 ≥6 根。</div>
+      <div id="top-empty" class="empty">暂无顶部结构。级别：15分/30分/1时/2时/3时/6时。条件：第1根=高点 → 第2根不创新高 → 第3根不超第1根 → 第4根不超第2根 → 第5根创这段新低（此时预警），之后任一根反包（阳包阴）即确认。</div>
     </div>
     <div id="alertchartwrap">
       <div id="alertchartgrid"></div>
@@ -182,18 +182,18 @@
     
     <div class="groupbox">
       <div class="gtitle">
-        <b>1小时顶部结构（独立界面）</b>
-        <span class="gsub">第1根=高点 → 第2根不创新高 → 第3根不超第1根 → 第4根不超第2根 → 第5根创这段新低 + 向下 ≥6 根</span>
+        <b>顶部结构（独立界面）</b>
+        <span class="gsub">级别 15分/30分/1时/2时/3时/6时 · 五根形态 + 第5根新低预警 → 反包确认</span>
         <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-top5Enabled"> 启用</label>
       </div>
       <div class="prow">
-        <label>级别 <code>1小时</code></label>
+        <label>级别 <code>15分 / 30分 / 1时 / 2时 / 3时 / 6时</code></label>
         <label>几根起预警 <input id="c-top5WarnBars" type="number" min="4" max="30" step="1"></label>
         <label class="toggle"><input type="checkbox" id="c-top5StrictEngulf"> 反包用严格口径</label>
         <label>高点回看根数 <input id="c-top5Lookback" type="number" min="5" max="100" step="1"></label>
       </div>
       <div class="gnote">
-        五根K线的形态（级别：<b>1小时</b>）：<br>
+        五根K线的形态（级别：<b>15分 / 30分 / 1时 / 2时 / 3时 / 6时</b>）：<br>
         &nbsp;&nbsp;第1根 = 这段<b>高点</b>；第2根<b>不创新高</b>（高点 ≤ 第1根），收盘形态随意；<br>
         &nbsp;&nbsp;第3根形态随意，但<b>高点不超第1根</b>；第4根形态随意，但<b>高点不超第2根</b>；<br>
         &nbsp;&nbsp;第5根<b>价格低于前四根</b>（创这段新低）。<br>
