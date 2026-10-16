@@ -1381,7 +1381,8 @@ section('16. 三级别结构：主级别回调≥5根 + 次级别 下上下上�
     const c = [97, 94, 90, 88, 86, 84, 82, 78.5, 81, 83, 84, 85];
     const t = c.map((_, i) => i * M);
     const ema7 = c.map(() => 0);
-    return { key: '6h', ms: M, t, h, l, c, ema7, dif: c.map(() => 0), dea: c.map(() => 0), closed: 9, pts: null };
+    const o = c.map((x, i) => (i === 0 ? x : c[i - 1]));
+    return { key: '6h', ms: M, t, h, l, c, o, ma7: c.map(() => 0), ema7, dif: c.map(() => 0), dea: c.map(() => 0), closed: 9, pts: null };
   };
   /** 次级别：t0..t5 六个端点 T,B,T,B,T,B（= 下上下上下 五笔） */
   const mkSub = (t0) => {
@@ -1400,7 +1401,8 @@ section('16. 三级别结构：主级别回调≥5根 + 次级别 下上下上�
       const price = a.price + (b.price - a.price) * (i - a.origIdx) / (b.origIdx - a.origIdx);
       h[i] = price + 0.1; l[i] = price - 0.1; c[i] = price;
     }
-    return { key: '1h', ms: S, t, h, l, c, ema7: c.map(() => 0), dif: c.map(() => 0), dea: c.map(() => 0), closed: t.length, pts };
+    const o = c.map((x, i) => (i === 0 ? x : c[i - 1]));
+    return { key: '1h', ms: S, t, h, l, c, o, ma7: c.map(() => 0), ema7: c.map(() => 0), dif: c.map(() => 0), dea: c.map(() => 0), closed: t.length, pts };
   };
   /** 内部级别：dif 在指定下标翻转 → 交叉；造 死金死金死 且相邻≥5根 */
   const mkInner = (t0, span) => {
@@ -1425,7 +1427,7 @@ section('16. 三级别结构：主级别回调≥5根 + 次级别 下上下上�
   const inner = mkInner(t0, span);
 
   {
-    const hit = detectChain(main, sub, inner, { mainMinBars: 5, innerMinBars: 5, lookback: 20 });
+    const hit = detectChain(main, sub, inner, { mainMinBars: 5, innerMinBars: 5, lookback: 20, mainMode: 'fractal' });
     ok('★ 主级别回调≥5根 + 次级别五笔 + 内部死金死金死(间隔≥5) + 主级别底分型 → 命中', !!hit,
       hit ? `主${hit.mainBars}根 内部${hit.innerSeq} 间隔${hit.subBars.join('/')}` : 'null');
     if (hit) {
@@ -1464,7 +1466,7 @@ section('16. 三级别结构：主级别回调≥5根 + 次级别 下上下上�
     for (let i = 0; i < dif.length; i++) { if (flips.includes(i)) s = -s; dif[i] = s; }
     innerBad.dif = dif;
     ok('★ 两级策略不受第三周期MACD间隔影响',
-      !!detectChain(main, sub, innerBad, { mainMinBars: 5, innerMinBars: 5 }));
+      !!detectChain(main, sub, innerBad, { mainMinBars: 5, innerMinBars: 5, mainMode: 'fractal' }));
   }
   // 主级别回调不足 5 根
   {
@@ -1474,18 +1476,18 @@ section('16. 三级别结构：主级别回调≥5根 + 次级别 下上下上�
     short.l = [95, 92, 88, 86, 84, 82, 80, 80.5, 81, 82, 83, 84];
     short.l[2] = 79;                                          // 低点提前到 index 2 → 跨度 3 根
     ok('★ 主级别高→低只有 3 根 → 不命中',
-      detectChain(short, sub, inner, { mainMinBars: 5 }) === null);
+      detectChain(short, sub, inner, { mainMinBars: 5, mainMode: 'fractal' }) === null);
   }
   // 次级别不是 下上下上下
   {
     const sub2 = mkSub(t0);
     sub2.pts = sub2.pts.slice(0, 5).concat([{ mi: 58, origIdx: 58, type: 'top', price: 99 }]);
     ok('★ 次级别不是"下上下上下"五笔（末笔是顶）→ 不命中',
-      detectChain(main, sub2, inner, { mainMinBars: 5, innerMinBars: 5 }) === null);
+      detectChain(main, sub2, inner, { mainMinBars: 5, innerMinBars: 5, mainMode: 'fractal' }) === null);
   }
   // 去重
   {
-    const cfg = { chainTriples: [{ main: '6h', sub: '1h', inner: '10m' }], chainMainMinBars: 5, chainInnerMinBars: 5, chainLookback: 20, beichiMinBars: 5 };
+    const cfg = { chainTriples: [{ main: '6h', sub: '1h', inner: '10m' }], chainMainMinBars: 5, chainInnerMinBars: 5, chainLookback: 20, beichiMinBars: 5, chainMainMode: 'fractal' };
     const fake = {
       '6h': { t: main.t, h: main.h, l: main.l, c: main.c, ms: M, closedCount: main.closed, ensure: () => ({ ema7: main.ema7 }), macd: () => ({ dif: main.dif, dea: main.dea }), ensureChan: () => ({ pts: null }) },
       '1h': { t: sub.t, h: sub.h, l: sub.l, c: sub.c, ms: S, closedCount: sub.closed, ensure: () => ({ ema7: sub.ema7 }), macd: () => ({ dif: sub.dif, dea: sub.dea }), ensureChan: () => ({ pts: sub.pts }) },

@@ -174,7 +174,11 @@ export const DEFAULT_SIGNAL = {
   chainSubMinBars: 5,       // 次级别每一笔（一浪）至少5根K线，包含首尾端点
   chainInnerMinBars: 5,     // 内部相邻交叉之间最少几根K线（用户：每次内部不少于五根）
   chainLookback: 20,        // 主级别高点在最近几根里找
-  chainFractalType: 'any',       // 主级别见底分型口径：any=中间低点最低（默认，实测覆盖最好）| standard/relay/weakest
+  chainFractalType: 'any',
+  // ===== 用户 2026-10-16 口径调整 =====
+  chainMainMode: 'top5',   // 主级别收盘K按「顶部结构」逻辑：五根形态 + 反转点 + 收盘站上 MA7+EMA7
+  chainMainNeedMa: true,   // 必须有收盘站上两条均线才算（不提前提醒）
+  chainMinStrokes: 5,      // 次级别最少几笔；**允许高于五浪**（6/7/8 笔都行，取最长合法浪）       // 主级别见底分型口径：any=中间低点最低（默认，实测覆盖最好）| standard/relay/weakest
 
   // ============ 缠论笔 / 背驰（★ 引擎内部计算，界面完全不显示） ============
   // 按用户要求：这些判定照常算（供共振通道与内部结构分析使用），
