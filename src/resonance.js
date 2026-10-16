@@ -84,8 +84,10 @@ function makeResonanceAlert(c, t, gapBars, now) {
     barPct: pct,
     topStage: t.topStage,
     text: `【双确认共振】${L} ${c.symbol}：**两级五浪链**先报出（${c.subLevelLabel ?? ''} `
-      + `${c.chainSubStrokes ?? '?'} 笔结构成立）→ **顶部结构**在 ${after ? '之后' : '之前'} `
-      + `${Math.abs(gapBars)} 根K线收盘确认（收盘站上 MA7 与 EMA7）`
+      + `${c.chainSubStrokes ?? '?'} 笔结构成立）→ **顶部结构**`
+      + (gapBars === 0
+        ? '在**同一根K线**上收盘确认（收盘站上 MA7 与 EMA7）'
+        : `在${after ? '之后' : '之前'} ${Math.abs(gapBars)} 根K线收盘确认（收盘站上 MA7 与 EMA7）`)
       + (pct !== null ? `；确认根涨幅 ${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%` : ''),
   };
 }

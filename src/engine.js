@@ -196,7 +196,6 @@ export class Engine extends Emitter {
           a.id = ++this.alertSeq;
           a.initial = forceNew ? false : !!this.initialPhase;
           this.top5Count++;
-          firedThisSweep.push(a);
           this.res2Recent.push(a);
           if (this.res2Recent.length > 400) this.res2Recent.splice(0, this.res2Recent.length - 400);
           this.alerts.push(a);
@@ -218,7 +217,6 @@ export class Engine extends Emitter {
           a.id = ++this.alertSeq;
           a.initial = forceNew ? false : !!this.initialPhase;
           this.chainCount++;
-          firedThisSweep.push(a);
           this.res2Recent.push(a);
           if (this.res2Recent.length > 400) this.res2Recent.splice(0, this.res2Recent.length - 400);
           this.alerts.push(a);
@@ -654,6 +652,10 @@ export class Engine extends Emitter {
     return {
       boundary: this.market.feedStats?.boundary ?? null,
       boundaryAligned: this.market.feedStats?.boundaryAligned ?? null,
+      chainCount: this.chainCount, top5Count: this.top5Count, res2Count: this.res2Count,
+      res2Recent: this.res2Recent.length,
+      seenSizes: { chain: this.chainSeen.size, top5: this.top5Seen.size, res2: this.res2Seen.size, fb: this.fbSeen.size, brk: this.brkSeen.size },
+      alertsLen: this.alerts.length,
       sweepCount: this.sweepCount,
       lastSweepMs: this.lastSweepMs,
       lastSweepAt: this.lastSweepAt,

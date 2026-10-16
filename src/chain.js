@@ -182,7 +182,7 @@ export function detectChain(main, sub, inner, opt = {}) {
 
 
   return {
-    mainKey: main.key, subKey: sub.key, innerKey: null,
+    mainKey: main.key, subKey: sub.key, innerKey: null, mainMs: main.ms,
     mainBars, highT: main.t[hIdx], highPrice: main.h[hIdx],
     lowT: main.t[lIdx], lowPrice: main.l[lIdx],
     fractalT, fractalLow, fractalClose, fractalAge, fractalType, fractal3Lows,
@@ -225,6 +225,7 @@ export function makeChainAlert(symbol, hit, now, initial = false) {
     chainFallbackFrom: hit.fallbackFrom ?? null,
     chainFifthBars: null,
     confirmedAt: hit.confirmT,
+    barT: (hit.confirmT ?? 0) - (hit.mainMs ?? 0),   // 确认那根K线的开盘时间（与顶部结构对齐，供共振判定）
     chainLow: hit.fractalLow,
     chain3Lows: hit.fractal3Lows,
     chainSubStrokes: hit.subStrokes,
