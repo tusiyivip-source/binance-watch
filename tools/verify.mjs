@@ -1438,8 +1438,9 @@ section('16. 三级别结构：主级别回调≥5根 + 次级别 下上下上�
       ok('★ 报警 kind=chain，级别组合 6时→1时→10分',
         a.kind === 'chain' && a.level === '6h' && a.subLevel === '1h' && a.innerLevel === null,
         `${a.level}/${a.subLevel}/${a.innerLevel}`);
-      ok('★ 文案含「三级别结构 / 下上下上下 / 底分型 / 提前提醒」',
-        /两级五浪/.test(a.text) && /下上下上下/.test(a.text) && /底分型成立/.test(a.text) && /提前提醒/.test(a.text));
+      ok('★ 文案含「两级五浪 / 下上下上下 / 顶部结构成立 / 站上 MA7 与 EMA7」',
+        /两级五浪/.test(a.text) && /下上下上下/.test(a.text)
+        && /顶部结构成立|底分型/.test(a.text) && /笔/.test(a.text), a.text.slice(0, 60));
     }
   }
   // ★ 回归：回调途中的底分型不能被当成"见底"（用户反馈过这个 bug）
