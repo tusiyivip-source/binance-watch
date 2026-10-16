@@ -560,6 +560,8 @@ export class Engine extends Emitter {
         topH2: Number.isFinite(a.topH2) ? a.topH2 : null,
         topH4: Number.isFinite(a.topH4) ? a.topH4 : null,
         topLow5: Number.isFinite(a.topLow5) ? a.topLow5 : null,
+        topStage: a.topStage ?? null,
+        topEngulf: !!a.topEngulf,
         alertPrice: a.price ?? null,
         text: a.text ?? '',
         initial: !!a.initial,

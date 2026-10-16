@@ -134,7 +134,8 @@ export const DEFAULT_SIGNAL = {
   //   且 高点向下 ≥ top5MinBars 根（用户口径"大于5根以上" → 默认 6）
   top5Enabled: true,
   top5Levels: ['1h'],
-  top5MinBars: 6,          // 高点向下至少几根（>5 → 6）
+  top5WarnBars: 5,         // 走到第几根开始预警（第5根创新低 → 预警）
+  top5StrictEngulf: true,  // 反包口径：true=严格阳包阴（开盘也不高于前收）| false=只要求收盘盖过前开
   top5Lookback: 20,        // 高点在最近几根里找
 
   // 两级五浪：每组独立，仅次级别五笔 + 对应主级别底分型确认。

@@ -195,7 +195,8 @@
       </div>
       <div class="prow">
         <label>级别 <code>1小时</code></label>
-        <label>高点向下最少根数 <input id="c-top5MinBars" type="number" min="3" max="30" step="1"></label>
+        <label>几根起预警 <input id="c-top5WarnBars" type="number" min="4" max="30" step="1"></label>
+        <label class="toggle"><input type="checkbox" id="c-top5StrictEngulf"> 反包用严格口径</label>
         <label>高点回看根数 <input id="c-top5Lookback" type="number" min="5" max="100" step="1"></label>
       </div>
       <div class="gnote">
@@ -203,7 +204,11 @@
         &nbsp;&nbsp;第1根 = 这段<b>高点</b>；第2根<b>不创新高</b>（高点 ≤ 第1根），收盘形态随意；<br>
         &nbsp;&nbsp;第3根形态随意，但<b>高点不超第1根</b>；第4根形态随意，但<b>高点不超第2根</b>；<br>
         &nbsp;&nbsp;第5根<b>价格低于前四根</b>（创这段新低）。<br>
-        另加：高点向下 <b>≥「高点向下最少根数」</b>（用户口径"大于5根以上"，默认 6）。全部满足即提醒（同一段高点只报一次）。
+        <b>两阶段提醒</b>：<br>
+        &nbsp;&nbsp;• 第5根<b>创新低</b> → <b>预警</b>（先提示）<br>
+        &nbsp;&nbsp;• 之后任一根<b>反包（阳包阴）</b> → <b>确认提醒</b>（要求与前一根有止跌反包关系）<br>
+        &nbsp;&nbsp;• 若第6根又创新低，则<b>第7根不创新低时预警</b>，第7根反包则确认 —— 可一直跌到第 N 根<br>
+        &nbsp;&nbsp;• 一直创新低时不提醒（还在跌）；价格重新站上第1根高点则结构失效
       </div>
     </div>
     <div class="groupbox">
