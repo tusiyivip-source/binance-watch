@@ -356,7 +356,9 @@ function paintCard(view, i, it) {
 
   if (isAlert) {
     head.querySelector('.lv').innerHTML = `<span class="sym">${it.symbol}</span>`;
-    head.querySelector('.roles').innerHTML = (it.kind === 'top5' || it.kind === 'bot5')
+    head.querySelector('.roles').innerHTML = it.kind === 'res2'
+      ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span><span class="rb" style="color:#f0b90b">🎯 共振</span>`
+      : (it.kind === 'top5' || it.kind === 'bot5')
       ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span><span class="rb">${it.kind === 'bot5' ? '底部结构' : '顶部结构'}</span>`
       : it.kind === 'chain'
       ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span>`
@@ -370,7 +372,15 @@ function paintCard(view, i, it) {
     st.className = 'st ' + (it.mode === 'closed' ? 's1' : 's3');
     // 形态提醒没有评分，用方向标签代替；共振信号仍显示组合与评分
     const isDual = it.kind === 'dual';
-    if (it.kind === 'top5' || it.kind === 'bot5') {
+    if (it.kind === 'res2') {
+      const f = t => new Date(t).toLocaleString('zh-CN', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+      head.querySelector('.sp').innerHTML =
+        `<span class="grp">链 ${f(it.chainT)} → 确认 ${f(it.topT)}（相隔 ${it.gapBars} 根）</span>`
+        + `<span class="sc">${it.chainSubStrokes ?? '?'} 笔结构</span>`
+        + (Number.isFinite(it.resPct)
+          ? `<span class="sc" style="color:${it.resPct >= 0 ? '#0ecb81' : '#f6465d'}">确认根 ${it.resPct >= 0 ? '+' : ''}${it.resPct.toFixed(2)}%</span>`
+          : '') + divBadge;
+    } else if (it.kind === 'top5' || it.kind === 'bot5') {
       head.querySelector('.sp').innerHTML =
         (it.kind === 'bot5'
           ? `<span class="grp">低点${fmtPrice(it.topHigh)} · 向上${it.topBars ?? '?'}根</span><span class="sc">第5根新高</span>`

@@ -143,6 +143,11 @@ export const DEFAULT_SIGNAL = {
   top5Lookback: 20,        // 高点在最近几根里找
 
   // 两级五浪：每组独立，仅次级别五笔 + 对应主级别底分型确认。
+  // ============ 双确认共振（★ 用户 2026-10-16：共振报警，要在左侧K线图表显示） ============
+  //   同一标的、同一级别：两级五浪链先报出 → 顶部结构在 ≤N 根内收盘确认
+  res2Enabled: true,
+  res2WindowBars: 3,       // 两者相隔多少根K线内算共振（实测多为 1 根）
+
   chainEnabled: true,
   chainTriples: [
   {

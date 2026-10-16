@@ -20,6 +20,7 @@ import { detectFirstBottom, makeFirstBottomAlert, scanFirstBottoms } from '../sr
 import { isBottomFractal, findFirstBottomFractal } from '../src/fractal.js';
 import { detectChain, makeChainAlert, scanChains, chainView } from '../src/chain.js';
 import { detectTop5, makeTop5Alert, scanTop5, top5View, isEngulf } from '../src/top5.js';
+import { scanResonance } from '../src/resonance.js';
 import { nextBoundary, groupPeriodMs, BoundaryScheduler, levelPeriodMs } from '../src/boundary.js';
 
 // 验证脚本自己控制序列保留上限，避免受实盘 maxCandlesKept 影响导致对比样本数漂移
@@ -1644,6 +1645,49 @@ section('18. 整点调度：各周期收线时刻扫描（5分/15分/30分/1时 
   }
   ok('配置默认：整点模式开启、收线后 4 秒拉、25 秒内打完一轮',
     APP.boundaryAligned === true && APP.boundaryGraceMs === 4000 && APP.boundarySpreadMs === 25_000);
+}
+
+/* ============ 19. 双确认共振 ============ */
+section('19. 双确认共振：五浪链 + 顶部结构（同标的同级别、≤N 根内）');
+{
+  const H = 3_600_000;
+  const chain = { kind: 'chain', symbol: 'ZUSDT', level: '1h', levelLabel: '1时', subLevelLabel: '10分',
+    barT: Date.UTC(2026, 9, 16, 3, 0), chainSubStrokes: 9, price: 1.234, id: 11 };
+  const top = { kind: 'top5', symbol: 'ZUSDT', level: '1h', levelLabel: '1时', topStage: 'confirmed',
+    barT: Date.UTC(2026, 9, 16, 4, 0), barPct: 2.5, price: 1.26, id: 12 };
+  {
+    const seen = new Map();
+    const out = scanResonance([chain, top], seen, { res2WindowBars: 3 }, Date.now());
+    ok('★ 同标的同级别、相隔 1 根 → 出共振（kind=res2）', out.length === 1 && out[0].kind === 'res2',
+      out.length ? `gap=${out[0].gapBars} 根` : 'null');
+    if (out.length) {
+      const a = out[0];
+      ok('★ 共振报警带两个时间点与级别（供左侧K线图表画图）',
+        a.chainT === chain.barT && a.topT === top.barT && a.level === '1h' && Number.isFinite(a.price));
+      ok('★ 文案含「双确认共振 / 两级五浪链 / 顶部结构 / 收盘确认」',
+        /双确认共振/.test(a.text) && /两级五浪链/.test(a.text) && /顶部结构/.test(a.text) && /收盘确认/.test(a.text));
+      ok('★ 再次扫描同一对 → 不重复报（去重）',
+        scanResonance([chain, top], seen, { res2WindowBars: 3 }, Date.now()).length === 0);
+    }
+  }
+  {
+    const seen = new Map();
+    const far = { ...top, barT: chain.barT + 5 * H };        // 相隔 5 根 > 窗口 3
+    ok('★ 相隔 5 根（> 窗口 3）→ 不算共振', scanResonance([chain, far], seen, { res2WindowBars: 3 }, Date.now()).length === 0);
+  }
+  {
+    const seen = new Map();
+    const other = { ...top, level: '6h' };                    // 级别不同
+    ok('★ 级别不同（1时 vs 6时）→ 不算同级共振', scanResonance([chain, other], seen, { res2WindowBars: 3 }, Date.now()).length === 0);
+  }
+  {
+    const seen = new Map();
+    const before = { ...top, barT: chain.barT - H };          // 顶部结构先确认、链后报
+    const out = scanResonance([chain, before], seen, { res2WindowBars: 3 }, Date.now());
+    ok('★ 顺序反过来（先确认后报链）也算共振，gap 为 -1', out.length === 1 && out[0].gapBars === -1,
+      out.length ? 'gap=' + out[0].gapBars : 'null');
+  }
+  ok('配置默认：共振开启、窗口 3 根', DEFAULT_SIGNAL.res2Enabled === true && DEFAULT_SIGNAL.res2WindowBars === 3);
 }
 
 /* ============ 15. 双阴/双阳判定修正：窗口右移 + 两条前置条件 ============ */

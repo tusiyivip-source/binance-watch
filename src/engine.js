@@ -9,6 +9,7 @@ import { scanBreakouts } from './breakout.js';
 import { scanFirstBottoms } from './firstbottom.js';
 import { scanChains } from './chain.js';
 import { scanTop5 } from './top5.js';
+import { scanResonance } from './resonance.js';
 
 
 const SWEEP_MS = 1000;
@@ -50,6 +51,9 @@ export class Engine extends Emitter {
     this.chainSeen = new Map();
     this.top5Seen = new Map();
     this.top5Count = 0;
+    this.res2Seen = new Map();
+    this.res2Recent = [];      // 最近的 chain/top5 报警（跨轮，供共振判定）
+    this.res2Count = 0;
     this.chainCount = 0;
     this.fbCount = 0;
     this.brkCount = 0;
@@ -192,6 +196,9 @@ export class Engine extends Emitter {
           a.id = ++this.alertSeq;
           a.initial = forceNew ? false : !!this.initialPhase;
           this.top5Count++;
+          firedThisSweep.push(a);
+          this.res2Recent.push(a);
+          if (this.res2Recent.length > 400) this.res2Recent.splice(0, this.res2Recent.length - 400);
           this.alerts.push(a);
           this.signalCount++;
           this.emit('alert', a);
@@ -211,6 +218,9 @@ export class Engine extends Emitter {
           a.id = ++this.alertSeq;
           a.initial = forceNew ? false : !!this.initialPhase;
           this.chainCount++;
+          firedThisSweep.push(a);
+          this.res2Recent.push(a);
+          if (this.res2Recent.length > 400) this.res2Recent.splice(0, this.res2Recent.length - 400);
           this.alerts.push(a);
           this.signalCount++;
           this.emit('alert', a);
@@ -218,6 +228,23 @@ export class Engine extends Emitter {
         }
       } catch (e) {
         this.log.warn(`结构判定 ${st.symbol} 失败：${e.message}`);
+      }
+    }
+
+    // —— 双确认共振（两级五浪链 + 顶部结构；本轮内判定）——
+    if (this.cfg.res2Enabled && this.res2Recent.length >= 2) {
+      try {
+        for (const a of scanResonance(this.res2Recent, this.res2Seen, this.cfg, Date.now())) {
+          a.id = ++this.alertSeq;
+          a.initial = forceNew ? false : !!this.initialPhase;
+          this.res2Count++;
+          this.alerts.push(a);
+          this.signalCount++;
+          this.emit('alert', a);
+          this.log.signal('🎯 ' + a.symbol + ' ' + a.text);
+        }
+      } catch (e) {
+        this.log.warn(`共振判定 ${st.symbol} 失败：${e.message}`);
       }
     }
 
@@ -564,6 +591,12 @@ export class Engine extends Emitter {
         topDir: a.topDir ?? null,
         barT: a.barT ?? null,
         barPct: Number.isFinite(a.barPct) ? a.barPct : null,
+        // 共振：两个时间点 + 相隔根数 + 确认根涨幅
+        chainT: a.chainT ?? null,
+        topT: a.topT ?? null,
+        gapBars: Number.isFinite(a.gapBars) ? a.gapBars : null,
+        resPct: Number.isFinite(a.resPct) ? a.resPct : (Number.isFinite(a.barPct) ? a.barPct : null),
+        chainSubStrokes: Number.isFinite(a.chainSubStrokes) ? a.chainSubStrokes : null,
         barBodyPct: Number.isFinite(a.barBodyPct) ? a.barBodyPct : null,
         topEngulf: !!a.topEngulf,
         alertPrice: a.price ?? null,
