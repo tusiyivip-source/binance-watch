@@ -133,7 +133,7 @@ export function detectTop5(v, opt = {}) {
     : (Number.isFinite(ma7) && Number.isFinite(ema7)
       && (bot ? (close < ma7 && close < ema7) : (close > ma7 && close > ema7)));
 
-  let stage = null, reason = null;
+  let stage = null, reason = null, confT = null;
   if (!allowWarn) {
     // ★ 用户口径（不提前提醒）：反转点出现后，**等到某一根收盘站上/跌破两条均线**才确认；
     //   且只在"站上均线的那一根"报一次（之后 confIdx 不再是最后一根 → 不重复报）。
@@ -148,9 +148,11 @@ export function detectTop5(v, opt = {}) {
     } else {
       confIdx = revIdx;                                 // 关掉均线条件 → 反转点那根就报
     }
-    if (confIdx < 0 || confIdx !== li) return null;     // 还没回到均线上（或已报过）→ 不提醒
+    const freshBars = opt.freshBars ?? 0;                // 允许确认发生在最近几根内（启动补报用）
+    if (confIdx < 0 || (li - confIdx) > freshBars) return null;   // 还没回到均线上 → 不提醒
     stage = 'confirmed';
     reason = needMa ? 'ma-reclaim' : 'ext-revert';
+    confT = v.t[confIdx];
   } else {
     const patternOk = (isNewExt && (bot ? v.c[li] < v.o[li] : v.c[li] > v.o[li])) || isEngulf(v, li, strictEngulf, dir);
     if (patternOk && maOk) { stage = 'confirmed'; reason = 'ext-revert'; }
@@ -172,7 +174,7 @@ export function detectTop5(v, opt = {}) {
     isNewExt, isNewLow: isNewExt && !bot,
     engulf: isEngulf(v, li, strictEngulf, dir),
     revertBar: bot ? v.c[li] < v.o[li] : v.c[li] > v.o[li],
-    revIdx, lastRevT: v.t[revIdx],
+    revIdx, lastRevT: v.t[revIdx], confT,
     ma7, ema7, maOk,
     lowReversal: reason === 'ext-revert', reason, stage,
     breakBars: li - i5,                              // 第5根之后又走了几根
@@ -247,12 +249,13 @@ export function scanTop5(symbol, seriesMap, cfg, seen, now = Date.now(), initial
         minBars: cfg.top5WarnBars ?? 5,
         needMa: cfg.top5NeedMa !== false,
         allowWarn: cfg.top5AllowWarn === true,
+        freshBars: initial ? (cfg.top5FreshBars ?? 3) : 0,
         lookback: cfg.top5Lookback ?? 20,
         strictEngulf: cfg.top5StrictEngulf !== false,
         dir,
       });
       if (!hit) continue;
-      const k = `${symbol}|${key}|${dir}|${hit.highT}|${hit.stage}|${hit.lastT}`;
+      const k = `${symbol}|${key}|${dir}|${hit.highT}|${hit.stage}|${hit.confT ?? hit.lastT}`;
       if (seen.has(k)) continue;
       seen.set(k, now);
       out.push(makeTop5Alert(symbol, hit, now, initial));
