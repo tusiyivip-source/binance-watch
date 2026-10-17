@@ -180,7 +180,8 @@ export const DEFAULT_SIGNAL = {
   zeroDirs: ['long', 'short'],   // ★ 做多 + 做空（做空=最小级别 DIF 未能上穿零轴 + 大级别双阳/三阳不穿上均线）
   zeroFailBars: 4,               // 做空：最近几根 DIF 都没上穿过零轴
   zeroMinRecovery: 0.5,          // 做空：DIF 至少要回抽到零轴距离的 50% 以上才算"尝试上穿"
-  zeroRequireBigYin: true,   // true = 必须满足才提醒
+  zeroBigRequire: 'bars',    // ★ bars=只要双阴/三阴(双阳/三阳)形态 | barsAndMa=还要不破均线(最严) | none=不设限
+  zeroRequireBigYin: false,  // 旧开关，保留兼容
   zeroBigYinMin: 2,          // 至少几连阴（2=双阴，3=三阴）
   zeroBigNeedBothMa: false,  // true = 还要站上 EMA7
   zeroBigLevel: true,        // 用该标的 L0（操作级别）当"大级别"

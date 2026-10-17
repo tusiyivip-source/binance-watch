@@ -44,7 +44,7 @@ export function bigLevelStateDir(v, opt = {}) {
     okMa = long ? (close > ma7) : (close < ma7);
   }
   const ok = bars >= minBars && okMa === true;
-  return { bars, ma7, ema7, okMa, ok, dir, close };
+  return { bars, yinBars: bars, ma7, ema7, okMa, aboveMa: okMa, ok, dir, close };
 }
 
 /**

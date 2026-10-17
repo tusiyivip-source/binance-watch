@@ -135,7 +135,13 @@ export function scanZeroCrosses(symbol, seriesMap, cfg, seen, now = Date.now(), 
           needBothMa: cfg.zeroBigNeedBothMa === true,
         });
         big.level = baseKey;
-        if (cfg.zeroRequireBigYin && !big.ok) continue;
+        // ★ 强度分级（用户 2026-10-17 反馈"没有信号"后增加）：
+        //   barsAndMa = 双阴/三阴 且 不破均线（最严，下跌市几乎为 0）
+        //   bars      = 只要 双阴/三阴 形态（均线作标签）← 默认
+        //   none      = 大级别不设限
+        const mode = cfg.zeroBigRequire ?? 'bars';
+        if (mode === 'barsAndMa' && !big.ok) continue;
+        if (mode === 'bars' && big.bars < (cfg.zeroBigYinMin ?? 2)) continue;
       }
     }
 
@@ -147,10 +153,12 @@ export function scanZeroCrosses(symbol, seriesMap, cfg, seen, now = Date.now(), 
         if (bigV) {
           bigS = bigLevelStateDir(bigV, { minYin: cfg.zeroBigYinMin ?? 2, needBothMa: cfg.zeroBigNeedBothMa === true, dir: 'short' });
           bigS.level = baseKey;
-          if (cfg.zeroRequireBigYin && !bigS.ok) { /* 做空不成立，继续判做多 */ }
+          // 做空同理：barsAndMa 才强制均线
         }
       }
-      const shortOk = !cfg.zeroRequireBigYin || (bigS && bigS.ok);
+      const modeS = cfg.zeroBigRequire ?? 'bars';
+      const shortOk = modeS === 'none'
+        || (modeS === 'bars' ? (bigS && bigS.bars >= (cfg.zeroBigYinMin ?? 2)) : (bigS && bigS.ok));
       if (shortOk) {
         const hitS = detectFailedUpCross(v, {
           freshBars: initial ? (cfg.zeroInitFreshBars ?? 2) : (cfg.zeroFreshBars ?? 0),
@@ -179,7 +187,8 @@ export function scanZeroCrosses(symbol, seriesMap, cfg, seen, now = Date.now(), 
                 + '，收盘 ' + fmt(Number.isFinite(bigS.close) ? bigS.close : as.price)
                 + (bigS.okMa === true ? ' 未站上 MA7 ' : ' 已站上 MA7 ')
                 + (Number.isFinite(bigS.ma7) ? fmt(bigS.ma7) : '-')
-                + (bigS.ok ? ' → 双阳/三阳不穿成立（做空）' : ' → 不满足');
+                + (bigS.bars >= 2 ? ' → 双阳/三阳成立' : ' → 形态不足')
+                + (bigS.ok ? ' · 不穿成立（做空）' : ' · 已穿上均线');
             }
             out.push(as);
           }
@@ -212,7 +221,8 @@ export function scanZeroCrosses(symbol, seriesMap, cfg, seen, now = Date.now(), 
         + '，收盘 ' + fmt(Number.isFinite(big.close) ? big.close : a.price)
         + (big.aboveMa === true ? ' 未跌破 MA7 ' : ' 已跌破 MA7 ')
         + (Number.isFinite(big.ma7) ? fmt(big.ma7) : '-')
-        + (big.ok ? ' → 回踩不破均线成立' : ' → 不满足');
+        + (big.yinBars >= 2 ? ' → 双阴/三阴成立' : ' → 形态不足')
+        + (big.ok ? ' · 回踩不破均线成立' : ' · 均线已跌破');
     }
     out.push(a);
   }
@@ -247,5 +257,5 @@ export function bigLevelState(v, opt = {}) {
     aboveMa = close > ma7;
   }
   const ok = yinBars >= minYin && aboveMa === true;
-  return { yinBars, ma7, ema7, aboveMa, ok, close };
+  return { yinBars, bars: yinBars, ma7, ema7, aboveMa, ok, close };
 }
