@@ -30,6 +30,10 @@ export function fracView(series, key) {
 }
 
 const numAt = (a, i) => (a && i >= 0 && i < a.length && Number.isFinite(a[i])) ? a[i] : null;
+/** 时间显示：MM-dd HH:mm（本地时区） */
+const fmtClock = ms => (Number.isFinite(ms)
+  ? new Date(ms).toLocaleString('zh-CN', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  : '—');
 
 /**
  * 判定"底分型刚刚收盘确认"
@@ -97,10 +101,15 @@ export function makeFractalAlert(symbol, hit, now, initial = false) {
     fracAge: hit.age,
     fracType: hit.type,
     aboveMa: hit.aboveMa,
+    // ★ 准确时间字段：底分型低点那根 / 收盘确认那一根
+    barT: hit.confirmT,                    // 收盘确认那一根的时间（= 第三根收盘时刻）
+    closeT: hit.confirmT,                  // 第三根**收盘**时刻（准确的"收盘确认时间"）
+    lowBarT: hit.lowT,                     // 最低点那根的开盘时刻
     text: `【${L}底分型收盘确认】低点 ${fmt(hit.low)}（三根低点 ${hit.threeLows.map(fmt).join(' / ')}`
       + `${hit.type === 'standard' ? '，中间那根高低点都最低' : '，中间那根最低'}）；`
       + `${L} 第三根收盘 ${fmt(hit.close)} 确认`
-      + `${hit.age > 0 ? `（已过 ${hit.age} 根）` : '（当根）'}`
+      + `（**${fmtClock(hit.confirmT)} 收盘**${hit.age > 0 ? `，已过 ${hit.age} 根` : '，当根'}）`
+      + `；最低点那根区间 ${fmtClock(hit.lowT)}~${fmtClock(hit.lowT + (hit.confirmT - hit.lowT) / 2)}`
       + (hit.aboveMa === true ? ' · 同时站上 MA7/EMA7' : hit.aboveMa === false ? ' · 仍在均线下方' : ''),
   };
 }

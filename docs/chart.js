@@ -402,6 +402,9 @@ function paintCard(view, i, it) {
     } else if (it.kind === 'frac') {
       head.querySelector('.sp').innerHTML =
         `<span class="grp">低点 ${fmtPrice(it.fracLow)} · 三根 ${(it.fracLows ?? []).map(fmtPrice).join('/')}</span>`
+        + (Number.isFinite(it.closeT)
+          ? `<span class="sc">${new Date(it.closeT).toLocaleString('zh-CN', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })} 收盘确认</span>`
+          : '')
         + `<span class="sc" style="color:${it.aboveMa ? '#0ecb81' : '#f6461d'}">${it.aboveMa ? '已站上 MA7/EMA7' : '仍在均线下'}</span>` + divBadge;
     } else if (it.kind === 'res2') {
       const f = t => new Date(t).toLocaleString('zh-CN', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });

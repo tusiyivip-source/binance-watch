@@ -660,6 +660,8 @@ export class Engine extends Emitter {
         resPct: Number.isFinite(a.resPct) ? a.resPct : (Number.isFinite(a.barPct) ? a.barPct : null),
         chainSubStrokes: Number.isFinite(a.chainSubStrokes) ? a.chainSubStrokes : null,
         fracLow: Number.isFinite(a.fracLow) ? a.fracLow : null,
+        closeT: Number.isFinite(a.closeT) ? a.closeT : null,
+        lowBarT: Number.isFinite(a.lowBarT) ? a.lowBarT : null,
         fibHigh: Number.isFinite(a.fibHigh) ? a.fibHigh : null,
         fibLow: Number.isFinite(a.fibLow) ? a.fibLow : null,
         fibRetrace: Number.isFinite(a.fibRetrace) ? a.fibRetrace : null,
