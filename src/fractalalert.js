@@ -11,6 +11,7 @@
  * 报警带 candleT = 底分型中间那根（最低点），前端在K线图上标的就是那根。
  */
 import { LEVELS, LEVEL_INDEX } from './config.js';
+import { chainView, findFiveWaves } from './chain.js';
 import { isBottomFractal } from './fractal.js';
 import { alertTiming } from './alert-timing.js';
 
@@ -139,6 +140,10 @@ export function makeFractalAlert(symbol, hit, now, initial = false) {
       + `${L} 第三根收盘 ${fmt(hit.close)} 确认`
       + `（**${fmtClock(hit.confirmT)} 收盘**${hit.age > 0 ? `，已过 ${hit.age} 根` : '，当根'}）`
       + `；最低点那根区间 ${fmtClock(hit.lowT)}~${fmtClock(hit.lowT + (hit.confirmT - hit.lowT) / 2)}`
+      + (Number.isFinite(hit.innerStrokes)
+        ? `；结构：内部${hit.innerKey ? label(hit.innerKey) : ''} ${hit.innerStrokes} 笔（下上下上下，每笔 ≥5 根）`
+        : '')
+      + (hit.higherKey ? `；上级别 ${label(hit.higherKey)} 同位置也有底分型` : '')
       + (hit.aboveMa === true ? ' · 同时站上 MA7/EMA7' : hit.aboveMa === false ? ' · 仍在均线下方' : ''),
   };
 }
@@ -164,6 +169,12 @@ export function scanFractalAlerts(symbol, seriesMap, cfg, seen, now = Date.now()
       type: cfg.fracType ?? 'any',
     });
     if (!hit) continue;
+    // 结构过滤（用户 2026-10-17）：内部有下上下上下≥N笔 + 高一级别同位置也成立
+    const st = fracStructureOk(hit, key, seriesMap, cfg);
+    if (!st.ok) { continue; }
+    hit.innerKey = st.innerKey;
+    hit.innerStrokes = st.innerStrokes;
+    hit.higherKey = st.higherKey;
     const k = `${symbol}|${key}|${hit.lowT}`;
     if (seen.has(k)) continue;
     seen.set(k, now);
@@ -189,4 +200,52 @@ export function checkFracInvalid(series, lowT, fracLow, maxBars = 8) {
     }
   }
   return null;
+}
+
+/**
+ * 结构过滤（用户 2026-10-17）
+ *   A. 内部级别（如 30分 → 1分）必须有「下上下上下」至少 N 笔的结构，且每笔 ≥ 最少根数
+ *   B. 高一级别（如 30分 → 1时）在同一低点附近也必须能识别出底分型
+ * 不满足 → 这个底分型太小、不提醒。
+ */
+export function fracStructureOk(hit, key, seriesMap, cfg) {
+  const innerKey = (cfg.fracInnerMap ?? {})[key];
+  const higherKey = (cfg.fracHigherMap ?? {})[key];
+  let innerStrokes = null, higherOk = null;
+
+  // A. 内部五笔
+  if (innerKey && seriesMap[innerKey]) {
+    const minBars = cfg.fracInnerMinBars ?? 5;
+    const minStrokes = cfg.fracInnerStrokes ?? 5;
+    const asOf = hit.confirmT + (cfg.fracInnerGraceBars ?? 2) * (seriesMap[innerKey]?.ms ?? 0);
+    const inner = chainView(seriesMap[innerKey], innerKey, minBars, asOf);
+    const w = findFiveWaves(inner, minBars, asOf, minStrokes);
+    if (!w) return { ok: false, why: 'inner', innerKey, innerStrokes: null };
+    innerStrokes = w.strokes;
+  }
+
+  // B. 高一级别同位置也要有底分型
+  if (higherKey && seriesMap[higherKey]) {
+    let hv = null;
+    try {
+      const s = seriesMap[higherKey];
+      const ind = s.ensure();
+      hv = { key: higherKey, ms: s.ms, t: s.t, o: s.o, h: s.h, l: s.l, c: s.c, closed: s.closedCount };
+      void ind;
+    } catch { hv = null; }
+    if (hv) {
+      const n = Number.isFinite(hv.closed) ? Math.min(hv.closed, hv.t.length) : hv.t.length;
+      const winBars = cfg.fracHigherWinBars ?? 2;
+      const lo = hit.lowT - hv.ms * winBars, hi = hit.lowT + hv.ms * winBars;
+      let found = false;
+      for (let k = 1; k < n - 1; k++) {
+        if (hv.t[k] < lo) continue;
+        if (hv.t[k] > hi) break;
+        if (isBottomFractal(hv, k, 'any')) { found = true; break; }
+      }
+      higherOk = found;
+      if (!found) return { ok: false, why: 'higher', higherKey, innerStrokes };
+    }
+  }
+  return { ok: true, innerKey, innerStrokes, higherKey, higherOk };
 }

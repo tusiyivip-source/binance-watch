@@ -177,6 +177,13 @@ export const DEFAULT_SIGNAL = {
   fracInitFreshMs: 7_200_000,  // ★ 启动补报按**时间**给窗口（2 小时）：避免大级别把窗口吃光（6时3根=18小时 vs 15分3根=45分钟）
   fracType: 'any',
   // ★ 用户 2026-10-17：底分型之后第 3/4/5 根回踩不破 → 提醒
+  // ★ 用户 2026-10-17：底分型必须「内部有结构 + 上一级也成立」
+  fracInnerMap: { '30m': '1m', '1h': '2m', '2h': '5m', '3h': '5m', '6h': '10m' },
+  fracInnerStrokes: 5,      // 内部至少要几笔（下上下上下）
+  fracInnerMinBars: 5,      // 每笔至少几根K线
+  fracHigherWinBars: 2,     // 上级别允许在低点前后几根内出现底分型
+  fracInnerGraceBars: 2,    // 内部笔允许比分型确认晚几根（笔确认天然滞后）
+  fracHigherMap: { '30m': '1h', '1h': '2h', '2h': '3h', '3h': '6h', '6h': null },
   fracInvalidBars: 8,      // 底分型发出后，在这么多根K线内跌破低点 → 标记作废（不合格）
   fracRetestEnabled: true,
   fracRetestBars: 3,          // 允许回踩的根数（3 → 第 3/4/5 根）
