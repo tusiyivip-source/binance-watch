@@ -44,7 +44,7 @@
   <div class="viewtabs">
     <button id="tab-alert" class="vt on">🔔 全部提醒K线</button>
     <button id="tab-wave" class="vt">🧩 两级五浪</button>
-    <button id="tab-top" class="vt">🌀 斐波那契回调</button>
+    <button id="tab-top" class="vt">0↑ 上穿零轴</button>
     <span class="vtsep"></span>
     <label class="chartsym"><input checked id="show-alert-history" type="checkbox">显示历史补载</label>
     <label class="chartsym" title="底分型发出后若跌破低点则标记作废"><input checked id="hide-invalid" type="checkbox">只看未破低点</label>
@@ -120,22 +120,7 @@
     </select>
     <select id="alert-kind" class="vtsel" style="display:none" title="按通道筛选">
       <option value="all" selected>全部通道</option>
-      <option value="watch">回调靠零轴</option>
-      <option value="chain">两级五浪（当前策略）</option>
-      <option value="zero">0↑ 最小级别上穿零轴（当前确认）</option>
-      <option value="pullback">⤵ 浅回调+回踩结构（多/空）</option>
-      <option value="frac">📐 底分型即报（全部）</option>
-      <option value="fracRetest">🪜 底分型·回踩不破</option>
-      <option value="fracUp">📐↑ 底分型·零轴上方</option>
-      <option value="fracDown">📐↓ 底分型·零轴下方</option>
-      <option value="res2">🎯 双确认共振</option>
-      <option value="fib">🌀 斐波那契回调（当前策略）</option>
-      <option value="top5">顶部结构（已停用）</option>
-      <option value="wave,wavefirst">五浪反弹（含首底预警）</option>
-      <option value="wave">仅五浪完成</option>
-      <option value="wavefirst">仅五浪首底预警</option>
-      <option value="breakout">均线压制突破</option>
-      <option value="dual">双阴不破/双阳不穿</option>
+      <option value="zero">0↑ 最小级别上穿零轴（唯一通道）</option>
     </select>
     <select id="alert-level" class="vtsel" style="display:none" title="按报警级别筛选：只显示这些级别的报警">
       <option value="all" selected>全部报警级别</option>
@@ -174,7 +159,7 @@
     </div>
     <div id="topchartwrap" style="display:none">
       <div id="topchartgrid"></div>
-      <div id="top-empty" class="empty">暂无斐波那契回调信号（<b>启动补载已关闭</b>：只显示重启后新产生的信号）。级别：10分/30分/1时/2时/3时/6时。条件：MACD 金叉 → 高点死叉（一段上涨）→ 回调（再次金叉 或 底分型收盘）时，回撤不超过前段涨幅的 <b>50%</b>。</div>
+      <div id="top-empty" class="empty">暂无信号（<b>启动补载</b>关闭时只显示重启后新产生的）。级别：10分/30分/1时/2时/3时/6时。条件：MACD 金叉 → 高点死叉（一段上涨）→ 回调（再次金叉 或 底分型收盘）时，回撤不超过前段涨幅的 <b>50%</b>。</div>
     </div>
     <div id="alertchartwrap">
       <div id="alertchartgrid"></div>
@@ -210,53 +195,23 @@
     
     
     
+    
+    
     <div class="groupbox">
       <div class="gtitle">
-        <b>顶部结构（已停用）</b>
-        <span class="gsub">级别 15分/30分/1时/2时/3时/6时 · 五根形态 + 第5根新低预警 → 反包确认</span>
-        <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-top5Enabled"> 顶部</label>
+        <b>最小级别 · 上穿零轴（唯一策略）</b>
+        <span class="gsub">取该标的的最小级别（1分/3分/5分/15分），DIF 从零轴下方上穿到上方即提醒</span>
+        <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-zeroEnabled"> 启用</label>
       </div>
       <div class="prow">
-        <label>级别 <code>15分 / 30分 / 1时 / 2时 / 3时 / 6时</code></label>
-        <label>几根起预警 <input id="c-top5WarnBars" type="number" min="4" max="30" step="1"></label>
-        <label class="toggle"><input type="checkbox" id="c-top5StrictEngulf"> 反包用严格口径</label>
-        <label class="toggle"><input type="checkbox" id="c-top5NeedMa"> 要均线确认</label>
-        <label class="toggle"><input type="checkbox" id="c-top5AllowWarn"> 提前预警</label>
-        <label>高点回看根数 <input id="c-top5Lookback" type="number" min="5" max="100" step="1"></label>
+        <label>实时窗口（根） <input id="c-zeroFreshBars" type="number" min="0" max="10" step="1"></label>
+        <label>补载窗口（根） <input id="c-zeroInitFreshBars" type="number" min="1" max="10" step="1"></label>
+        <label class="toggle"><input type="checkbox" id="c-zeroNeedDea"> 要求 DEA 也在零轴上方</label>
       </div>
       <div class="gnote">
-        五根K线的形态（级别：<b>15分 / 30分 / 1时 / 2时 / 3时 / 6时</b>）：<br>
-        &nbsp;&nbsp;第1根 = 这段<b>高点</b>；第2根<b>不创新高</b>（高点 ≤ 第1根），收盘形态随意；<br>
-        &nbsp;&nbsp;第3根形态随意，但<b>高点不超第1根</b>；第4根形态随意，但<b>高点不超第2根</b>；<br>
-        &nbsp;&nbsp;第5根<b>价格低于前四根</b>（创这段新低）。<br>
-        <b>收盘确认（默认，不提前提醒）</b>：<br>
-        &nbsp;&nbsp;• 五根形态成立后出现<b>反转点</b>（创新低收阳 / 阳包阴）<br>
-        &nbsp;&nbsp;• 之后等到某一根收盘同时站上 MA7 与 EMA7 → <b>结构确认提醒</b>（与三根K线底分型确认是不同事件）<br>
-        &nbsp;&nbsp;• 底部结构为镜像：<b>收盘同时跌破 MA7 与 EMA7</b> 才确认<br>
-        <br><b>若勾选「提前预警」</b>：<br>
-        &nbsp;&nbsp;• 第5根<b>创新低</b> → <b>预警</b>（先提示）<br>
-        &nbsp;&nbsp;• 之后任一根<b>反包（阳包阴）</b> → <b>确认提醒</b>（要求与前一根有止跌反包关系）<br>
-        &nbsp;&nbsp;• 若第6根又创新低，则<b>第7根不创新低时预警</b>，第7根反包则确认 —— 可一直跌到第 N 根<br>
-        &nbsp;&nbsp;• 一直创新低时不提醒（还在跌）；价格重新站上第1根高点则结构失效
-      </div>
-    </div>
-    <div class="groupbox">
-      <div class="gtitle">
-        <b>斐波那契回调（当前策略）</b>
-        <span class="gsub">MACD 金叉 → 高点死叉 = 一段上涨；回调到再次金叉/底分型时，回撤 ≤50% 即有效</span>
-        <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-fibEnabled"> 启用</label>
-      </div>
-      <div class="prow">
-        <label>级别 <code>10分/30分/1时/2时/3时/6时</code></label>
-        <label>最大回撤% <input id="c-fibMaxRetrace" type="number" min="10" max="100" step="0.1"></label>
-        <label>前段涨幅下限% <input id="c-fibMinRisePct" type="number" min="0" max="50" step="0.1"></label>
-        <label>交叉回看根数 <input id="c-fibLookback" type="number" min="10" max="200" step="1"></label>
-      </div>
-      <div class="gnote">
-        ① 上涨段：最近一次 <b>MACD 金叉</b> → 之后的 <b>死叉</b>（高点），拉斐波那契（高点=0%、起点=100%）<br>
-        ② 回调段：死叉之后的下跌，到 <b>再次金叉</b> 或 <b>底分型第三根收盘</b> 为止<br>
-        ③ 回撤 =（高点 − 回调最低）÷ 前段涨幅；<b>≤「最大回撤%」即有效</b>，立刻提醒<br>
-        实测（181 标的快照，六级别同扫）：50% → 18 条 · 61.8% → 25 条 · 78.6% → 40 条
+        级别由「按标的自动选级别」决定：L0（30分/1时/2时…）→ 次级别 → <b>最小级别</b>。<br>
+        <code>实时窗口=0</code> 表示「上穿当根就报」。<br>
+        <span style="color:#f0b90b">当前只有这一条策略在跑</span>，其余通道已全部关闭并从界面移除（代码保留，改 config 可恢复）。
       </div>
     </div>
     <div class="groupbox">
@@ -269,38 +224,7 @@
         改动后需要<b>重启服务</b>才生效（启动水位线在启动时确定）—— 这点和别的开关不同，不会热生效。
       </div>
     </div>
-    <div class="groupbox">
-      <div class="gtitle">
-        <b>两级五浪（当前策略）</b>
-        <span class="gsub">主级别回调 ≥5 根 → 次级别 下上下上下 五笔→ 主级别底分型成立即报</span>
-        <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-chainEnabled"> 启用</label>
-      </div>
-      <div class="prow">
-        <label style="flex:1 1 100%">级别组合（五浪级别 → 底分型确认级别）：
-          <code>3分→15分</code>　<code>5分→30分</code>　<code>10分→1时</code>　<code>15分→2时</code>　<code>30分→3时</code>　<code>1时→6时</code>
-        </label>
-      </div>
-      <div class="prow">
-        <label>主级别回调最少根数 <input id="c-chainMainMinBars" type="number" min="3" max="30" step="1"></label>
-        <label>次级别每笔最少根数 <input id="c-chainSubMinBars" type="number" min="5" max="30" step="1"></label>
-        <label>主级别高点回看 <input id="c-chainLookback" type="number" min="5" max="100" step="1"></label>
-        <label>主级别底分型
-          <select id="c-chainFractalType">
-            <option value="any" selected>任意（中间低点最低，推荐）</option>
-            <option value="relay">中继</option>
-            <option value="weakest">最弱</option>
-            <option value="standard">标准（要求最高，实测很少）</option>
-          </select>
-        </label>
-      </div>
-      <div class="gnote">
-        ① <b>主级别</b>（15分/30分/1时/2时/3时/6时）：回调 高点→之后最低点 <b>≥5 根K线</b>。<br>
-        ② <b>次级别</b>（3分/5分/10分/15分/30分/1时）：高低点连成 <b>下上下上下 五笔</b>，<b>一笔一浪，每笔至少5根K线（含首尾）</b>。<br>
-        ③ <b>回调最低点就是底分型中间那根</b>，第三根<b>收盘</b>成立 → <b>提前提醒</b>；只使用该确认时刻已收盘的数据，同一结构仅提醒一次。<br>
-        同一段回调优先选最大的有效五浪级别，再等配对主级别确认。15分和30分都合格时，采用30分→3时。<br>
-        某笔只有4根时可向小一档复核，复核仍须每笔≥5根；例如10分降为5分后，改等30分底分型。MACD不作为条件。
-      </div>
-    </div>
+    
     <div class="groupbox">
       <div class="gtitle">
         <b>📱 钉钉推送</b>

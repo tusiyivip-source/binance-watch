@@ -138,7 +138,7 @@ export const DEFAULT_SIGNAL = {
   // ============ 斐波那契回调（★ 用户 2026-10-16 新策略，替代顶部结构） ============
   //   10分钟级别：MACD 金叉 → 高点死叉 = 一段上涨，拉斐波那契；
   //   死叉之后的回调（到再次金叉 或 底分型收盘）回撤 ≤ fibMaxRetrace(50%) → 有效 → 提醒
-  fibEnabled: true,
+  fibEnabled: false,        // 用户 2026-10-17：去除
   fibLevels: ['10m', '30m', '1h', '2h', '3h', '6h'],   // 多级别一起监控（A=10分钟 为基础级别）
   fibMaxRetrace: 50,        // 回调不超过前段涨幅的 50%
   fibMinRisePct: 0,         // 前段涨幅下限（%），0=不限
@@ -163,7 +163,7 @@ export const DEFAULT_SIGNAL = {
   // 两级五浪：每组独立，仅次级别五笔 + 对应主级别底分型确认。
   // ============ 双确认共振（★ 用户 2026-10-16：共振报警，要在左侧K线图表显示） ============
   //   同一标的、同一级别：两级五浪链先报出 → 顶部结构在 ≤N 根内收盘确认
-  res2Enabled: true,
+  res2Enabled: false,       // 用户 2026-10-17：去除（依赖 chain/top5，已无输入）
   res2WindowBars: 3,       // 两者相隔多少根K线内算共振（实测多为 1 根）
 
   // ============ 底分型即报（★ 用户 2026-10-16：底分型出来就提醒） ============
@@ -203,7 +203,7 @@ export const DEFAULT_SIGNAL = {
   adaptiveLevels: ['15m', '30m', '1h', '2h', '4h'],   // 候选基础级别
   adaptiveFallbackBase: '30m',
 
-  pbEnabled: true,
+  pbEnabled: false,        // 用户 2026-10-17：去除
   pbPairs: [{ main: '10m', sub: '3m' }],   // 主级别 ← 次级别
   pbDirs: ['long', 'short'],
   pbMinBars: 5,          // 次级别回踩至少几根
@@ -216,13 +216,13 @@ export const DEFAULT_SIGNAL = {
   pbFractalType: 'any',
 
   fracInvalidBars: 8,      // 底分型发出后，在这么多根K线内跌破低点 → 标记作废（不合格）
-  fracRetestEnabled: true,
+  fracRetestEnabled: false, // 用户 2026-10-17：去除
   fracRetestBars: 3,          // 允许回踩的根数（3 → 第 3/4/5 根）
   fracRetestFreshBars: 1,     // 命中后 ≤N 根内报
   fracRetestBreakPct: 0,      // 允许破低点的容差%，0=一点都不许破
   fracRetestNearPct: 3,       // 回踩必须靠近低点：最低价距分型低点 ≤ 此百分比          // any=中间低点最低 | standard=中间高低点都最低
 
-  chainEnabled: true,
+  chainEnabled: false,      // 用户 2026-10-17：去除
   chainTriples: [
   {
     "main": "15m",
