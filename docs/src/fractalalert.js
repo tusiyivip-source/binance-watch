@@ -21,10 +21,12 @@ const fmt = v => (Number.isFinite(v) ? (Math.abs(v) >= 100 ? v.toFixed(4) : v.to
 export function fracView(series, key) {
   if (!series || !series.t || series.t.length < 6) return null;
   let ind = null;
-  try { ind = series.ensure(); } catch { ind = null; }
+  let macd = null;
+  try { ind = series.ensure(); macd = series.macd(); } catch { ind = null; }
   return {
     key, ms: series.ms, t: series.t, o: series.o, h: series.h, l: series.l, c: series.c,
     ma7: ind?.ma7 ?? null, ema7: ind?.ema7 ?? null,
+    dif: macd?.dif ?? null, dea: macd?.dea ?? null,
     closed: series.closedCount,
   };
 }
@@ -61,6 +63,20 @@ export function detectFractalAlert(v, opt = {}) {
 
   const ma7 = numAt(v.ma7, lIdx + 1), ema7 = numAt(v.ema7, lIdx + 1);
   const close = v.c[lIdx + 1];
+  // ★ 用户 2026-10-17：把底分型按 MACD 相对零轴分成两类
+  //   取**最低点那根**的 DIF/DEA（分型自身所处的位置）：
+  //     两者都 > 0 → 零轴上方（强势回调中见底）
+  //     两者都 < 0 → 零轴下方（下跌趋势中见底）
+  //     跨零轴     → 归到 DIF 所在的一侧，并在文案里标注"混"
+  const difLow = numAt(v.dif, lIdx), deaLow = numAt(v.dea, lIdx);
+  let zeroSide = null;
+  if (Number.isFinite(difLow) && Number.isFinite(deaLow)) {
+    if (difLow > 0 && deaLow > 0) zeroSide = 'above';
+    else if (difLow < 0 && deaLow < 0) zeroSide = 'below';
+    else zeroSide = difLow >= 0 ? 'above' : 'below';
+  }
+  const zeroMixed = Number.isFinite(difLow) && Number.isFinite(deaLow)
+    && (difLow > 0 ? deaLow <= 0 : deaLow >= 0);   // 跨零轴
   return {
     level: v.key,
     lowIdx: lIdx,
@@ -68,6 +84,7 @@ export function detectFractalAlert(v, opt = {}) {
     threeLows: [v.l[lIdx - 1], v.l[lIdx], v.l[lIdx + 1]],
     confirmT: v.t[lIdx + 1] + v.ms, close,
     age, type,
+    zeroSide, zeroMixed, difLow, deaLow,
     ma7, ema7,
     aboveMa: Number.isFinite(ma7) && Number.isFinite(ema7) ? (close > ma7 && close > ema7) : null,
   };
@@ -86,10 +103,15 @@ export function makeFractalAlert(symbol, hit, now, initial = false) {
     side: 'long',
     level: hit.level,
     levelLabel: L,
-    group: `${L} · 底分型即报`,
+    group: `${L} · 底分型即报${hit.zeroSide === 'above' ? '（零轴上）' : hit.zeroSide === 'below' ? '（零轴下）' : ''}`,
     base: hit.level, mid: null, big: null,
     score: 50,
     price: hit.close,
+    // ★ 用户 2026-10-17：分成「MACD 零轴上方 / 零轴下方」两类
+    zeroSide: hit.zeroSide,        // 'above' | 'below' | null
+    zeroMixed: !!hit.zeroMixed,
+    difLow: Number.isFinite(hit.difLow) ? hit.difLow : null,
+    deaLow: Number.isFinite(hit.deaLow) ? hit.deaLow : null,
     candleT: hit.lowT,                  // ★ 报警锚在"底分型中间那根"（最低点）
     ts: now,
     initial: !!initial,
@@ -105,8 +127,12 @@ export function makeFractalAlert(symbol, hit, now, initial = false) {
     barT: hit.confirmT,                    // 收盘确认那一根的时间（= 第三根收盘时刻）
     closeT: hit.confirmT,                  // 第三根**收盘**时刻（准确的"收盘确认时间"）
     lowBarT: hit.lowT,                     // 最低点那根的开盘时刻
-    text: `【${L}底分型收盘确认】低点 ${fmt(hit.low)}（三根低点 ${hit.threeLows.map(fmt).join(' / ')}`
+    text: `【${L}底分型·${hit.zeroSide === 'above' ? '零轴上方' : hit.zeroSide === 'below' ? '零轴下方' : '零轴未知'}】`
+      + `低点 ${fmt(hit.low)}（三根低点 ${hit.threeLows.map(fmt).join(' / ')}`
       + `${hit.type === 'standard' ? '，中间那根高低点都最低' : '，中间那根最低'}）；`
+      + `MACD 低点处 DIF ${fmt(hit.difLow)} / DEA ${fmt(hit.deaLow)}`
+      + `${hit.zeroSide === 'above' ? '（都在零轴上方 = 强势回调中见底）' : hit.zeroSide === 'below' ? '（都在零轴下方 = 下跌趋势中见底）' : ''}`
+      + `${hit.zeroMixed ? '，注意两者跨零轴' : ''}；`
       + `${L} 第三根收盘 ${fmt(hit.close)} 确认`
       + `（**${fmtClock(hit.confirmT)} 收盘**${hit.age > 0 ? `，已过 ${hit.age} 根` : '，当根'}）`
       + `；最低点那根区间 ${fmtClock(hit.lowT)}~${fmtClock(hit.lowT + (hit.confirmT - hit.lowT) / 2)}`

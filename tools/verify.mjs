@@ -1712,7 +1712,7 @@ section('20. 底分型即报：最低点那根是底分型中间根 + 第三根�
     if (hit) {
       const a = makeFractalAlert('ZUSDT', hit, Date.now(), false);
       ok('★ 报警 kind=frac、文案含「底分型收盘确认」、锚在最低点那根',
-        a.kind === 'frac' && /底分型收盘确认/.test(a.text) && a.candleT === hit.lowT);
+        a.kind === 'frac' && /底分型·零轴/.test(a.text) && a.candleT === hit.lowT);
       ok('★ 带三根低点与"是否站上均线"标记',
         Array.isArray(a.fracLows) && a.fracLows.length === 3 && typeof a.aboveMa === 'boolean');
     }
@@ -1744,6 +1744,36 @@ section('20. 底分型即报：最低点那根是底分型中间根 + 第三根�
     const f2 = scanFractalAlerts('ZUSDT', fake, cfg, seen, Date.now(), true);
     ok('★ 同一底分型只报一次', f1.length === 1 && f2.length === 0, f1.length + '/' + f2.length);
   }
+  // ★ 用户 2026-10-17：底分型按 MACD 零轴上方/下方分成两类
+  {
+    const H = 3_600_000;
+    const lows = [10, 9.5, 9.2, 9.0, 8.0, 8.6, 8.9];
+    const mkSide = (difV, deaV) => {
+      const h2 = lows.map(x => x + 1), c2 = lows.map(x => x + 0.5);
+      return { key: '1h', ms: H, t: lows.map((_, i) => i * H), o: c2.slice(), h: h2, l: lows, c: c2,
+        ma7: c2.map(() => 0), ema7: c2.map(() => 0),
+        dif: c2.map(() => difV), dea: c2.map(() => deaV), closed: lows.length };
+    };
+    const up = detectFractalAlert(mkSide(0.5, 0.3), { lookback: 20, freshBars: 1 });
+    ok('★ 零轴上方底分型：DIF/DEA 都 > 0 → zeroSide=above',
+      !!up && up.zeroSide === 'above' && up.zeroMixed === false,
+      up ? ('dif=' + up.difLow + ' dea=' + up.deaLow) : 'null');
+    const dn = detectFractalAlert(mkSide(-0.5, -0.3), { lookback: 20, freshBars: 1 });
+    ok('★ 零轴下方底分型：DIF/DEA 都 < 0 → zeroSide=below',
+      !!dn && dn.zeroSide === 'below' && dn.zeroMixed === false,
+      dn ? ('dif=' + dn.difLow + ' dea=' + dn.deaLow) : 'null');
+    const mixed = detectFractalAlert(mkSide(0.5, -0.3), { lookback: 20, freshBars: 1 });
+    ok('★ 跨零轴：按 DIF 归到上方，并标记 zeroMixed=true',
+      !!mixed && mixed.zeroSide === 'above' && mixed.zeroMixed === true,
+      mixed ? ('zeroMixed=' + mixed.zeroMixed) : 'null');
+    if (up) {
+      const a = makeFractalAlert('ZUSDT', up, Date.now(), false);
+      ok('★ 文案标题区分「零轴上方/零轴下方」并给出 DIF/DEA',
+        /底分型·零轴上方/.test(a.text) && /DIF/.test(a.text) && /DEA/.test(a.text), a.text.slice(0, 40));
+      ok('★ 报警对象带 zeroSide（供前端分两个筛选项）', a.zeroSide === 'above', String(a.zeroSide));
+    }
+  }
+
   ok('配置默认：底分型即报开启、级别 30分/1时/2时/3时/6时、实时只报当根',
     DEFAULT_SIGNAL.fracEnabled === true && DEFAULT_SIGNAL.fracFreshBars === 0
     && JSON.stringify(DEFAULT_SIGNAL.fracLevels) === JSON.stringify(['30m', '1h', '2h', '3h', '6h']),

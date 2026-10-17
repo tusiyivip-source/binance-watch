@@ -376,7 +376,7 @@ function paintCard(view, i, it) {
     head.querySelector('.roles').innerHTML = it.kind === 'fib'
       ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span><span class="rb" style="color:#f0b90b">🌀 斐波回调</span>`
       : it.kind === 'frac'
-      ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span><span class="rb" style="color:#0ecb81">📐 底分型</span>`
+      ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span><span class="rb" style="color:${it.zeroSide === 'above' ? '#f0b90b' : '#0ecb81'}">📐 底分型·${it.zeroSide === 'above' ? '零轴上' : it.zeroSide === 'below' ? '零轴下' : '?'}</span>`
       : it.kind === 'res2'
       ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span><span class="rb" style="color:#f0b90b">🎯 共振</span>`
       : (it.kind === 'top5' || it.kind === 'bot5')
@@ -634,10 +634,13 @@ async function refreshAlertView() {
   const limit = +document.querySelector('#alert-limit').value || 24;
   try {
     const kindSel = document.querySelector('#alert-kind');
-    const kind = kindSel && kindSel.value !== 'all' ? '&kind=' + encodeURIComponent(kindSel.value) : '';
+    const rawKind = kindSel && kindSel.value !== 'all' ? kindSel.value : '';
+    // fracUp / fracDown 走同一个 kind=frac，结果再按 MACD 零轴侧过滤
+    const zeroPick = rawKind === 'fracUp' ? 'above' : rawKind === 'fracDown' ? 'below' : null;
+    const kind = rawKind ? '&kind=' + encodeURIComponent(zeroPick ? 'frac' : rawKind) : '';
     const d = await fetch(`/api/alertchart?bars=${bars}&limit=${limit}${kind}${alertQuery()}`).then(r => r.json());
     if (requestSeq !== alertRequestSeq) return;
-    const all = d.items ?? [];
+    const all = (d.items ?? []).filter(it => !zeroPick || it.zeroSide === zeroPick);
     const pairs = [...new Map(all.map(it => [it.key, { key: it.key, label: it.label ?? it.key }])).values()];
     const pickA = fillLevelSel('#alert-level', pairs, '全部报警级别');
     view.items = pickA === 'all' ? all : all.filter(it => it.key === pickA);
