@@ -171,3 +171,22 @@ export function scanFractalAlerts(symbol, seriesMap, cfg, seen, now = Date.now()
   }
   return out;
 }
+
+/**
+ * 事后有效性校验（纯函数，便于单测）
+ * 底分型发出后，在 maxBars 根内若有K线最低价跌破底分型低点 → 判定作废。
+ * @returns {null|{invalidAtT:number, invalidLow:number, invalidBarsAfter:number}}
+ */
+export function checkFracInvalid(series, lowT, fracLow, maxBars = 8) {
+  if (!series || !series.t || !Number.isFinite(lowT) || !Number.isFinite(fracLow)) return null;
+  const last = Number.isFinite(series.closedCount) ? Math.min(series.closedCount, series.t.length) : series.t.length;
+  const startIdx = series.t.indexOf(lowT);
+  if (startIdx < 0) return null;
+  const endIdx = Math.min(last - 1, startIdx + 1 + maxBars);
+  for (let k = startIdx + 1; k <= endIdx; k++) {
+    if (series.l[k] < fracLow) {
+      return { invalidAtT: series.t[k] + series.ms, invalidLow: series.l[k], invalidBarsAfter: k - startIdx };
+    }
+  }
+  return null;
+}

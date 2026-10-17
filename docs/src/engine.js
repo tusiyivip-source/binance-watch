@@ -10,7 +10,7 @@ import { scanFirstBottoms } from './firstbottom.js';
 import { scanChains } from './chain.js';
 import { scanTop5 } from './top5.js';
 import { scanResonance } from './resonance.js';
-import { scanFractalAlerts } from './fractalalert.js';
+import { scanFractalAlerts, checkFracInvalid } from './fractalalert.js';
 import { scanFractalRetests } from './fractalretest.js';
 import { scanFib } from './fib.js';
 
@@ -144,6 +144,8 @@ export class Engine extends Emitter {
    * 并记录破位时刻与最低价。只在 fracInvalidBars 根内检查（再往后算新行情）。
    */
   invalidateFracAlerts() {
+    this.invalRuns = (this.invalRuns ?? 0) + 1;
+    this.invalDebug = this.invalDebug ?? null;
     const maxBars = this.cfg.fracInvalidBars ?? 8;
     for (const a of this.alerts) {
       if (a.kind !== 'frac' || a.invalid) continue;
@@ -159,6 +161,7 @@ export class Engine extends Emitter {
       const startIdx = series.t.indexOf(lowT);
       if (startIdx < 0) continue;
       const endIdx = Math.min(last - 1, startIdx + 1 + maxBars);
+      if (!this.invalDebug) this.invalDebug = { sym: a.symbol, lv: a.level, lowT, startIdx, last, endIdx, low };
       for (let k = startIdx + 1; k <= endIdx; k++) {
         if (series.l[k] < low) {
           a.invalid = true;
@@ -811,6 +814,7 @@ export class Engine extends Emitter {
     return {
       boundary: this.market.feedStats?.boundary ?? null,
       boundaryAligned: this.market.feedStats?.boundaryAligned ?? null,
+      invalRuns: this.invalRuns ?? 0, invalDebug: this.invalDebug ?? null,
       chainCount: this.chainCount, fracCount: this.fracCount, retestCount: this.retestCount, fibCount: this.fibCount, top5Count: this.top5Count, res2Count: this.res2Count,
       res2Recent: this.res2Recent.length,
       seenSizes: { chain: this.chainSeen.size, top5: this.top5Seen.size, res2: this.res2Seen.size, fb: this.fbSeen.size, brk: this.brkSeen.size },

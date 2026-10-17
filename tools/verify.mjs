@@ -22,7 +22,7 @@ import { detectChain, makeChainAlert, scanChains, chainView } from '../src/chain
 import { detectTop5, makeTop5Alert, scanTop5, top5View, isEngulf } from '../src/top5.js';
 import { scanResonance } from '../src/resonance.js';
 import { detectFractalRetest, makeRetestAlert, scanFractalRetests } from '../src/fractalretest.js';
-import { detectFractalAlert, makeFractalAlert, scanFractalAlerts, fracView } from '../src/fractalalert.js';
+import { detectFractalAlert, makeFractalAlert, scanFractalAlerts, fracView, checkFracInvalid } from '../src/fractalalert.js';
 import { detectFibPullback, makeFibAlert, scanFib, fibView, fibLevels } from '../src/fib.js';
 import { nextBoundary, groupPeriodMs, BoundaryScheduler, levelPeriodMs } from '../src/boundary.js';
 
@@ -1810,6 +1810,29 @@ section('20. 底分型即报：最低点那根是底分型中间根 + 第三根�
     const far = detectFractalRetest(farBase, { lookback: 20, retestBars: 3, freshBars: 10, nearPct: 3 });
     ok('★ 回踩距低点 >3%（9.6 vs 9.0，整个窗口都在高处）→ 不算回踩，不报', far === null,
       far ? ('ordinal=' + far.ordinal) : 'null');
+  }
+
+  // ★ 用户 2026-10-17：破了低点的底分型 = 不合格（作废）
+  {
+    const H = 1_800_000;
+    // 低点在 index 3（0.01694）；index 5 破了（0.01689）
+    const mk = (breakAt) => {
+      const l = [0.0172, 0.0171, 0.0170, 0.01694, 0.0170, 0.01695, 0.01705, 0.0171];
+      if (breakAt >= 0) l[breakAt] = 0.01689;
+      const h = l.map(x => x + 0.0001), c = l.map(x => x + 0.00005);
+      return { ms: H, t: l.map((_, i) => 1_700_000_000_000 + i * H), o: c.slice(), h, l, c, closed: l.length };
+    };
+    const s1 = mk(5);   // 第2根后破位
+    const lowT1 = s1.t[3], low1 = s1.l[3];
+    const bad1 = checkFracInvalid(s1, lowT1, low1, 8);
+    ok('★ 底分型后第2根跌破低点 → 判定作废', !!bad1 && bad1.invalidBarsAfter === 2,
+      bad1 ? ('破位 ' + bad1.invalidLow + ' 第' + bad1.invalidBarsAfter + '根') : 'null');
+    const s2 = mk(-1);  // 不破
+    const bad2 = checkFracInvalid(s2, s2.t[3], s2.l[3], 8);
+    ok('★ 之后没有跌破 → 判定有效（不作废）', bad2 === null);
+    const bad3 = checkFracInvalid(s2, s2.t[3], s2.l[3], 1);
+    ok('★ 窗口收紧到 1 根：第2根才破的就不再算（窗口可调）', checkFracInvalid(mk(6), mk(6).t[3], mk(6).l[3], 1) === null);
+    ok('★ 低点时间对不上序列 → 返回 null（不误判）', checkFracInvalid(s2, 12345, 0.01694, 8) === null);
   }
 
   ok('配置默认：底分型即报开启、级别 30分/1时/2时/3时/6时、实时只报当根',
