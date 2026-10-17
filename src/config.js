@@ -176,6 +176,7 @@ export const DEFAULT_SIGNAL = {
   zeroNeedDea: false,     // true=还要求 DEA 也在零轴上方
   zeroMaxAgeBars: 3,      // 上穿允许发生在最近几根内
   // 大级别结构：双阴/三阴 回踩不破均线（用户 2026-10-17）
+  zeroLevels: ['30m', '1h', '2h', '3h', '6h'],   // ★ 监控的大级别（各自配自己的最小级别）
   zeroRequireBigYin: true,   // true = 必须满足才提醒
   zeroBigYinMin: 2,          // 至少几连阴（2=双阴，3=三阴）
   zeroBigNeedBothMa: false,  // true = 还要站上 EMA7

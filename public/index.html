@@ -209,7 +209,8 @@
         <label class="toggle"><input type="checkbox" id="c-zeroNeedDea"> 要求 DEA 也在零轴上方</label>
       </div>
       <div class="gnote">
-        级别由「按标的自动选级别」决定：L0（30分/1时/2时…）→ 次级别 → <b>最小级别</b>。<br>
+        监控级别：<b>30分 / 1时 / 2时 / 3时 / 6时</b>（每个大级别配自己的最小级别：30分→5分 · 1时→10分 · 2时→15分 · 3时→30分 · 6时→1时）<br>
+        大级别同时要满足 <b>双阴/三阴 且 收盘不破 MA7</b> 才会提醒。<br>
         <code>实时窗口=0</code> 表示「上穿当根就报」。<br>
         <span style="color:#f0b90b">当前只有这一条策略在跑</span>，其余通道已全部关闭并从界面移除（代码保留，改 config 可恢复）。
       </div>

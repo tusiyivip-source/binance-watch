@@ -11,6 +11,7 @@
  * 报警级别用该标的的基础级别 L0（图上画 L0 的K线），文案里注明最小级别与 DIF 数值。
  */
 import { LEVELS, LEVEL_INDEX } from './config.js';
+import { LADDER } from './levels.js';
 
 const label = k => (LEVELS[LEVEL_INDEX[k]]?.label ?? k);
 const fmt = v => (Number.isFinite(v) ? (Math.abs(v) >= 100 ? v.toFixed(4) : v.toPrecision(6)) : '—');
@@ -111,58 +112,68 @@ export function makeZeroAlert(symbol, hit, baseKey, now, initial = false) {
 export function scanZeroCrosses(symbol, seriesMap, cfg, seen, now = Date.now(), initial = false) {
   const out = [];
   if (!cfg.zeroEnabled) return out;
-  const innerKey = cfg._adaptive?.inner ?? cfg.zeroLevel ?? '1m';
-  const baseKey = cfg._adaptive?.base ?? null;
-  const v = zeroView(seriesMap[innerKey], innerKey);
-  if (!v) return out;
+  // ★ 用户 2026-10-17：监控级别扩到 30分/1时/2时/3时/6时（每个大级别用自己的最小级别）
+  const bases = Array.isArray(cfg.zeroLevels) && cfg.zeroLevels.length
+    ? cfg.zeroLevels
+    : [(cfg._adaptive?.base ?? cfg.zeroLevel ?? '30m')];
 
-  // 大级别结构：双阴/三阴 回踩不破均线（用户 2026-10-17）
-  let big = null;
-  if (cfg.zeroBigLevel !== false) {
-    const bigKey = cfg._adaptive?.base ?? null;
-    const bigV = bigKey ? zeroView(seriesMap[bigKey], bigKey) : null;
-    if (bigV) {
-      big = bigLevelState(bigV, {
-        minYin: cfg.zeroBigYinMin ?? 2,
-        needBothMa: cfg.zeroBigNeedBothMa === true,
-      });
-      big.level = bigKey;
-      if (cfg.zeroRequireBigYin && !big.ok) return out;
+  for (const baseKey of bases) {
+    const lad = LADDER[baseKey];
+    if (!lad) continue;
+    const innerKey = lad.inner;                       // 最小级别
+    const v = zeroView(seriesMap[innerKey], innerKey);
+    if (!v) continue;
+
+    // 大级别结构：双阴/三阴 回踩不破均线（用这个 baseKey 自己判断）
+    let big = null;
+    if (cfg.zeroBigLevel !== false) {
+      const bigV = zeroView(seriesMap[baseKey], baseKey);
+      if (bigV) {
+        big = bigLevelState(bigV, {
+          minYin: cfg.zeroBigYinMin ?? 2,
+          needBothMa: cfg.zeroBigNeedBothMa === true,
+        });
+        big.level = baseKey;
+        if (cfg.zeroRequireBigYin && !big.ok) continue;
+      }
     }
+
+    const hit = detectZeroCross(v, {
+      freshBars: initial ? (cfg.zeroInitFreshBars ?? 2) : (cfg.zeroFreshBars ?? 0),
+      needDea: cfg.zeroNeedDea === true,
+      maxAgeBars: cfg.zeroMaxAgeBars ?? 3,
+    });
+    if (!hit) continue;
+
+    const k = symbol + '|' + baseKey + '|' + innerKey + '|' + hit.t;
+    if (seen.has(k)) continue;
+    seen.set(k, now);
+
+    const a = makeZeroAlert(symbol, hit, baseKey, now, initial);
+    if (big) {
+      a.bigYinBars = big.yinBars;
+      a.bigAboveMa = big.aboveMa;
+      a.bigMa7 = big.ma7;
+      a.bigEma7 = big.ema7;
+      a.bigLevelKey = big.level;
+      a.bigOk = big.ok;
+      const bl = label(big.level ?? '');
+      const yinTxt = big.yinBars >= 3 ? '三阴' : big.yinBars === 2 ? '双阴' : big.yinBars + ' 连阴';
+      a.text += '；大级别 ' + bl + ' ' + yinTxt
+        + '，收盘 ' + fmt(a.price)
+        + (big.aboveMa === true ? ' 未跌破 MA7 ' : ' 已跌破 MA7 ')
+        + (Number.isFinite(big.ma7) ? fmt(big.ma7) : '-')
+        + (big.ok ? ' → 回踩不破均线成立' : ' → 不满足');
+    }
+    out.push(a);
   }
-  const hit = detectZeroCross(v, {
-    freshBars: initial ? (cfg.zeroInitFreshBars ?? 2) : (cfg.zeroFreshBars ?? 0),
-    needDea: cfg.zeroNeedDea === true,
-    maxAgeBars: cfg.zeroMaxAgeBars ?? 3,
-  });
-  if (!hit) return out;
-  const k = `${symbol}|${innerKey}|${hit.t}`;
-  if (seen.has(k)) return out;
-  seen.set(k, now);
-  const a = makeZeroAlert(symbol, hit, baseKey, now, initial);
-  if (big) {
-    a.bigYinBars = big.yinBars;
-    a.bigAboveMa = big.aboveMa;
-    a.bigMa7 = big.ma7;
-    a.bigEma7 = big.ema7;
-    a.bigLevelKey = big.level;
-    a.bigOk = big.ok;
-    const bl = label(big.level ?? '');
-    const yinTxt = big.yinBars >= 3 ? '三阴' : big.yinBars === 2 ? '双阴' : big.yinBars + ' 连阴';
-    a.text += '；大级别 ' + bl + ' ' + yinTxt
-      + '，收盘 ' + fmt(a.price)
-      + (big.aboveMa === true ? ' 未跌破 MA7 ' : ' 已跌破 MA7 ')
-      + (Number.isFinite(big.ma7) ? fmt(big.ma7) : '-')
-      + (big.ok ? ' → 回踩不破均线成立' : ' → 不满足（需双阴/三阴且不破均线）');
-  }
-  out.push(a);
   return out;
 }
 
 /**
  * 大级别结构（用户 2026-10-17：双阴/三阴 回踩不破均线）
  *   连阴根数：从最后一根往前数 close < open 的根数（1/2/3+）
- *   不破均线：最后一根收盘 > MA7（做多语境）；needBothMa 时还要 > EMA7
+ *   不破均线：最后一根收盘 > MA7；needBothMa 时还要 > EMA7
  */
 export function bigLevelState(v, opt = {}) {
   const minYin = opt.minYin ?? 2;
