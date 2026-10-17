@@ -495,6 +495,7 @@ const CFG_FIELDS = [
   ['requireBaseBull', 'bool'], ['useLiveCandle', 'bool'], ['countRule', 'str'],
   ['baseMinIdx', 'int'], ['baseMaxIdx', 'int'], ['minScore', 'int'],
   ['pullbackPattern', 'str'], ['pullbackBars', 'int'],
+  ['backfillEnabled', 'bool'],
   ['fibEnabled', 'bool'], ['fibMaxRetrace', 'num'], ['fibMinRisePct', 'num'], ['fibLookback', 'int'],
   ['top5Enabled', 'bool'], ['top5NeedMa', 'bool'], ['top5AllowWarn', 'bool'], ['top5WarnBars', 'int'], ['top5Lookback', 'int'], ['top5StrictEngulf', 'bool'],
   ['chainEnabled', 'bool'], ['chainMainMinBars', 'int'], ['chainSubMinBars', 'int'], ['chainInnerMinBars', 'int'], ['chainLookback', 'int'], ['chainFractalType', 'str'],
