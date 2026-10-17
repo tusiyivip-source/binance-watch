@@ -12,6 +12,7 @@
  */
 import { LEVELS, LEVEL_INDEX } from './config.js';
 import { LADDER } from './levels.js';
+import { bigLevelStateDir, detectFailedUpCross } from './zeroshort.js';
 
 const label = k => (LEVELS[LEVEL_INDEX[k]]?.label ?? k);
 const fmt = v => (Number.isFinite(v) ? (Math.abs(v) >= 100 ? v.toFixed(4) : v.toPrecision(6)) : '—');
@@ -138,6 +139,54 @@ export function scanZeroCrosses(symbol, seriesMap, cfg, seen, now = Date.now(), 
       }
     }
 
+    // ★ 做空方向（用户 2026-10-17）：大级别双阳/三阳不穿上均线 + 最小级别 DIF 未能上穿零轴
+    if (Array.isArray(cfg.zeroDirs) ? cfg.zeroDirs.includes('short') : cfg.zeroShortEnabled !== false) {
+      let bigS = null;
+      if (cfg.zeroBigLevel !== false) {
+        const bigV = zeroView(seriesMap[baseKey], baseKey);
+        if (bigV) {
+          bigS = bigLevelStateDir(bigV, { minYin: cfg.zeroBigYinMin ?? 2, needBothMa: cfg.zeroBigNeedBothMa === true, dir: 'short' });
+          bigS.level = baseKey;
+          if (cfg.zeroRequireBigYin && !bigS.ok) { /* 做空不成立，继续判做多 */ }
+        }
+      }
+      const shortOk = !cfg.zeroRequireBigYin || (bigS && bigS.ok);
+      if (shortOk) {
+        const hitS = detectFailedUpCross(v, {
+          freshBars: initial ? (cfg.zeroInitFreshBars ?? 2) : (cfg.zeroFreshBars ?? 0),
+          failBars: cfg.zeroFailBars ?? 4,
+          minRecovery: cfg.zeroMinRecovery ?? 0.5,
+        });
+        if (hitS) {
+          const ks = symbol + '|' + baseKey + '|' + innerKey + '|short|' + hitS.t;
+          if (!seen.has(ks)) {
+            seen.set(ks, now);
+            const as = makeZeroAlert(symbol, hitS, baseKey, now, initial);
+            as.side = 'short';
+            as.stage = 'zero-fail-up';
+            as.group = (as.group || '') + ' · 做空';
+            as.text = as.text.replace('DIF 上穿零轴', 'DIF 未能上穿零轴');
+            if (bigS) {
+              as.bigYinBars = bigS.bars;
+              as.bigAboveMa = bigS.okMa;
+              as.bigMa7 = bigS.ma7;
+              as.bigEma7 = bigS.ema7;
+              as.bigLevelKey = bigS.level;
+              as.bigOk = bigS.ok;
+              const bl = label(bigS.level ?? '');
+              const yangTxt = bigS.bars >= 3 ? '三阳' : bigS.bars === 2 ? '双阳' : bigS.bars === 1 ? '单阳' : '无阳线';
+              as.text += '；大级别 ' + bl + ' ' + yangTxt
+                + '，收盘 ' + fmt(Number.isFinite(bigS.close) ? bigS.close : as.price)
+                + (bigS.okMa === true ? ' 未站上 MA7 ' : ' 已站上 MA7 ')
+                + (Number.isFinite(bigS.ma7) ? fmt(bigS.ma7) : '-')
+                + (bigS.ok ? ' → 双阳/三阳不穿成立（做空）' : ' → 不满足');
+            }
+            out.push(as);
+          }
+        }
+      }
+    }
+
     const hit = detectZeroCross(v, {
       freshBars: initial ? (cfg.zeroInitFreshBars ?? 2) : (cfg.zeroFreshBars ?? 0),
       needDea: cfg.zeroNeedDea === true,
@@ -158,9 +207,9 @@ export function scanZeroCrosses(symbol, seriesMap, cfg, seen, now = Date.now(), 
       a.bigLevelKey = big.level;
       a.bigOk = big.ok;
       const bl = label(big.level ?? '');
-      const yinTxt = big.yinBars >= 3 ? '三阴' : big.yinBars === 2 ? '双阴' : big.yinBars + ' 连阴';
+      const yinTxt = big.yinBars >= 3 ? '三阴' : big.yinBars === 2 ? '双阴' : big.yinBars === 1 ? '单阴' : '无阴线';
       a.text += '；大级别 ' + bl + ' ' + yinTxt
-        + '，收盘 ' + fmt(a.price)
+        + '，收盘 ' + fmt(Number.isFinite(big.close) ? big.close : a.price)
         + (big.aboveMa === true ? ' 未跌破 MA7 ' : ' 已跌破 MA7 ')
         + (Number.isFinite(big.ma7) ? fmt(big.ma7) : '-')
         + (big.ok ? ' → 回踩不破均线成立' : ' → 不满足');

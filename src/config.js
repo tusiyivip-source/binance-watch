@@ -177,6 +177,9 @@ export const DEFAULT_SIGNAL = {
   zeroMaxAgeBars: 3,      // 上穿允许发生在最近几根内
   // 大级别结构：双阴/三阴 回踩不破均线（用户 2026-10-17）
   zeroLevels: ['30m', '1h', '2h', '3h', '6h'],   // ★ 监控的大级别（各自配自己的最小级别）
+  zeroDirs: ['long', 'short'],   // ★ 做多 + 做空（做空=最小级别 DIF 未能上穿零轴 + 大级别双阳/三阳不穿上均线）
+  zeroFailBars: 4,               // 做空：最近几根 DIF 都没上穿过零轴
+  zeroMinRecovery: 0.5,          // 做空：DIF 至少要回抽到零轴距离的 50% 以上才算"尝试上穿"
   zeroRequireBigYin: true,   // true = 必须满足才提醒
   zeroBigYinMin: 2,          // 至少几连阴（2=双阴，3=三阴）
   zeroBigNeedBothMa: false,  // true = 还要站上 EMA7

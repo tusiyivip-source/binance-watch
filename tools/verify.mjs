@@ -24,6 +24,7 @@ import { scanResonance } from '../src/resonance.js';
 import { detectFractalRetest, makeRetestAlert, scanFractalRetests } from '../src/fractalretest.js';
 import { detectPullback, makePullbackAlert, scanPullbacks, pbView } from '../src/pullback.js';
 import { detectZeroCross, makeZeroAlert, scanZeroCrosses, zeroView, bigLevelState } from '../src/zerocross.js';
+import { bigLevelStateDir, detectFailedUpCross } from '../src/zeroshort.js';
 import { detectFractalAlert, makeFractalAlert, scanFractalAlerts, fracView, checkFracInvalid } from '../src/fractalalert.js';
 import { detectFibPullback, makeFibAlert, scanFib, fibView, fibLevels } from '../src/fib.js';
 import { nextBoundary, groupPeriodMs, BoundaryScheduler, levelPeriodMs } from '../src/boundary.js';
@@ -1912,6 +1913,38 @@ section('20. 底分型即报：最低点那根是底分型中间根 + 第三根�
     const broke = bigLevelState(mkBig([[1.05,1.06],[1.04,1.02],[1.03,1.00]], 1.10), { minYin: 2 });
     ok('★ 双阴但收盘跌破 MA7 → 不成立（回踩破均线）', broke.yinBars === 2 && broke.ok === false,
       'above=' + broke.aboveMa);
+  }
+  // ★ 用户 2026-10-17：做空 = 最小级别 DIF 未能上穿零轴 + 大级别双阳/三阳不穿上均线
+  {
+    const H = 60_000;
+    // DIF：先深负，回抽到 -0.002（回抽过半），最后一根转下
+    const dif = [-0.012, -0.01, -0.008, -0.005, -0.002, -0.003];
+    const n = dif.length;
+    const l = new Array(n).fill(1).map((_, i) => 1 - i * 0.001);
+    const h = l.map(x => x + 0.001), c2 = l.map(x => x + 0.0005);
+    const v = { key: '1m', ms: H, t: l.map((_, i) => i * H), o: c2.slice(), h, l, c: c2,
+      dif: Float64Array.from(dif), dea: Float64Array.from(dif.map(x => x * 0.5 - 0.001)),
+      ma7: c2.map(() => 0), ema7: c2.map(() => 0), closed: n };
+    const sh = detectFailedUpCross(v, { freshBars: 1, failBars: 4, minRecovery: 0.5 });
+    ok('★ 做空：DIF 回抽过半但未上穿、最后一根转下 → 命中',
+      !!sh && sh.failed === true && sh.dif < 0, sh ? ('dif=' + sh.dif) : 'null');
+    // 回抽不足一半 → 不算尝试过
+    const dif2 = [-0.012, -0.01, -0.0095, -0.009, -0.0085, -0.009];
+    const v2 = { ...v, dif: Float64Array.from(dif2), closed: dif2.length };
+    ok('★ 做空：只回抽不到一半 → 不报',
+      detectFailedUpCross(v2, { freshBars: 1, failBars: 4, minRecovery: 0.5 }) === null);
+    // 大级别：双阳 + 收盘在 MA7 下方 → 成立
+    const mkBig2 = (bars, ma7) => {
+      const o = bars.map(b => b[0]), cc = bars.map(b => b[1]);
+      return { key: '1h', ms: 3_600_000, t: bars.map((_, i) => i * 3_600_000), o,
+        h: cc.map(x => x + 0.01), l: cc.map(x => x - 0.01), c: cc,
+        ma7: cc.map(() => ma7), ema7: cc.map(() => ma7), closed: bars.length };
+    };
+    const b2 = bigLevelStateDir(mkBig2([[1.01,1.02],[1.03,1.04],[1.04,1.05]], 1.10), { minYin: 2, dir: 'short' });
+    ok('★ 做空大级别：双阳 + 收盘在 MA7 下方（不穿上）→ 成立',
+      b2.bars === 3 && b2.ok === true, 'bars=' + b2.bars + ' okMa=' + b2.okMa);
+    const b3 = bigLevelStateDir(mkBig2([[1.01,1.02],[1.03,1.04],[1.04,1.05]], 1.00), { minYin: 2, dir: 'short' });
+    ok('★ 做空大级别：双阳但收盘已站上 MA7（穿了）→ 不成立', b3.ok === false, 'okMa=' + b3.okMa);
   }
   ok('配置默认：底分型即报已关闭（改用最小级别上穿零轴）、参数保留',
     DEFAULT_SIGNAL.fracEnabled === false && DEFAULT_SIGNAL.fracFreshBars === 0
