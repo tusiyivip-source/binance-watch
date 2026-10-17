@@ -400,8 +400,13 @@ function paintCard(view, i, it) {
         + `<span class="sc">${it.fibTrigger === 'cross' ? '再次金叉' : '底分型确认'}</span>`
         + `<span class="sc">${fmtPrice(it.fibHigh)} → ${fmtPrice(it.fibPullLow)}</span>` + divBadge;
     } else if (it.kind === 'frac') {
+      const inval = it.invalid
+        ? `<span class="sc" style="color:#f6465d">⚠ 已破低点 ${fmtPrice(it.invalidLow)}（${new Date(it.invalidAtT).toLocaleString('zh-CN', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}）</span>`
+        : `<span class="sc" style="color:#0ecb81">✔ 未破低点</span>`;
       head.querySelector('.sp').innerHTML =
         `<span class="grp">低点 ${fmtPrice(it.fracLow)} · 三根 ${(it.fracLows ?? []).map(fmtPrice).join('/')}</span>`
+        + (it.stage === 'retest' ? `<span class="sc">第 ${it.retestOrdinal ?? '?'} 根回踩 ${fmtPrice(it.retestLow)}</span>` : '')
+        + inval
         + (Number.isFinite(it.closeT)
           ? `<span class="sc">${new Date(it.closeT).toLocaleString('zh-CN', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })} 收盘确认</span>`
           : '')
@@ -641,7 +646,10 @@ async function refreshAlertView() {
     const kind = rawKind ? '&kind=' + encodeURIComponent((zeroPick || stagePick) ? 'frac' : rawKind) : '';
     const d = await fetch(`/api/alertchart?bars=${bars}&limit=${limit}${kind}${alertQuery()}`).then(r => r.json());
     if (requestSeq !== alertRequestSeq) return;
-    const all = (d.items ?? []).filter(it => (!zeroPick || it.zeroSide === zeroPick) && (!stagePick || it.stage === stagePick));
+    const hideInvalid = document.querySelector('#hide-invalid')?.checked !== false;
+    const all = (d.items ?? []).filter(it => (!zeroPick || it.zeroSide === zeroPick)
+      && (!stagePick || it.stage === stagePick)
+      && (!hideInvalid || !it.invalid));
     const pairs = [...new Map(all.map(it => [it.key, { key: it.key, label: it.label ?? it.key }])).values()];
     const pickA = fillLevelSel('#alert-level', pairs, '全部报警级别');
     view.items = pickA === 'all' ? all : all.filter(it => it.key === pickA);

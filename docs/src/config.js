@@ -177,6 +177,7 @@ export const DEFAULT_SIGNAL = {
   fracInitFreshMs: 7_200_000,  // ★ 启动补报按**时间**给窗口（2 小时）：避免大级别把窗口吃光（6时3根=18小时 vs 15分3根=45分钟）
   fracType: 'any',
   // ★ 用户 2026-10-17：底分型之后第 3/4/5 根回踩不破 → 提醒
+  fracInvalidBars: 8,      // 底分型发出后，在这么多根K线内跌破低点 → 标记作废（不合格）
   fracRetestEnabled: true,
   fracRetestBars: 3,          // 允许回踩的根数（3 → 第 3/4/5 根）
   fracRetestFreshBars: 1,     // 命中后 ≤N 根内报

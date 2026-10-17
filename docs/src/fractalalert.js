@@ -121,6 +121,9 @@ export function makeFractalAlert(symbol, hit, now, initial = false) {
     fracLow: hit.low,
     fracLows: hit.threeLows,
     fracAge: hit.age,
+    invalid: false,            // 事后校验：低点被跌破后置 true
+    invalidAtT: null,
+    invalidLow: null,
     fracType: hit.type,
     aboveMa: hit.aboveMa,
     // ★ 准确时间字段：底分型低点那根 / 收盘确认那一根

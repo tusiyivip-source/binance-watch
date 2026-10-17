@@ -92,6 +92,8 @@ export class Engine extends Emitter {
       try { this.sweep(); }
       catch (e) { this.log.error('评估异常：' + (e.stack || e.message)); }
       this.lastSweepMs = Date.now() - t0;
+      // 事后校验包在 try 里：它出异常也不能让 tick 循环断掉
+      try { this.invalidateFracAlerts(); } catch (e) { /* 忽略单项校验失败 */ }
       this.lastSweepAt = Date.now();
       this.timer = setTimeout(tick, SWEEP_MS);
     };
@@ -134,6 +136,39 @@ export class Engine extends Emitter {
     const t = a.closeT ?? a.barT ?? a.confirmedAt ?? a.at ?? a.ts ?? 0;
     if (!t) return true;
     return t >= this.startedAt;
+  }
+
+  /**
+   * 事后有效性校验（用户 2026-10-17：破了低点的底分型不合格）
+   * 对已发出的 frac 报警：若在之后的K线里跌破了底分型低点，标记 invalid=true，
+   * 并记录破位时刻与最低价。只在 fracInvalidBars 根内检查（再往后算新行情）。
+   */
+  invalidateFracAlerts() {
+    const maxBars = this.cfg.fracInvalidBars ?? 8;
+    for (const a of this.alerts) {
+      if (a.kind !== 'frac' || a.invalid) continue;
+      const st = this.market.symbols.get(a.symbol);
+      const series = st?.series?.[a.level];
+      if (!series || !series.t) continue;
+      const lowT = a.lowBarT ?? a.candleT;
+      if (!Number.isFinite(lowT)) continue;
+      const ms = series.ms;
+      const low = a.fracLow;
+      if (!Number.isFinite(low)) continue;
+      const last = Number.isFinite(series.closedCount) ? Math.min(series.closedCount, series.t.length) : series.t.length;
+      const startIdx = series.t.indexOf(lowT);
+      if (startIdx < 0) continue;
+      const endIdx = Math.min(last - 1, startIdx + 1 + maxBars);
+      for (let k = startIdx + 1; k <= endIdx; k++) {
+        if (series.l[k] < low) {
+          a.invalid = true;
+          a.invalidAtT = series.t[k] + ms;
+          a.invalidLow = series.l[k];
+          a.invalidBarsAfter = k - startIdx;
+          break;
+        }
+      }
+    }
   }
 
   sweep() {
@@ -702,6 +737,10 @@ export class Engine extends Emitter {
         chainSubStrokes: Number.isFinite(a.chainSubStrokes) ? a.chainSubStrokes : null,
         fracLow: Number.isFinite(a.fracLow) ? a.fracLow : null,
         zeroSide: a.zeroSide ?? null,
+        invalid: !!a.invalid,
+        invalidAtT: Number.isFinite(a.invalidAtT) ? a.invalidAtT : null,
+        invalidLow: Number.isFinite(a.invalidLow) ? a.invalidLow : null,
+        invalidBarsAfter: Number.isFinite(a.invalidBarsAfter) ? a.invalidBarsAfter : null,
         retestOrdinal: Number.isFinite(a.retestOrdinal) ? a.retestOrdinal : null,
         retestLow: Number.isFinite(a.retestLow) ? a.retestLow : null,
         retestGapPct: Number.isFinite(a.retestGapPct) ? a.retestGapPct : null,
