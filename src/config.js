@@ -189,6 +189,13 @@ export const DEFAULT_SIGNAL = {
   // ============ 主级别浅回调 + 次级别回踩结构（用户 2026-10-17） ============
   //   主级别：一根阴线/十字星 且 收盘不跌破均线（做多）；做空镜像
   //   次级别：MACD 死叉后回踩 ≥5 根、内部够笔、底分型成立且收盘站上
+  // ============ 按标的自动选级别（用户 2026-10-17 批准） ============
+  //   每个标的按自身单根振幅选 L0（默认目标 1.2%），再按 4~6 倍推导 次/内 级别
+  adaptiveEnabled: true,
+  adaptiveTargetAmp: 1.2,   // 目标单根振幅（%）
+  adaptiveLevels: ['15m', '30m', '1h', '2h', '4h'],   // 候选基础级别
+  adaptiveFallbackBase: '30m',
+
   pbEnabled: true,
   pbPairs: [{ main: '10m', sub: '3m' }],   // 主级别 ← 次级别
   pbDirs: ['long', 'short'],

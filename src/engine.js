@@ -13,6 +13,7 @@ import { scanResonance } from './resonance.js';
 import { scanFractalAlerts, checkFracInvalid } from './fractalalert.js';
 import { scanFractalRetests } from './fractalretest.js';
 import { scanPullbacks } from './pullback.js';
+import { adaptCfg, levelLabel } from './levels.js';
 import { scanFib } from './fib.js';
 
 
@@ -285,10 +286,13 @@ export class Engine extends Emitter {
       }
     }
 
+    // —— 按标的自适应级别：本标的的 cfg 副本（主/次/内 由 ATR% 决定）——
+    const acfg = adaptCfg(st, this.cfg);
+
     // —— 三级别嵌套结构（用户新定义，唯一开启的策略）——
     if (this.cfg.chainEnabled) {
       try {
-        const fired = scanChains(st.symbol, st.series, this.cfg, this.chainSeen, Date.now(),
+        const fired = scanChains(st.symbol, st.series, acfg, this.chainSeen, Date.now(),
           firstSymbolScan || (!!this.initialPhase && !forceNew));
         for (const a of fired) {
           a.id = ++this.alertSeq;
@@ -310,7 +314,7 @@ export class Engine extends Emitter {
     if (this.cfg.pbEnabled) {
       try {
         const initPhase = !!this.initialPhase && !forceNew;
-        for (const a of scanPullbacks(st.symbol, st.series, this.cfg, this.pbSeen, Date.now(), initPhase)) {
+        for (const a of scanPullbacks(st.symbol, st.series, acfg, this.pbSeen, Date.now(), initPhase)) {
           if (!this.isFreshAlert(a)) continue;
           a.id = ++this.alertSeq;
           a.initial = forceNew ? false : !!this.initialPhase;
@@ -369,7 +373,7 @@ export class Engine extends Emitter {
       try {
         const initPhase = firstSymbolScan || (!!this.initialPhase && !forceNew);
         const fracCfg = initPhase ? { ...this.cfg, fracFreshBars: this.cfg.fracInitFreshBars ?? 3 } : this.cfg;
-        for (const a of scanFractalAlerts(st.symbol, st.series, fracCfg, this.fracSeen, Date.now(), initPhase)) {
+        for (const a of scanFractalAlerts(st.symbol, st.series, { ...acfg, ...(initPhase ? { fracFreshBars: acfg.fracInitFreshBars ?? 3 } : {}) }, this.fracSeen, Date.now(), initPhase)) {
           a.id = ++this.alertSeq;
           if (!this.isFreshAlert(a)) continue;
           this.fracCount++;
@@ -841,6 +845,7 @@ export class Engine extends Emitter {
     return {
       boundary: this.market.feedStats?.boundary ?? null,
       boundaryAligned: this.market.feedStats?.boundaryAligned ?? null,
+      resolvedSample: [...this.market.symbols.values()].slice(0, 6).map(x => x.resolvedLevel ? { sym: x.symbol, base: levelLabel(x.resolvedLevel.base), amp: x.resolvedLevel.amp, sub: levelLabel(x.resolvedLevel.sub), inner: levelLabel(x.resolvedLevel.inner) } : null).filter(Boolean),
       invalRuns: this.invalRuns ?? 0, invalDebug: this.invalDebug ?? null,
       chainCount: this.chainCount, fracCount: this.fracCount, retestCount: this.retestCount, pbCount: this.pbCount, fibCount: this.fibCount, top5Count: this.top5Count, res2Count: this.res2Count,
       res2Recent: this.res2Recent.length,
