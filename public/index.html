@@ -254,6 +254,35 @@
     </div>
     <div class="groupbox">
       <div class="gtitle">
+        <b>斐波那契回调（当前策略）</b>
+        <span class="gsub">MACD 金叉 → 高点死叉 = 一段上涨；回调到再次金叉/底分型时，回撤 ≤50% 即有效</span>
+        <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-fibEnabled"> 启用</label>
+      </div>
+      <div class="prow">
+        <label>级别 <code>10分/30分/1时/2时/3时/6时</code></label>
+        <label>最大回撤% <input id="c-fibMaxRetrace" type="number" min="10" max="100" step="0.1"></label>
+        <label>前段涨幅下限% <input id="c-fibMinRisePct" type="number" min="0" max="50" step="0.1"></label>
+        <label>交叉回看根数 <input id="c-fibLookback" type="number" min="10" max="200" step="1"></label>
+      </div>
+      <div class="gnote">
+        ① 上涨段：最近一次 <b>MACD 金叉</b> → 之后的 <b>死叉</b>（高点），拉斐波那契（高点=0%、起点=100%）<br>
+        ② 回调段：死叉之后的下跌，到 <b>再次金叉</b> 或 <b>底分型第三根收盘</b> 为止<br>
+        ③ 回撤 =（高点 − 回调最低）÷ 前段涨幅；<b>≤「最大回撤%」即有效</b>，立刻提醒<br>
+        实测（181 标的快照，六级别同扫）：50% → 18 条 · 61.8% → 25 条 · 78.6% → 40 条
+      </div>
+    </div>
+    <div class="groupbox">
+      <div class="gtitle">
+        <b>启动补载</b>
+        <span class="gsub">重启时把「最近刚成立」的信号也报一遍；关掉则只报新产生的（页面会短暂为空）</span>
+        <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-backfillEnabled"> 补载</label>
+      </div>
+      <div class="gnote">
+        改动后需要<b>重启服务</b>才生效（启动水位线在启动时确定）—— 这点和别的开关不同，不会热生效。
+      </div>
+    </div>
+    <div class="groupbox">
+      <div class="gtitle">
         <b>两级五浪（当前策略）</b>
         <span class="gsub">主级别回调 ≥5 根 → 次级别 下上下上下 五笔→ 主级别底分型成立即报</span>
         <label class="toggle" style="margin-left:auto"><input type="checkbox" id="c-chainEnabled"> 启用</label>
