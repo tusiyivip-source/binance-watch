@@ -23,7 +23,7 @@ import { detectTop5, makeTop5Alert, scanTop5, top5View, isEngulf } from '../src/
 import { scanResonance } from '../src/resonance.js';
 import { detectFractalRetest, makeRetestAlert, scanFractalRetests } from '../src/fractalretest.js';
 import { detectPullback, makePullbackAlert, scanPullbacks, pbView } from '../src/pullback.js';
-import { detectZeroCross, makeZeroAlert, scanZeroCrosses, zeroView } from '../src/zerocross.js';
+import { detectZeroCross, makeZeroAlert, scanZeroCrosses, zeroView, bigLevelState } from '../src/zerocross.js';
 import { detectFractalAlert, makeFractalAlert, scanFractalAlerts, fracView, checkFracInvalid } from '../src/fractalalert.js';
 import { detectFibPullback, makeFibAlert, scanFib, fibView, fibLevels } from '../src/fib.js';
 import { nextBoundary, groupPeriodMs, BoundaryScheduler, levelPeriodMs } from '../src/boundary.js';
@@ -1889,6 +1889,30 @@ section('20. 底分型即报：最低点那根是底分型中间根 + 第三根�
       detectPullback(mkMain(false), mkSub(), { dir: 'long', minBars: 5, minStrokes: 9, freshBars: 2 }) === null);
   }
 
+  // ★ 用户 2026-10-17：大级别 双阴/三阴 回踩不破均线
+  {
+    const mkBig = (bars, ma7) => {
+      const n = bars.length;
+      const o = bars.map(b => b[0]), c = bars.map(b => b[1]), l = bars.map(b => Math.min(b[0], b[1]) - 0.01);
+      const h = bars.map(b => Math.max(b[0], b[1]) + 0.01);
+      return { key: '1h', ms: 3_600_000, t: bars.map((_, i) => i * 3_600_000), o, h, l, c,
+        ma7: c.map(() => ma7), ema7: c.map(() => ma7), closed: n };
+    };
+    // 阳 阴 阴（末两根阴）→ 双阴；收盘 1.00 > 均线 0.95 → 成立
+    const bi = bigLevelState(mkBig([[1.05,1.06],[1.04,1.02],[1.03,1.00]], 0.95), { minYin: 2 });
+    ok('★ 大级别双阴 + 收盘在 MA7 上方 → 成立', bi.yinBars === 2 && bi.ok === true,
+      'yin=' + bi.yinBars + ' above=' + bi.aboveMa);
+    // 三阴
+    const tri = bigLevelState(mkBig([[1.06,1.04],[1.04,1.02],[1.03,1.00]], 0.95), { minYin: 2 });
+    ok('★ 大级别三阴 → 也成立（yinBars=3）', tri.yinBars === 3 && tri.ok === true, 'yin=' + tri.yinBars);
+    // 只有一根阴线 → 不成立
+    const one = bigLevelState(mkBig([[1.05,1.06],[1.04,1.05],[1.03,1.00]], 0.95), { minYin: 2 });
+    ok('★ 只有 1 根阴线 → 不成立', one.yinBars === 1 && one.ok === false, 'yin=' + one.yinBars);
+    // 双阴但收盘跌破均线 → 不成立
+    const broke = bigLevelState(mkBig([[1.05,1.06],[1.04,1.02],[1.03,1.00]], 1.10), { minYin: 2 });
+    ok('★ 双阴但收盘跌破 MA7 → 不成立（回踩破均线）', broke.yinBars === 2 && broke.ok === false,
+      'above=' + broke.aboveMa);
+  }
   ok('配置默认：底分型即报已关闭（改用最小级别上穿零轴）、参数保留',
     DEFAULT_SIGNAL.fracEnabled === false && DEFAULT_SIGNAL.fracFreshBars === 0
     && JSON.stringify(DEFAULT_SIGNAL.fracLevels) === JSON.stringify(['30m', '1h', '2h', '3h', '6h']),

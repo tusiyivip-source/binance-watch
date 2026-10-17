@@ -115,6 +115,21 @@ export function scanZeroCrosses(symbol, seriesMap, cfg, seen, now = Date.now(), 
   const baseKey = cfg._adaptive?.base ?? null;
   const v = zeroView(seriesMap[innerKey], innerKey);
   if (!v) return out;
+
+  // 大级别结构：双阴/三阴 回踩不破均线（用户 2026-10-17）
+  let big = null;
+  if (cfg.zeroBigLevel !== false) {
+    const bigKey = cfg._adaptive?.base ?? null;
+    const bigV = bigKey ? zeroView(seriesMap[bigKey], bigKey) : null;
+    if (bigV) {
+      big = bigLevelState(bigV, {
+        minYin: cfg.zeroBigYinMin ?? 2,
+        needBothMa: cfg.zeroBigNeedBothMa === true,
+      });
+      big.level = bigKey;
+      if (cfg.zeroRequireBigYin && !big.ok) return out;
+    }
+  }
   const hit = detectZeroCross(v, {
     freshBars: initial ? (cfg.zeroInitFreshBars ?? 2) : (cfg.zeroFreshBars ?? 0),
     needDea: cfg.zeroNeedDea === true,
@@ -124,6 +139,53 @@ export function scanZeroCrosses(symbol, seriesMap, cfg, seen, now = Date.now(), 
   const k = `${symbol}|${innerKey}|${hit.t}`;
   if (seen.has(k)) return out;
   seen.set(k, now);
-  out.push(makeZeroAlert(symbol, hit, baseKey, now, initial));
+  const a = makeZeroAlert(symbol, hit, baseKey, now, initial);
+  if (big) {
+    a.bigYinBars = big.yinBars;
+    a.bigAboveMa = big.aboveMa;
+    a.bigMa7 = big.ma7;
+    a.bigEma7 = big.ema7;
+    a.bigLevelKey = big.level;
+    a.bigOk = big.ok;
+    const bl = label(big.level ?? '');
+    const yinTxt = big.yinBars >= 3 ? '三阴' : big.yinBars === 2 ? '双阴' : big.yinBars + ' 连阴';
+    a.text += '；大级别 ' + bl + ' ' + yinTxt
+      + '，收盘 ' + fmt(a.price)
+      + (big.aboveMa === true ? ' 未跌破 MA7 ' : ' 已跌破 MA7 ')
+      + (Number.isFinite(big.ma7) ? fmt(big.ma7) : '-')
+      + (big.ok ? ' → 回踩不破均线成立' : ' → 不满足（需双阴/三阴且不破均线）');
+  }
+  out.push(a);
   return out;
+}
+
+/**
+ * 大级别结构（用户 2026-10-17：双阴/三阴 回踩不破均线）
+ *   连阴根数：从最后一根往前数 close < open 的根数（1/2/3+）
+ *   不破均线：最后一根收盘 > MA7（做多语境）；needBothMa 时还要 > EMA7
+ */
+export function bigLevelState(v, opt = {}) {
+  const minYin = opt.minYin ?? 2;
+  const needBoth = opt.needBothMa === true;
+  if (!v) return { yinBars: 0, ma7: null, ema7: null, aboveMa: null, ok: false };
+  const n = Number.isFinite(v.closed) ? Math.min(v.closed, v.t.length) : v.t.length;
+  if (n < 2) return { yinBars: 0, ma7: null, ema7: null, aboveMa: null, ok: false };
+  let yinBars = 0;
+  for (let i = n - 1; i >= 0; i--) {
+    const o = v.o[i], cc = v.c[i];
+    if (!Number.isFinite(o) || !Number.isFinite(cc)) break;
+    if (cc < o) yinBars++;
+    else break;
+  }
+  const last = n - 1;
+  const ma7 = numAt(v.ma7, last), ema7 = numAt(v.ema7, last);
+  const close = v.c[last];
+  let aboveMa = null;
+  if (Number.isFinite(ma7) && Number.isFinite(ema7)) {
+    aboveMa = needBoth ? (close > ma7 && close > ema7) : (close > ma7);
+  } else if (Number.isFinite(ma7)) {
+    aboveMa = close > ma7;
+  }
+  const ok = yinBars >= minYin && aboveMa === true;
+  return { yinBars, ma7, ema7, aboveMa, ok, close };
 }

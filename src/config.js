@@ -175,6 +175,11 @@ export const DEFAULT_SIGNAL = {
   zeroInitFreshBars: 3,   // 补载窗口
   zeroNeedDea: false,     // true=还要求 DEA 也在零轴上方
   zeroMaxAgeBars: 3,      // 上穿允许发生在最近几根内
+  // 大级别结构：双阴/三阴 回踩不破均线（用户 2026-10-17）
+  zeroRequireBigYin: true,   // true = 必须满足才提醒
+  zeroBigYinMin: 2,          // 至少几连阴（2=双阴，3=三阴）
+  zeroBigNeedBothMa: false,  // true = 还要站上 EMA7
+  zeroBigLevel: true,        // 用该标的 L0（操作级别）当"大级别"
 
   fracEnabled: false,   // 用户 2026-10-17：目前不需要底分型确认，改用「最小级别上穿零轴」
   fracLevels: ['30m', '1h', '2h', '3h', '6h'],   // 用户：提醒级别 30 1 2 3 6
