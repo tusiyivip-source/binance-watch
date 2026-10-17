@@ -23,6 +23,7 @@ import { detectTop5, makeTop5Alert, scanTop5, top5View, isEngulf } from '../src/
 import { scanResonance } from '../src/resonance.js';
 import { detectFractalRetest, makeRetestAlert, scanFractalRetests } from '../src/fractalretest.js';
 import { detectPullback, makePullbackAlert, scanPullbacks, pbView } from '../src/pullback.js';
+import { detectZeroCross, makeZeroAlert, scanZeroCrosses, zeroView } from '../src/zerocross.js';
 import { detectFractalAlert, makeFractalAlert, scanFractalAlerts, fracView, checkFracInvalid } from '../src/fractalalert.js';
 import { detectFibPullback, makeFibAlert, scanFib, fibView, fibLevels } from '../src/fib.js';
 import { nextBoundary, groupPeriodMs, BoundaryScheduler, levelPeriodMs } from '../src/boundary.js';
@@ -1888,10 +1889,34 @@ section('20. 底分型即报：最低点那根是底分型中间根 + 第三根�
       detectPullback(mkMain(false), mkSub(), { dir: 'long', minBars: 5, minStrokes: 9, freshBars: 2 }) === null);
   }
 
-  ok('配置默认：底分型即报开启、级别 30分/1时/2时/3时/6时、实时只报当根',
-    DEFAULT_SIGNAL.fracEnabled === true && DEFAULT_SIGNAL.fracFreshBars === 0
+  ok('配置默认：底分型即报已关闭（改用最小级别上穿零轴）、参数保留',
+    DEFAULT_SIGNAL.fracEnabled === false && DEFAULT_SIGNAL.fracFreshBars === 0
     && JSON.stringify(DEFAULT_SIGNAL.fracLevels) === JSON.stringify(['30m', '1h', '2h', '3h', '6h']),
     JSON.stringify(DEFAULT_SIGNAL.fracLevels));
+  // ★ 用户 2026-10-17：最小级别 DIF 上穿零轴
+  {
+    const H = 60_000;
+    const mk = (flipAt) => {
+      const n = 40;
+      const l = new Array(n).fill(1).map((_, i) => 1 - i * 0.001);
+      const h = l.map(x => x + 0.001), c = l.map(x => x + 0.0005);
+      const dif = l.map((_, i) => (i < flipAt ? -0.01 : 0.01));
+      return { key: '1m', ms: H, t: l.map((_, i) => i * H), o: c.slice(), h, l, c,
+        dif: Float64Array.from(dif), dea: Float64Array.from(dif.map(x => x * 0.5 - 0.02)),
+        ma7: c.map(() => 0), ema7: c.map(() => 0), closed: n };
+    };
+    const zh = detectZeroCross(mk(38), { freshBars: 3 });
+    ok('★ DIF 从负上穿零轴 → 命中', !!zh && zh.idx === 38 && zh.dif > 0,
+      zh ? ('idx=' + zh.idx + ' dif=' + zh.dif) : 'null');
+    if (zh) {
+      const za = makeZeroAlert('ZUSDT', zh, '30m', Date.now(), false);
+      ok('★ 文案含「DIF 上穿零轴」与标的操作级别',
+        /DIF 上穿零轴/.test(za.text) && /操作级别/.test(za.text), za.text.slice(0, 40));
+    }
+    ok('★ 上穿发生在 10 根前（超窗口）→ 不报', detectZeroCross(mk(28), { freshBars: 1 }) === null);
+    ok('★ needDea=true 但 DEA 仍在零轴下 → 不报',
+      detectZeroCross(mk(38), { freshBars: 3, needDea: true }) === null);
+  }
 }
 
 /* ============ 21. 斐波那契回调（10分钟） ============ */

@@ -169,7 +169,14 @@ export const DEFAULT_SIGNAL = {
   // ============ 底分型即报（★ 用户 2026-10-16：底分型出来就提醒） ============
   //   最近 lookback 根里最低点那根是底分型中间根 + 第三根刚收盘（≤fracFreshBars 根）
   //   不要求次级别五笔、不要求站上均线 —— 分型一收盘就报
-  fracEnabled: true,
+  // ============ 最小级别 · 上穿零轴确认（用户 2026-10-17，替代底分型确认） ============
+  zeroEnabled: true,
+  zeroFreshBars: 0,       // 实时：上穿当根报
+  zeroInitFreshBars: 3,   // 补载窗口
+  zeroNeedDea: false,     // true=还要求 DEA 也在零轴上方
+  zeroMaxAgeBars: 3,      // 上穿允许发生在最近几根内
+
+  fracEnabled: false,   // 用户 2026-10-17：目前不需要底分型确认，改用「最小级别上穿零轴」
   fracLevels: ['30m', '1h', '2h', '3h', '6h'],   // 用户：提醒级别 30 1 2 3 6
   fracLookback: 20,
   fracFreshBars: 0,        // 实时只报刚收盘的第三根；旧形态仅在首次加载时展示

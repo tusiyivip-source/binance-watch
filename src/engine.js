@@ -14,6 +14,7 @@ import { scanFractalAlerts, checkFracInvalid } from './fractalalert.js';
 import { scanFractalRetests } from './fractalretest.js';
 import { scanPullbacks } from './pullback.js';
 import { adaptCfg, levelLabel } from './levels.js';
+import { scanZeroCrosses } from './zerocross.js';
 import { scanFib } from './fib.js';
 
 
@@ -72,6 +73,8 @@ export class Engine extends Emitter {
     this.fracSeen = new Map();
     this.retestSeen = new Map();
     this.pbSeen = new Map();
+    this.zeroSeen = new Map();
+    this.zeroCount = 0;
     this.pbCount = 0;
     this.retestCount = 0;
     this.fracCount = 0;
@@ -326,6 +329,25 @@ export class Engine extends Emitter {
         }
       } catch (e) {
         this.log.warn(`回调结构判定 ${st.symbol} 失败：${e.message}`);
+      }
+    }
+
+    // —— 最小级别 · DIF 上穿零轴（用户 2026-10-17：替代底分型确认）——
+    if (acfg.zeroEnabled) {
+      try {
+        const initPhaseZ = !!this.initialPhase && !forceNew;
+        for (const a of scanZeroCrosses(st.symbol, st.series, acfg, this.zeroSeen, Date.now(), initPhaseZ)) {
+          if (!this.isFreshAlert(a)) continue;
+          a.id = ++this.alertSeq;
+          a.initial = forceNew ? false : !!this.initialPhase;
+          this.zeroCount++;
+          this.alerts.push(a);
+          this.signalCount++;
+          this.emit('alert', a);
+          this.log.signal('0↑ ' + a.symbol + ' ' + a.text);
+        }
+      } catch (e) {
+        this.log.warn(`零轴上穿判定 ${st.symbol} 失败：${e.message}`);
       }
     }
 
@@ -847,7 +869,7 @@ export class Engine extends Emitter {
       boundaryAligned: this.market.feedStats?.boundaryAligned ?? null,
       resolvedSample: [...this.market.symbols.values()].slice(0, 6).map(x => x.resolvedLevel ? { sym: x.symbol, base: levelLabel(x.resolvedLevel.base), amp: x.resolvedLevel.amp, sub: levelLabel(x.resolvedLevel.sub), inner: levelLabel(x.resolvedLevel.inner) } : null).filter(Boolean),
       invalRuns: this.invalRuns ?? 0, invalDebug: this.invalDebug ?? null,
-      chainCount: this.chainCount, fracCount: this.fracCount, retestCount: this.retestCount, pbCount: this.pbCount, fibCount: this.fibCount, top5Count: this.top5Count, res2Count: this.res2Count,
+      chainCount: this.chainCount, fracCount: this.fracCount, retestCount: this.retestCount, pbCount: this.pbCount, zeroCount: this.zeroCount, fibCount: this.fibCount, top5Count: this.top5Count, res2Count: this.res2Count,
       res2Recent: this.res2Recent.length,
       seenSizes: { chain: this.chainSeen.size, top5: this.top5Seen.size, res2: this.res2Seen.size, fb: this.fbSeen.size, brk: this.brkSeen.size },
       alertsLen: this.alerts.length,

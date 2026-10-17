@@ -373,7 +373,9 @@ function paintCard(view, i, it) {
 
   if (isAlert) {
     head.querySelector('.lv').innerHTML = `<span class="sym">${it.symbol}</span>`;
-    head.querySelector('.roles').innerHTML = it.kind === 'pullback'
+    head.querySelector('.roles').innerHTML = it.kind === 'zero'
+      ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span><span class="rb" style="color:#f0b90b">0↑ 上穿零轴</span>`
+      : it.kind === 'pullback'
       ? `<span class="rb lvl">${it.levelLabel ?? it.label}←${it.subLevelLabel ?? ''}</span><span class="rb" style="color:${it.side === 'long' ? '#0ecb81' : '#f6465d'}">⤵ 回踩结构·${it.side === 'long' ? '做多' : '做空'}</span>`
       : it.kind === 'fib'
       ? `<span class="rb lvl">${it.levelLabel ?? it.label}</span><span class="rb" style="color:#f0b90b">🌀 斐波回调</span>`
@@ -395,7 +397,12 @@ function paintCard(view, i, it) {
     st.className = 'st ' + (it.mode === 'closed' ? 's1' : 's3');
     // 形态提醒没有评分，用方向标签代替；共振信号仍显示组合与评分
     const isDual = it.kind === 'dual';
-    if (it.kind === 'pullback') {
+    if (it.kind === 'zero') {
+      head.querySelector('.sp').innerHTML =
+        `<span class="grp">DIF ${Number.isFinite(it.zeroPrevDif) ? fmtPrice(it.zeroPrevDif) : '?'} → ${Number.isFinite(it.zeroDif) ? fmtPrice(it.zeroDif) : '?'}</span>`
+        + `<span class="sc">DEA ${Number.isFinite(it.zeroDea) ? fmtPrice(it.zeroDea) : '?'}</span>`
+        + (it.baseLevelLabel ? `<span class="sc">标的L0 ${it.baseLevelLabel}</span>` : '') + divBadge;
+    } else if (it.kind === 'pullback') {
       head.querySelector('.sp').innerHTML =
         `<span class="grp">回踩 ${it.pbPullBars ?? '?'} 根 · ${it.pbStrokes ?? '?'} 笔</span>`
         + `<span class="sc">${it.pbIsDoji ? '主级别十字星' : it.side === 'long' ? '主级别阴线' : '主级别阳线'}</span>`
