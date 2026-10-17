@@ -21,6 +21,7 @@ import { isBottomFractal, findFirstBottomFractal } from '../src/fractal.js';
 import { detectChain, makeChainAlert, scanChains, chainView } from '../src/chain.js';
 import { detectTop5, makeTop5Alert, scanTop5, top5View, isEngulf } from '../src/top5.js';
 import { scanResonance } from '../src/resonance.js';
+import { detectFractalRetest, makeRetestAlert, scanFractalRetests } from '../src/fractalretest.js';
 import { detectFractalAlert, makeFractalAlert, scanFractalAlerts, fracView } from '../src/fractalalert.js';
 import { detectFibPullback, makeFibAlert, scanFib, fibView, fibLevels } from '../src/fib.js';
 import { nextBoundary, groupPeriodMs, BoundaryScheduler, levelPeriodMs } from '../src/boundary.js';
@@ -1772,6 +1773,43 @@ section('20. 底分型即报：最低点那根是底分型中间根 + 第三根�
         /底分型·零轴上方/.test(a.text) && /DIF/.test(a.text) && /DEA/.test(a.text), a.text.slice(0, 40));
       ok('★ 报警对象带 zeroSide（供前端分两个筛选项）', a.zeroSide === 'above', String(a.zeroSide));
     }
+  }
+
+  // ★ 用户 2026-10-17：底分型之后第 3/4/5 根回踩不破 → 提醒
+  {
+    const H = 1_800_000;   // 30分
+    /** 造：index 3 是底分型低点，之后几根回踩；retest 决定回踩是否破低点 */
+    const mkRetest = (retestLow, atK) => {
+      const n = 10;
+      const l = [10, 9.8, 9.5, 9.0, 9.4, 9.3, 9.2, 9.1, 9.6, 9.7];
+      const l2 = l.slice();
+      l2[atK] = retestLow;
+      const h2 = l2.map(x => x + 0.3);
+      const c2 = l2.map((x, i) => x + 0.15);
+      return { key: '30m', ms: H, t: l2.map((_, i) => i * H), o: c2.slice(), h: h2, l: l2, c: c2,
+        ma7: c2.map(() => 0), ema7: c2.map(() => 0),
+        dif: c2.map(() => 0.5), dea: c2.map(() => 0.3), closed: n };
+    };
+    // 低点 9.0；第 3 根（index 5）回踩到 9.05（未破）→ 应命中
+    const okHit = detectFractalRetest(mkRetest(9.05, 5), { lookback: 20, retestBars: 3, freshBars: 10, nearPct: 3 });
+    ok('★ 第3根回踩到 9.05（低点 9.0 未破）→ 命中，ordinal=3',
+      !!okHit && okHit.ordinal === 3 && okHit.retestLow === 9.05,
+      okHit ? ('ordinal=' + okHit.ordinal + ' low=' + okHit.retestLow) : 'null');
+    if (okHit) {
+      const a = makeRetestAlert('ZUSDT', okHit, Date.now(), false);
+      ok('★ 文案含「回踩不破·第3根」「未破低点」',
+        /回踩不破·第3根/.test(a.text) && /未破低点/.test(a.text), a.text.slice(0, 44));
+      ok('★ 报警 kind=frac、stage=retest', a.kind === 'frac' && a.stage === 'retest', a.stage);
+    }
+    // 第 3 根直接跌破低点 → 不能命中
+    const broke = detectFractalRetest(mkRetest(8.8, 5), { lookback: 20, retestBars: 3, freshBars: 10, nearPct: 3 });
+    ok('★ 第3根跌破低点（8.8 < 9.0）→ 不报', broke === null);
+    // 回踩离低点太远（>3%）不算回踩：把整个回踩窗口都抬到 9.6
+    const farBase = mkRetest(9.6, 5);
+    for (let i = 5; i <= 7; i++) { farBase.l[i] = 9.6; farBase.h[i] = 9.9; farBase.c[i] = 9.75; }
+    const far = detectFractalRetest(farBase, { lookback: 20, retestBars: 3, freshBars: 10, nearPct: 3 });
+    ok('★ 回踩距低点 >3%（9.6 vs 9.0，整个窗口都在高处）→ 不算回踩，不报', far === null,
+      far ? ('ordinal=' + far.ordinal) : 'null');
   }
 
   ok('配置默认：底分型即报开启、级别 30分/1时/2时/3时/6时、实时只报当根',

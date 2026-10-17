@@ -11,6 +11,7 @@ import { scanChains } from './chain.js';
 import { scanTop5 } from './top5.js';
 import { scanResonance } from './resonance.js';
 import { scanFractalAlerts } from './fractalalert.js';
+import { scanFractalRetests } from './fractalretest.js';
 import { scanFib } from './fib.js';
 
 
@@ -67,6 +68,8 @@ export class Engine extends Emitter {
     this.top5Count = 0;
     this.res2Seen = new Map();
     this.fracSeen = new Map();
+    this.retestSeen = new Map();
+    this.retestCount = 0;
     this.fracCount = 0;
     this.fibSeen = new Map();
     this.fibCount = 0;
@@ -259,6 +262,25 @@ export class Engine extends Emitter {
         }
       } catch (e) {
         this.log.warn(`结构判定 ${st.symbol} 失败：${e.message}`);
+      }
+    }
+
+    // —— 底分型回踩不破（用户 2026-10-17：第3/4/5根回踩不破左侧底分型）——
+    if (this.cfg.fracRetestEnabled) {
+      try {
+        const initPhase = !!this.initialPhase && !forceNew;
+        for (const a of scanFractalRetests(st.symbol, st.series, this.cfg, this.retestSeen, Date.now(), initPhase)) {
+          if (!this.isFreshAlert(a)) continue;
+          a.id = ++this.alertSeq;
+          a.initial = forceNew ? false : !!this.initialPhase;
+          this.retestCount++;
+          this.alerts.push(a);
+          this.signalCount++;
+          this.emit('alert', a);
+          this.log.signal('🪜 ' + a.symbol + ' ' + a.text);
+        }
+      } catch (e) {
+        this.log.warn(`回踩判定 ${st.symbol} 失败：${e.message}`);
       }
     }
 
@@ -680,6 +702,9 @@ export class Engine extends Emitter {
         chainSubStrokes: Number.isFinite(a.chainSubStrokes) ? a.chainSubStrokes : null,
         fracLow: Number.isFinite(a.fracLow) ? a.fracLow : null,
         zeroSide: a.zeroSide ?? null,
+        retestOrdinal: Number.isFinite(a.retestOrdinal) ? a.retestOrdinal : null,
+        retestLow: Number.isFinite(a.retestLow) ? a.retestLow : null,
+        retestGapPct: Number.isFinite(a.retestGapPct) ? a.retestGapPct : null,
         zeroMixed: !!a.zeroMixed,
         difLow: Number.isFinite(a.difLow) ? a.difLow : null,
         deaLow: Number.isFinite(a.deaLow) ? a.deaLow : null,
@@ -747,7 +772,7 @@ export class Engine extends Emitter {
     return {
       boundary: this.market.feedStats?.boundary ?? null,
       boundaryAligned: this.market.feedStats?.boundaryAligned ?? null,
-      chainCount: this.chainCount, fracCount: this.fracCount, fibCount: this.fibCount, top5Count: this.top5Count, res2Count: this.res2Count,
+      chainCount: this.chainCount, fracCount: this.fracCount, retestCount: this.retestCount, fibCount: this.fibCount, top5Count: this.top5Count, res2Count: this.res2Count,
       res2Recent: this.res2Recent.length,
       seenSizes: { chain: this.chainSeen.size, top5: this.top5Seen.size, res2: this.res2Seen.size, fb: this.fbSeen.size, brk: this.brkSeen.size },
       alertsLen: this.alerts.length,

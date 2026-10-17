@@ -175,7 +175,13 @@ export const DEFAULT_SIGNAL = {
   fracFreshBars: 0,        // 实时只报刚收盘的第三根；旧形态仅在首次加载时展示
   fracInitFreshBars: 3,    // 启动补报（按根数，备用）
   fracInitFreshMs: 7_200_000,  // ★ 启动补报按**时间**给窗口（2 小时）：避免大级别把窗口吃光（6时3根=18小时 vs 15分3根=45分钟）
-  fracType: 'any',          // any=中间低点最低 | standard=中间高低点都最低
+  fracType: 'any',
+  // ★ 用户 2026-10-17：底分型之后第 3/4/5 根回踩不破 → 提醒
+  fracRetestEnabled: true,
+  fracRetestBars: 3,          // 允许回踩的根数（3 → 第 3/4/5 根）
+  fracRetestFreshBars: 1,     // 命中后 ≤N 根内报
+  fracRetestBreakPct: 0,      // 允许破低点的容差%，0=一点都不许破
+  fracRetestNearPct: 3,       // 回踩必须靠近低点：最低价距分型低点 ≤ 此百分比          // any=中间低点最低 | standard=中间高低点都最低
 
   chainEnabled: true,
   chainTriples: [

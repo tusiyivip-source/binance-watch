@@ -637,10 +637,11 @@ async function refreshAlertView() {
     const rawKind = kindSel && kindSel.value !== 'all' ? kindSel.value : '';
     // fracUp / fracDown 走同一个 kind=frac，结果再按 MACD 零轴侧过滤
     const zeroPick = rawKind === 'fracUp' ? 'above' : rawKind === 'fracDown' ? 'below' : null;
-    const kind = rawKind ? '&kind=' + encodeURIComponent(zeroPick ? 'frac' : rawKind) : '';
+    const stagePick = rawKind === 'fracRetest' ? 'retest' : null;
+    const kind = rawKind ? '&kind=' + encodeURIComponent((zeroPick || stagePick) ? 'frac' : rawKind) : '';
     const d = await fetch(`/api/alertchart?bars=${bars}&limit=${limit}${kind}${alertQuery()}`).then(r => r.json());
     if (requestSeq !== alertRequestSeq) return;
-    const all = (d.items ?? []).filter(it => !zeroPick || it.zeroSide === zeroPick);
+    const all = (d.items ?? []).filter(it => (!zeroPick || it.zeroSide === zeroPick) && (!stagePick || it.stage === stagePick));
     const pairs = [...new Map(all.map(it => [it.key, { key: it.key, label: it.label ?? it.key }])).values()];
     const pickA = fillLevelSel('#alert-level', pairs, '全部报警级别');
     view.items = pickA === 'all' ? all : all.filter(it => it.key === pickA);
