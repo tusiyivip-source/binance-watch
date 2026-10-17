@@ -242,6 +242,7 @@ export function makeChainAlert(symbol, hit, now, initial = false) {
     chainFallbackFrom: hit.fallbackFrom ?? null,
     chainFifthBars: null,
     confirmedAt: hit.confirmT,
+    closeT: hit.confirmT,
     ...alertTiming(hit.confirmT, now, initial),
     fractalConfirmedAt: hit.fractalConfirmedAt ?? null,
     confirmationKind: hit.top ? 'structure' : 'fractal',

@@ -53,7 +53,7 @@
     <button id="tab-wave" class="vt">🧩 两级五浪</button>
     <button id="tab-top" class="vt">🌀 斐波那契回调</button>
     <span class="vtsep"></span>
-    <label class="chartsym"><input checked id="show-alert-history" type="checkbox">显示历史补载</label>
+    <label class="chartsym"><input id="show-alert-history" type="checkbox">显示历史补载</label>
     <button id="alert-unfocus" class="vt mini" hidden>返回提醒列表</button>
     <span id="top-symbar" style="display:none">
       <select id="top-level" class="vtsel" title="只看某个级别">
@@ -175,7 +175,7 @@
     </div>
     <div id="topchartwrap" style="display:none">
       <div id="topchartgrid"></div>
-      <div id="top-empty" class="empty">暂无斐波那契回调信号。级别：10分/30分/1时/2时/3时/6时。条件：MACD 金叉 → 高点死叉（一段上涨）→ 回调（再次金叉 或 底分型收盘）时，回撤不超过前段涨幅的 <b>50%</b>。</div>
+      <div id="top-empty" class="empty">暂无斐波那契回调信号（<b>启动补载已关闭</b>：只显示重启后新产生的信号）。级别：10分/30分/1时/2时/3时/6时。条件：MACD 金叉 → 高点死叉（一段上涨）→ 回调（再次金叉 或 底分型收盘）时，回撤不超过前段涨幅的 <b>50%</b>。</div>
     </div>
     <div id="alertchartwrap">
       <div id="alertchartgrid"></div>

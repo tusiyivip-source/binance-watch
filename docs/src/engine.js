@@ -39,6 +39,7 @@ export class Engine extends Emitter {
     this.activeBySymbol = new Map();
     this.alertSeq = 0;
     this.sweepCount = 0;
+    this.startedAt = Date.now();      // 启动水位线：只报这之后才收盘确认的信号
     this.initialPhase = true;
     this.lastSweepMs = 0;
     this.lastSweepAt = 0;
@@ -120,9 +121,22 @@ export class Engine extends Emitter {
     return this.cfg;
   }
 
+  /**
+   * 是否"新鲜"信号：确认时刻必须晚于服务启动时刻。
+   * 关闭启动补载（backfillEnabled=false）时，重启瞬间那批"上一根刚收盘"的老信号一律不报，
+   * 之后随各周期收线新产生的才报。设 backfillEnabled=true 可关闭此过滤。
+   */
+  isFreshAlert(a) {
+    if (this.cfg.backfillEnabled === true) return true;
+    const t = a.closeT ?? a.barT ?? a.confirmedAt ?? a.at ?? a.ts ?? 0;
+    if (!t) return true;
+    return t >= this.startedAt;
+  }
+
   sweep() {
     this.sweepCount++;
-    this.initialPhase = this.sweepCount <= 2;   // 启动后的头两轮 = 存量扫描，不鸣笛
+    // 启动补载关闭时，第一轮起就按"实时"口径判定（只在当根成立时才报，不补历史）
+    this.initialPhase = this.cfg.backfillEnabled === false ? false : (this.sweepCount <= 2);   // 启动后的头两轮 = 存量扫描，不鸣笛
     const active = new Map();
     let initialCount = 0;
 
@@ -213,6 +227,7 @@ export class Engine extends Emitter {
           firstSymbolScan || (!!this.initialPhase && !forceNew));
         for (const a of fired) {
           a.id = ++this.alertSeq;
+          if (!this.isFreshAlert(a)) continue;
           this.top5Count++;
           this.res2Recent.push(a);
           if (this.res2Recent.length > 400) this.res2Recent.splice(0, this.res2Recent.length - 400);
@@ -233,6 +248,7 @@ export class Engine extends Emitter {
           firstSymbolScan || (!!this.initialPhase && !forceNew));
         for (const a of fired) {
           a.id = ++this.alertSeq;
+          if (!this.isFreshAlert(a)) continue;
           this.chainCount++;
           this.res2Recent.push(a);
           if (this.res2Recent.length > 400) this.res2Recent.splice(0, this.res2Recent.length - 400);
@@ -254,6 +270,7 @@ export class Engine extends Emitter {
         for (const a of scanFib(st.symbol, st.series, fibCfg, this.fibSeen, Date.now(), initPhase)) {
           a.id = ++this.alertSeq;
           a.initial = forceNew ? false : !!this.initialPhase;
+          if (!this.isFreshAlert(a)) continue;
           this.fibCount++;
           this.alerts.push(a);
           this.signalCount++;
@@ -272,6 +289,7 @@ export class Engine extends Emitter {
         const fracCfg = initPhase ? { ...this.cfg, fracFreshBars: this.cfg.fracInitFreshBars ?? 3 } : this.cfg;
         for (const a of scanFractalAlerts(st.symbol, st.series, fracCfg, this.fracSeen, Date.now(), initPhase)) {
           a.id = ++this.alertSeq;
+          if (!this.isFreshAlert(a)) continue;
           this.fracCount++;
           this.alerts.push(a);
           this.signalCount++;
@@ -288,6 +306,7 @@ export class Engine extends Emitter {
       try {
         for (const a of scanResonance(this.res2Recent, this.res2Seen, this.cfg, Date.now())) {
           a.id = ++this.alertSeq;
+          if (!this.isFreshAlert(a)) continue;
           this.res2Count++;
           this.alerts.push(a);
           this.signalCount++;

@@ -145,7 +145,9 @@ export function makeFibAlert(symbol, hit, now, initial = false) {
     base: hit.level, mid: null, big: null,
     score: 70,
     price: hit.close,
-    candleT: hit.pullLowT ?? hit.trigT,      // 锚在回调最低点那根（图上圈的就是它）
+    candleT: hit.pullLowT ?? hit.trigT,
+    barT: hit.trigT,
+    closeT: hit.trigT + (hit.ms ?? 0) || hit.trigT,   // 触发根收盘时刻      // 锚在回调最低点那根（图上圈的就是它）
     ts: now,
     initial: !!initial,
     fibRise: hit.rise,
