@@ -40,7 +40,22 @@ const isTop = p => p.type === 'top' || p.type === '顶' || p.type === 'T';
  *   6 笔、7 笔、8 笔都算 —— "可以高于五浪 有6浪七浪8浪 都行"。
  *   仍要求：方向交替、首笔向下（首端点是顶）、每笔 ≥minBars 根、K线连续。
  */
-export function findFiveWaves(sub, minBars = 5, asOf = Infinity, minStrokes = 5) {
+/** 单根K线振幅的中位数（%），用于判断"笔是否够大" */
+export function barAmpMedian(v, lookback = 120) {
+  if (!v || !v.t) return 0;
+  const n = Number.isFinite(v.closed) ? Math.min(v.closed, v.t.length) : v.t.length;
+  const from = Math.max(0, n - lookback);
+  const arr = [];
+  for (let i = from; i < n; i++) {
+    const amp = (v.h[i] - v.l[i]) / (v.c[i] || 1) * 100;
+    if (Number.isFinite(amp) && amp > 0) arr.push(amp);
+  }
+  if (!arr.length) return 0;
+  arr.sort((a, b) => a - b);
+  return arr[(arr.length / 2) | 0];
+}
+
+export function findFiveWaves(sub, minBars = 5, asOf = Infinity, minStrokes = 5, minStrokeRatio = 0) {
   if (!sub) return null;
   const closed = Math.min(sub.closed ?? sub.t.length, sub.t.length);
   let pts = (sub.pts ?? []).filter(p => Number.isInteger(p.confirmIdx)
@@ -51,12 +66,18 @@ export function findFiveWaves(sub, minBars = 5, asOf = Infinity, minStrokes = 5)
   if (pts.length < minStrokes + 1) return null;
 
   /** 校验一串端点是否构成合法下跌浪（交替 + 首笔向下 + 每笔根数） */
+  const barAmp = minStrokeRatio > 0 ? barAmpMedian(sub) : 0;   // 笔幅度的参照：单根振幅
   const check = six => {
     if (six.map(p => (isTop(p) ? 'T' : 'B')).join('') !== 'TBTB'.repeat(9).slice(0, six.length)) return null;
     const bars = [];
     for (let j = 1; j < six.length; j++) {
       const a = pivotIdx(six[j - 1]), b = pivotIdx(six[j]);
       if (b - a + 1 < minBars) return null;
+      // ★ 笔不能太小：笔幅度 ≥ minStrokeRatio × 单根振幅
+      if (minStrokeRatio > 0 && barAmp > 0) {
+        const ampPct = Math.abs(six[j].price - six[j - 1].price) / (six[j].price || 1) * 100;
+        if (ampPct < barAmp * minStrokeRatio) return null;
+      }
       if (j % 2 ? six[j - 1].price <= six[j].price : six[j - 1].price >= six[j].price) return null;
       for (let k = a + 1; k <= b; k++) if (sub.t[k] - sub.t[k - 1] !== sub.ms) return null;
       bars.push(b - a + 1);
@@ -172,7 +193,7 @@ export function detectChain(main, sub, inner, opt = {}) {
     && p.confirmIdx < subClosed && sub.t[p.confirmIdx] + sub.ms <= cutoff);
   if (pts.length < 6) return null;
   const minStrokes = Math.max(5, opt.minStrokes ?? 5);   // 用户：可以高于五浪，6/7/8 浪都行
-  const wave = findFiveWaves(sub, subMinBars, cutoff, minStrokes);
+  const wave = findFiveWaves(sub, subMinBars, cutoff, minStrokes, opt.minStrokeRatio ?? 0);
   if (!wave) return null;
   const six = wave.six;
   if (opt.selectedWave && !sameWaveMove(wave, opt.selectedWave)) return null;
@@ -273,7 +294,7 @@ export function scanChains(symbol, seriesMap, cfg, seen, now = Date.now(), initi
   const candidates = [], near = new Map();
   for (const pair of pairs) {
     const sub = chainView(seriesMap[pair.sub], pair.sub, chanMin, now);
-    const wave = findFiveWaves(sub, Math.max(5, cfg.chainSubMinBars ?? 5), now);
+    const wave = findFiveWaves(sub, Math.max(5, cfg.chainSubMinBars ?? 5), now, cfg.chainMinStrokes ?? 5, cfg.chainMinStrokeRatio ?? 5);
     if (wave) candidates.push({ pair, wave });
     else {
       const relaxed = chainView(seriesMap[pair.sub], pair.sub, 4, now);
@@ -291,6 +312,7 @@ export function scanChains(symbol, seriesMap, cfg, seen, now = Date.now(), initi
     const hit = detectChain(main, sub, null, {
       mainMinBars: cfg.chainMainMinBars ?? 5,
       minStrokes: cfg.chainMinStrokes ?? 5,
+      minStrokeRatio: cfg.chainMinStrokeRatio ?? 5,
       mainMode: cfg.chainMainMode ?? 'top5',
       mainNeedMa: cfg.chainMainNeedMa === true,
       mainWarn: cfg.chainMainWarn !== false,

@@ -219,7 +219,7 @@ export function fracStructureOk(hit, key, seriesMap, cfg) {
     const minStrokes = cfg.fracInnerStrokes ?? 5;
     const asOf = hit.confirmT + (cfg.fracInnerGraceBars ?? 2) * (seriesMap[innerKey]?.ms ?? 0);
     const inner = chainView(seriesMap[innerKey], innerKey, minBars, asOf);
-    const w = findFiveWaves(inner, minBars, asOf, minStrokes);
+    const w = findFiveWaves(inner, minBars, asOf, minStrokes, cfg.fracInnerStrokeRatio ?? 5);
     if (!w) return { ok: false, why: 'inner', innerKey, innerStrokes: null };
     innerStrokes = w.strokes;
   }

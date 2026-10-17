@@ -178,8 +178,10 @@ export const DEFAULT_SIGNAL = {
   fracType: 'any',
   // ★ 用户 2026-10-17：底分型之后第 3/4/5 根回踩不破 → 提醒
   // ★ 用户 2026-10-17：底分型必须「内部有结构 + 上一级也成立」
-  fracInnerMap: { '30m': '1m', '1h': '2m', '2h': '5m', '3h': '5m', '6h': '10m' },
+  // ★ 2026-10-17 修正：级别比例改 4~6 倍（原来 30分→1分 是 30 倍，笔走不完、数据也覆盖不到）
+  fracInnerMap: { '30m': '5m', '1h': '10m', '2h': '15m', '3h': '30m', '6h': '1h' },
   fracInnerStrokes: 5,      // 内部至少要几笔（下上下上下）
+  fracInnerStrokeRatio: 3,  // 内部每笔幅度 ≥ 几倍单根振幅（实测中位数≈3，设 3 即滤掉偏小的一半）
   fracInnerMinBars: 5,      // 每笔至少几根K线
   fracHigherWinBars: 2,     // 上级别允许在低点前后几根内出现底分型
   fracInnerGraceBars: 2,    // 内部笔允许比分型确认晚几根（笔确认天然滞后）
@@ -244,7 +246,9 @@ export const DEFAULT_SIGNAL = {
   chainMainFreshBars: 20,
   chainMainWarn: true,
   chainMainWarnFreshBars: 3,  // 预警窗口：底分型确认后 ≤N 根内都算     // 两阶段：底分型刚确认先发**预警**（不偏晚），站上均线再发**确认**  // 主级别反转点发生在最近 N 根内就算（去重保证只报一次，且在反转那根就报；设小会大量漏报）
-  chainMinStrokes: 5,      // 次级别最少几笔；**允许高于五浪**（6/7/8 笔都行，取最长合法浪）       // 主级别见底分型口径：any=中间低点最低（默认，实测覆盖最好）| standard/relay/weakest
+  chainMinStrokes: 5,
+  // ★ 2026-10-17：笔不能太小 —— 笔幅度至少是单根振幅的几倍（实测现在只有 3 倍，太小）
+  chainMinStrokeRatio: 3,      // ★ 笔不能太小：笔幅度 ≥ 3 × 单根振幅径：any=中间低点最低（默认，实测覆盖最好）| standard/relay/weakest
 
   // ============ 缠论笔 / 背驰（★ 引擎内部计算，界面完全不显示） ============
   // 按用户要求：这些判定照常算（供共振通道与内部结构分析使用），
