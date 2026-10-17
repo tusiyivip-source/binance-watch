@@ -12,6 +12,7 @@ import { scanTop5 } from './top5.js';
 import { scanResonance } from './resonance.js';
 import { scanFractalAlerts, checkFracInvalid } from './fractalalert.js';
 import { scanFractalRetests } from './fractalretest.js';
+import { scanPullbacks } from './pullback.js';
 import { scanFib } from './fib.js';
 
 
@@ -69,6 +70,8 @@ export class Engine extends Emitter {
     this.res2Seen = new Map();
     this.fracSeen = new Map();
     this.retestSeen = new Map();
+    this.pbSeen = new Map();
+    this.pbCount = 0;
     this.retestCount = 0;
     this.fracCount = 0;
     this.fibSeen = new Map();
@@ -300,6 +303,25 @@ export class Engine extends Emitter {
         }
       } catch (e) {
         this.log.warn(`结构判定 ${st.symbol} 失败：${e.message}`);
+      }
+    }
+
+    // —— 主级别浅回调 + 次级别回踩结构（用户 2026-10-17）——
+    if (this.cfg.pbEnabled) {
+      try {
+        const initPhase = !!this.initialPhase && !forceNew;
+        for (const a of scanPullbacks(st.symbol, st.series, this.cfg, this.pbSeen, Date.now(), initPhase)) {
+          if (!this.isFreshAlert(a)) continue;
+          a.id = ++this.alertSeq;
+          a.initial = forceNew ? false : !!this.initialPhase;
+          this.pbCount++;
+          this.alerts.push(a);
+          this.signalCount++;
+          this.emit('alert', a);
+          this.log.signal('⤵ ' + a.symbol + ' ' + a.text);
+        }
+      } catch (e) {
+        this.log.warn(`回调结构判定 ${st.symbol} 失败：${e.message}`);
       }
     }
 
@@ -745,6 +767,11 @@ export class Engine extends Emitter {
         invalidLow: Number.isFinite(a.invalidLow) ? a.invalidLow : null,
         invalidBarsAfter: Number.isFinite(a.invalidBarsAfter) ? a.invalidBarsAfter : null,
         retestOrdinal: Number.isFinite(a.retestOrdinal) ? a.retestOrdinal : null,
+        pbPullBars: Number.isFinite(a.pbPullBars) ? a.pbPullBars : null,
+        pbStrokes: Number.isFinite(a.pbStrokes) ? a.pbStrokes : null,
+        pbLow: Number.isFinite(a.pbLow) ? a.pbLow : null,
+        pbIsDoji: !!a.pbIsDoji,
+        pbMa7: Number.isFinite(a.pbMa7) ? a.pbMa7 : null,
         retestLow: Number.isFinite(a.retestLow) ? a.retestLow : null,
         retestGapPct: Number.isFinite(a.retestGapPct) ? a.retestGapPct : null,
         zeroMixed: !!a.zeroMixed,
@@ -815,7 +842,7 @@ export class Engine extends Emitter {
       boundary: this.market.feedStats?.boundary ?? null,
       boundaryAligned: this.market.feedStats?.boundaryAligned ?? null,
       invalRuns: this.invalRuns ?? 0, invalDebug: this.invalDebug ?? null,
-      chainCount: this.chainCount, fracCount: this.fracCount, retestCount: this.retestCount, fibCount: this.fibCount, top5Count: this.top5Count, res2Count: this.res2Count,
+      chainCount: this.chainCount, fracCount: this.fracCount, retestCount: this.retestCount, pbCount: this.pbCount, fibCount: this.fibCount, top5Count: this.top5Count, res2Count: this.res2Count,
       res2Recent: this.res2Recent.length,
       seenSizes: { chain: this.chainSeen.size, top5: this.top5Seen.size, res2: this.res2Seen.size, fb: this.fbSeen.size, brk: this.brkSeen.size },
       alertsLen: this.alerts.length,

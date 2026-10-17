@@ -22,6 +22,7 @@ import { detectChain, makeChainAlert, scanChains, chainView } from '../src/chain
 import { detectTop5, makeTop5Alert, scanTop5, top5View, isEngulf } from '../src/top5.js';
 import { scanResonance } from '../src/resonance.js';
 import { detectFractalRetest, makeRetestAlert, scanFractalRetests } from '../src/fractalretest.js';
+import { detectPullback, makePullbackAlert, scanPullbacks, pbView } from '../src/pullback.js';
 import { detectFractalAlert, makeFractalAlert, scanFractalAlerts, fracView, checkFracInvalid } from '../src/fractalalert.js';
 import { detectFibPullback, makeFibAlert, scanFib, fibView, fibLevels } from '../src/fib.js';
 import { nextBoundary, groupPeriodMs, BoundaryScheduler, levelPeriodMs } from '../src/boundary.js';
@@ -1833,6 +1834,58 @@ section('20. 底分型即报：最低点那根是底分型中间根 + 第三根�
     const bad3 = checkFracInvalid(s2, s2.t[3], s2.l[3], 1);
     ok('★ 窗口收紧到 1 根：第2根才破的就不再算（窗口可调）', checkFracInvalid(mk(6), mk(6).t[3], mk(6).l[3], 1) === null);
     ok('★ 低点时间对不上序列 → 返回 null（不误判）', checkFracInvalid(s2, 12345, 0.01694, 8) === null);
+  }
+
+  // ★ 用户 2026-10-17：主级别浅回调 + 次级别回踩五笔 + 次级别分型站上
+  {
+    const M = 600_000, S = 180_000;   // 10分 / 3分
+    /** 主级别：最后一根阴线，收盘站在 MA7 上方 */
+    const mkMain = (bullLast) => {
+      const n = 6;
+      const l = [1.00, 1.02, 1.04, 1.06, 1.07, 1.08];
+      const h = l.map(x => x + 0.01);
+      const o = [1.00, 1.02, 1.04, 1.06, 1.075, 1.095];
+      const c = [1.02, 1.04, 1.06, 1.075, 1.095, bullLast ? 1.10 : 1.08];
+      return { key: '10m', ms: M, t: l.map((_, i) => i * M), o, h, l, c,
+        ma7: l.map(() => 1.00), ema7: l.map(() => 1.00), closed: n };
+    };
+    /** 次级别：index 2 死叉，之后回踩；index 7 底分型（最低），index 8 确认，index 9 收盘站上 */
+    const mkSub = () => {
+      const n = 10;
+      const l = [1.09, 1.08, 1.07, 1.06, 1.05, 1.04, 1.03, 1.02, 1.035, 1.05];
+      const h = l.map(x => x + 0.005);
+      const c = l.map((x, i) => (i >= 9 ? 1.06 : x + 0.002));
+      const dif = [-1, 1, 1, -1, -1, -1, -1, -1, -1, -1];   // k=2: +1→-1 = 死叉
+      const dea = new Array(n).fill(0);
+      const pts = [
+        { mi: 2, origIdx: 2, confirmIdx: 3, type: 'top', price: 1.075 },
+        { mi: 5, origIdx: 5, confirmIdx: 6, type: 'bottom', price: 1.045 },
+        { mi: 7, origIdx: 7, confirmIdx: 8, type: 'top', price: 1.04 },
+        { mi: 8, origIdx: 8, confirmIdx: 9, type: 'bottom', price: 1.02 },
+      ];
+      return { key: '3m', ms: S, t: l.map((_, i) => i * S), o: c.slice(), h, l, c,
+        ma7: l.map(() => 1.0), ema7: l.map(() => 1.0),
+        dif: Float64Array.from(dif), dea: Float64Array.from(dea), closed: n, pts };
+    };
+    const hit = detectPullback(mkMain(false), mkSub(), { dir: 'long', minBars: 5, minStrokes: 3, freshBars: 2 });
+    ok('★ 做多结构成立：主级别阴线未破均线 + 次级别死叉回踩≥5根 + ≥3笔 + 底分型站上',
+      !!hit && hit.dir === 'long' && hit.pullBars >= 5 && hit.segStrokes >= 3,
+      hit ? ('回踩' + hit.pullBars + '根 ' + hit.segStrokes + '笔') : 'null');
+    if (hit) {
+      const a = makePullbackAlert('ZUSDT', hit, Date.now(), false);
+      ok('★ 报警 kind=pullback / side=long，文案含「浅回调」「回踩」「分型」「站上」',
+        a.kind === 'pullback' && a.side === 'long'
+        && /浅回调/.test(a.text) && /回踩/.test(a.text) && /分型/.test(a.text) && /站上/.test(a.text));
+    }
+    // 主级别最后一根是阳线 → 做多不成立
+    ok('★ 主级别最后一根不是阴线/十字星 → 做多不成立',
+      detectPullback(mkMain(true), mkSub(), { dir: 'long', minBars: 5, minStrokes: 3, freshBars: 2 }) === null);
+    // 回踩不足 5 根
+    ok('★ 回踩只有 3 根（<5）→ 不成立',
+      detectPullback(mkMain(false), mkSub(), { dir: 'long', minBars: 8, minStrokes: 3, freshBars: 2 }) === null);
+    // 笔数不够
+    ok('★ 回踩段笔数不足（要求 9 笔）→ 不成立',
+      detectPullback(mkMain(false), mkSub(), { dir: 'long', minBars: 5, minStrokes: 9, freshBars: 2 }) === null);
   }
 
   ok('配置默认：底分型即报开启、级别 30分/1时/2时/3时/6时、实时只报当根',

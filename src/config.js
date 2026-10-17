@@ -184,6 +184,21 @@ export const DEFAULT_SIGNAL = {
   fracHigherWinBars: 2,     // 上级别允许在低点前后几根内出现底分型
   fracInnerGraceBars: 2,    // 内部笔允许比分型确认晚几根（笔确认天然滞后）
   fracHigherMap: { '30m': '1h', '1h': '2h', '2h': '3h', '3h': '6h', '6h': null },
+  // ============ 主级别浅回调 + 次级别回踩结构（用户 2026-10-17） ============
+  //   主级别：一根阴线/十字星 且 收盘不跌破均线（做多）；做空镜像
+  //   次级别：MACD 死叉后回踩 ≥5 根、内部够笔、底分型成立且收盘站上
+  pbEnabled: true,
+  pbPairs: [{ main: '10m', sub: '3m' }],   // 主级别 ← 次级别
+  pbDirs: ['long', 'short'],
+  pbMinBars: 5,          // 次级别回踩至少几根
+  pbMinStrokes: 3,       // 回踩段至少几笔
+  pbDojiPct: 0.15,       // 十字星：实体 ≤ 此百分比
+  pbNeedBothMa: false,   // 是否要求同时站上 MA7+EMA7
+  pbFreshBars: 0,        // 实时：分型确认当根报
+  pbInitFreshBars: 2,    // 补载窗口
+  pbChanMinBars: 5,      // 缠论笔最少根数
+  pbFractalType: 'any',
+
   fracInvalidBars: 8,      // 底分型发出后，在这么多根K线内跌破低点 → 标记作废（不合格）
   fracRetestEnabled: true,
   fracRetestBars: 3,          // 允许回踩的根数（3 → 第 3/4/5 根）
