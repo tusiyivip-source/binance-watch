@@ -1505,8 +1505,8 @@ section('16. 三级别结构：主级别回调≥5根 + 次级别 下上下上�
     const second = scanChains('ZUSDT', fake, cfg, seen, Date.now(), true);
     ok('★ 同一个结构只报一次', first.length === 1 && second.length === 0, first.length + '/' + second.length);
   }
-  ok('配置默认：六组独立两级配对',
-    DEFAULT_SIGNAL.chainEnabled === true
+  ok('配置默认：两级五浪已关闭（参数保留）',
+    DEFAULT_SIGNAL.chainEnabled === false
     && JSON.stringify(DEFAULT_SIGNAL.chainTriples) === JSON.stringify([{"main":"15m","sub":"3m"},{"main":"30m","sub":"5m"},{"main":"1h","sub":"10m"},{"main":"2h","sub":"15m"},{"main":"3h","sub":"30m"},{"main":"6h","sub":"1h"}])
     && DEFAULT_SIGNAL.chainMainMinBars === 5 && DEFAULT_SIGNAL.chainInnerMinBars === 5,
     JSON.stringify(DEFAULT_SIGNAL.chainTriples));
@@ -1692,7 +1692,7 @@ section('19. 双确认共振：五浪链 + 顶部结构（同标的同级别、�
     ok('★ 顺序反过来（先确认后报链）也算共振，gap 为 -1', out.length === 1 && out[0].gapBars === -1,
       out.length ? 'gap=' + out[0].gapBars : 'null');
   }
-  ok('配置默认：共振开启、窗口 3 根', DEFAULT_SIGNAL.res2Enabled === true && DEFAULT_SIGNAL.res2WindowBars === 3);
+  ok('配置默认：共振已关闭（依赖 chain/top5，已无输入）、窗口参数保留', DEFAULT_SIGNAL.res2Enabled === false && DEFAULT_SIGNAL.res2WindowBars === 3);
 }
 
 /* ============ 20. 底分型即报 ============ */
@@ -1977,8 +1977,8 @@ section('21. 斐波那契回调：金叉→死叉上涨段 → 回调 ≤50% 有
   }
   ok('★ 只有金叉没有死叉（还没到高点）→ 不报',
     detectFibPullback(build({ pull: 105, pullBars: 6 }), { maxRetrace: 90, freshBars: 20, lookback: 3 }) === null);
-  ok('配置默认：斐波那契开启、多级别（10分/30分/1时/2时/3时/6时）、最大回撤 50%、顶部结构已停用',
-    DEFAULT_SIGNAL.fibEnabled === true && DEFAULT_SIGNAL.fibMaxRetrace === 50
+  ok('配置默认：斐波那契已关闭（参数保留）、多级别、最大回撤 50%、顶部结构已停用',
+    DEFAULT_SIGNAL.fibEnabled === false && DEFAULT_SIGNAL.fibMaxRetrace === 50
     && DEFAULT_SIGNAL.fibLevels.length === 6 && DEFAULT_SIGNAL.fibLevels[0] === '10m'
     && DEFAULT_SIGNAL.top5Enabled === false,
     JSON.stringify(DEFAULT_SIGNAL.fibLevels));
